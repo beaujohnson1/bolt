@@ -15,7 +15,7 @@ const Header = () => {
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
           >
-            EasyFlip<span className="text-blue-600">.ai</span>
+            EasyFlip<span className="text-blue-600">.ai</span> ✨
           </a>
           
           {/* Chat Button */}
