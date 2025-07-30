@@ -14,8 +14,8 @@ const FinalCTA = () => {
           </h2>
           
           <p className="text-xl mb-8 opacity-90 max-w-3xl mx-auto">
-            Every day you wait is money left on the table. Join 10,000+ sellers who've already 
-            transformed their clutter into cash with EasyFlip.
+            Every day you wait is money left on the table. Join others who are ready to 
+            transform their clutter into cash with EasyFlip.
           </p>
           
           {/* Key Benefits */}
