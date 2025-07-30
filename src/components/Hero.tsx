@@ -44,12 +44,6 @@ const Hero = () => {
                 />
               </div>
               
-              {/* Secondary Action */}
-              <div className="mt-6 text-center lg:text-left">
-                <button className="text-blue-600 hover:text-blue-700 font-medium text-lg underline decoration-2 underline-offset-4 hover:decoration-blue-700 transition-colors">
-                  Watch 2-Minute Demo →
-                </button>
-              </div>
             </div>
             
             {/* Social Proof Strip */}

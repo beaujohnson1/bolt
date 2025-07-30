@@ -65,10 +65,7 @@ const FinalCTA = () => {
           </div>
           
           {/* Secondary CTAs */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="border-2 border-white text-white hover:bg-white hover:text-blue-600 font-semibold py-3 px-6 rounded-lg transition-colors">
-              Watch 2-Minute Demo
-            </button>
+          <div className="flex justify-center">
             <button className="border-2 border-white text-white hover:bg-white hover:text-blue-600 font-semibold py-3 px-6 rounded-lg transition-colors">
               See Pricing Plans
             </button>
