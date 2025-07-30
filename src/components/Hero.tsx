@@ -20,22 +20,36 @@ const Hero = () => {
               on eBay, Facebook Marketplace, OfferUp, and Poshmark simultaneously.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 mb-8 justify-center lg:justify-start">
-              <div className="flex-1 space-y-3">
+            {/* Primary CTA */}
+            <div className="mb-8">
+              <div className="max-w-md mx-auto lg:mx-0 space-y-4">
                 <GoogleSignIn 
                   buttonText="Get Early Access with Google"
                   size="lg"
                 />
-                <div className="text-center text-gray-500 text-sm">or</div>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-3 bg-gradient-to-br from-blue-50 to-indigo-100 text-gray-500">or continue with email</span>
+                  </div>
+                </div>
+                
                 <EmailCapture 
-                  buttonText="Get Early Access - Free"
-                  placeholder="Enter email for early access"
+                  buttonText="Get Early Access"
+                  placeholder="Enter your email address"
                   size="lg"
                 />
               </div>
-              <button className="border-2 border-gray-300 hover:border-blue-600 text-gray-700 hover:text-blue-600 font-semibold py-4 px-8 rounded-xl text-lg transition-all duration-300">
-                Watch Demo (2 min)
-              </button>
+              
+              {/* Secondary Action */}
+              <div className="mt-6 text-center lg:text-left">
+                <button className="text-blue-600 hover:text-blue-700 font-medium text-lg underline decoration-2 underline-offset-4 hover:decoration-blue-700 transition-colors">
+                  Watch 2-Minute Demo →
+                </button>
+              </div>
             </div>
             
             {/* Social Proof Strip */}
