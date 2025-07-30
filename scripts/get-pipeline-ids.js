@@ -8,12 +8,13 @@ async function getPipelineIds() {
   try {
     console.log('🔍 Fetching your GoHighLevel pipelines...\n');
     
-    const response = await fetch(`${process.env.GHL_API_URL}/pipelines`, {
+    const response = await fetch(`${process.env.GHL_API_URL}/opportunities/pipelines`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
         'Content-Type': 'application/json',
-        'Version': '2021-07-28'
+        'Version': '2021-07-28',
+        'Accept': 'application/json'
       }
     });
 
@@ -22,6 +23,7 @@ async function getPipelineIds() {
     }
 
     const data = await response.json();
+    console.log('Raw API Response:', JSON.stringify(data, null, 2));
     
     console.log('📋 Your Pipelines:');
     console.log('==================');
