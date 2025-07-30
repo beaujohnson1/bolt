@@ -24,7 +24,7 @@ const Hero = () => {
             <div className="mb-8">
               <div className="max-w-md mx-auto lg:mx-0 space-y-4">
                 <GoogleSignIn 
-                  buttonText="Get Early Access with Google"
+                  buttonText="Join Waitlist with Google"
                   size="lg"
                 />
                 
@@ -38,7 +38,7 @@ const Hero = () => {
                 </div>
                 
                 <EmailCapture 
-                  buttonText="Get Early Access"
+                  buttonText="Join the Waitlist"
                   placeholder="Enter your email address"
                   size="lg"
                 />

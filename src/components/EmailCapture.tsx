@@ -10,7 +10,7 @@ interface EmailCaptureProps {
 
 const EmailCapture: React.FC<EmailCaptureProps> = ({
   placeholder = "Enter your email address",
-  buttonText = "Get Early Access",
+  buttonText = "Join the Waitlist",
   className = "",
   size = 'md'
 }) => {

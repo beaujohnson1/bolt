@@ -162,7 +162,7 @@ const PricingCalculator = () => {
                   </p>
                   
                   <EmailCapture 
-                    buttonText="Get Early Access"
+                    buttonText="Join the Waitlist"
                     placeholder="Enter your email"
                   />
                 </div>
