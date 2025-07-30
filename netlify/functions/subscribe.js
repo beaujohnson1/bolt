@@ -62,17 +62,19 @@ exports.handler = async (event, context) => {
       lastName: lastName || name?.split(' ')[1] || '',
       phone: '', // Optional - can be added later
       tags: [
-        'landing-page-signup', 
-        'easyflip-prospect',
+        'easyflip-landing-page', 
+        'early-access-signup',
         source === 'google_signin' ? 'google-signup' : 'email-signup'
       ],
       customFields: {
         source: source || 'landing_page',
         signup_date: timestamp || new Date().toISOString(),
-        page_url: page_url || 'https://easyflip.ai',
+        page_url: page_url || 'https://easyflip-landing.netlify.app',
         google_id: googleId || '',
         profile_picture: picture || '',
-        full_name: name || `${firstName || ''} ${lastName || ''}`.trim()
+        full_name: name || `${firstName || ''} ${lastName || ''}`.trim(),
+        lead_source: 'EasyFlip Landing Page',
+        interest_level: 'High - Early Access Request'
       }
     };
 
@@ -85,11 +87,12 @@ exports.handler = async (event, context) => {
     console.log('Sending to GoHighLevel:', { email, source, timestamp });
 
     // Send to GoHighLevel API
-    const ghlResponse = await fetch(`${process.env.GHL_API_URL}/contacts/`, {
+    const ghlResponse = await fetch(`${process.env.GHL_API_URL}/contacts`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
         'Content-Type': 'application/json',
+        'Version': '2021-07-28'
       },
       body: JSON.stringify(contactData),
     });
