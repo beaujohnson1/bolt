@@ -17,7 +17,7 @@ const Hero = () => {
             
             <p className="text-xl text-gray-600 mb-8 leading-relaxed">
               Stop wasting 3+ hours per item. One photo automatically creates optimized listings
-              on eBay, Facebook Marketplace, and OfferUp simultaneously.
+              on eBay, Facebook Marketplace, OfferUp, and Poshmark simultaneously.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 mb-8 justify-center lg:justify-start">
