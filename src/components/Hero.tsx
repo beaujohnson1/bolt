@@ -53,14 +53,27 @@ const Hero = () => {
             </div>
             
             {/* Social Proof Strip */}
-            <div className="flex items-center justify-center lg:justify-start space-x-6 text-sm text-gray-600">
-              <div className="flex items-center space-x-2">
-                <div className="flex -space-x-2">
-                  <div className="w-8 h-8 bg-blue-500 rounded-full border-2 border-white"></div>
-                  <div className="w-8 h-8 bg-green-500 rounded-full border-2 border-white"></div>
-                  <div className="w-8 h-8 bg-purple-500 rounded-full border-2 border-white"></div>
+            <div className="space-y-4">
+              {/* Waitlist Counter */}
+              <div className="text-center lg:text-left">
+                <div className="inline-flex items-center bg-white/80 backdrop-blur rounded-full px-4 py-2 shadow-sm border border-gray-200">
+                  <div className="flex -space-x-1 mr-3">
+                    <div className="w-6 h-6 bg-blue-500 rounded-full border-2 border-white"></div>
+                    <div className="w-6 h-6 bg-green-500 rounded-full border-2 border-white"></div>
+                    <div className="w-6 h-6 bg-purple-500 rounded-full border-2 border-white"></div>
+                    <div className="w-6 h-6 bg-orange-500 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold text-white">
+                      +
+                    </div>
+                  </div>
+                  <span className="text-gray-700 font-medium">
+                    Join <span className="text-blue-600 font-bold">247</span> people on the waitlist
+                  </span>
                 </div>
-                <span className="font-medium">Be among the first to know when we launch</span>
+              </div>
+              
+              {/* Trust Indicator */}
+              <div className="flex items-center space-x-2">
+                <span className="text-gray-600 text-center lg:text-left">Be among the first to know when we launch</span>
               </div>
             </div>
           </div>
