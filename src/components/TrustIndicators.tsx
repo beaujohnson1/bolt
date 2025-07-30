@@ -31,15 +31,6 @@ const TrustIndicators = () => {
             <div className="text-gray-600">The waitlist for early access</div>
           </div>
         </div>
-        
-        {/* Testimonial Quote */}
-        <div className="mt-12 text-center max-w-4xl mx-auto">
-          <blockquote className="text-xl text-gray-700 font-medium italic">
-            "I sold my kids' outgrown clothes in minutes instead of spending my entire weekend. 
-            Made $180 in the first week with EasyFlip!"
-          </blockquote>
-          <cite className="text-gray-600 mt-3 block">— Sarah M., Mom of 3, Austin TX</cite>
-        </div>
       </div>
     </section>
   );
