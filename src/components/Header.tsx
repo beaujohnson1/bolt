@@ -20,7 +20,7 @@ const Header = () => {
           
           {/* Chat Button */}
           <a
-            href="mailto:support@easyflip.ai?subject=Let's Chat - EasyFlip Inquiry"
+            href="mailto:beau@beaujohnson.org?subject=Let's Chat - EasyFlip Inquiry"
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center space-x-2"
           >
             <Mail className="w-4 h-4" />
