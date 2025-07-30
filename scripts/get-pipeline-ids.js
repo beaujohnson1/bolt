@@ -1,8 +1,8 @@
 // Helper script to get GoHighLevel Pipeline and Stage IDs
 // Run this with: node scripts/get-pipeline-ids.js
 
-const fetch = require('node:fetch');
-require('dotenv').config();
+import dotenv from 'dotenv';
+dotenv.config();
 
 async function getPipelineIds() {
   try {
