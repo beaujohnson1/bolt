@@ -60,7 +60,7 @@ const Hero = () => {
                   <div className="w-8 h-8 bg-green-500 rounded-full border-2 border-white"></div>
                   <div className="w-8 h-8 bg-purple-500 rounded-full border-2 border-white"></div>
                 </div>
-                <span className="font-medium">2,847+ sellers already earning</span>
+                <span className="font-medium">Be among the first to know when we launch</span>
               </div>
             </div>
           </div>

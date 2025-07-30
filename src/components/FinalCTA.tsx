@@ -83,19 +83,11 @@ const FinalCTA = () => {
                   <div className="w-10 h-10 bg-white rounded-full border-2 border-blue-600"></div>
                   <div className="w-10 h-10 bg-white rounded-full border-2 border-blue-600"></div>
                 </div>
-                <span className="text-blue-100">10,000+ active sellers</span>
+                <span className="text-blue-100">Join the waitlist today</span>
               </div>
               
-              <div className="text-blue-100">•</div>
-              
               <div className="text-blue-100">
-                ⭐⭐⭐⭐⭐ 4.9/5 rating (1,200+ reviews)
-              </div>
-              
-              <div className="text-blue-100">•</div>
-              
-              <div className="text-blue-100">
-                $2.3M+ earned by our users
+                Be first to know when EasyFlip launches
               </div>
             </div>
           </div>
