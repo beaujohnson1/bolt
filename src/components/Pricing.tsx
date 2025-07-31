@@ -1,6 +1,6 @@
 import React from 'react';
 import { Check, Zap } from 'lucide-react';
-import { useScrollTracking, trackButtonClick } from '../hooks/useScrollTracking';
+import { useScrollTracking } from '../hooks/useScrollTracking';
 import { trackButtonClick } from '../utils/analytics';
 
 const Pricing = () => {
@@ -170,5 +170,7 @@ const Pricing = () => {
 
 export default Pricing;
 
+  )
+}
   )
 }
