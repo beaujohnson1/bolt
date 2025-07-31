@@ -54,7 +54,6 @@ const Pricing = () => {
               </div>
             </div>
             
-            <button className="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold py-4 px-6 rounded-xl text-lg transition-colors">
             <button 
               onClick={() => trackButtonClick('Start Free Trial', 'monthly_plan')}
               className="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold py-4 px-6 rounded-xl text-lg transition-colors"
@@ -112,7 +111,6 @@ const Pricing = () => {
               </div>
             </div>
             
-            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-xl text-lg transition-colors">
             <button 
               onClick={() => trackButtonClick('Start Selling Now', 'commission_plan')}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-xl text-lg transition-colors"

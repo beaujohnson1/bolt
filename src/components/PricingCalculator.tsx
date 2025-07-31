@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Camera, DollarSign, TrendingUp, Zap } from 'lucide-react';
 import EmailCapture from './EmailCapture';
-import { useScrollTracking, trackButtonClick } from '../hooks/useScrollTracking';
+import { useScrollTracking } from '../hooks/useScrollTracking';
 import { trackButtonClick } from '../utils/analytics';
 
 const PricingCalculator = () => {
