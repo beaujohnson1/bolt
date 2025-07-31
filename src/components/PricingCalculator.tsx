@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { Camera, DollarSign, TrendingUp, Zap } from 'lucide-react';
 import EmailCapture from './EmailCapture';
+import { useScrollTracking, trackButtonClick } from '../hooks/useScrollTracking';
+import { trackButtonClick } from '../utils/analytics';
 
 const PricingCalculator = () => {
+  const calculatorRef = useScrollTracking('pricing_calculator');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [condition, setCondition] = useState('');
   const [brand, setBrand] = useState('');
@@ -18,6 +21,7 @@ const PricingCalculator = () => {
 
   const calculatePrice = () => {
     if (selectedCategory && condition) {
+      trackButtonClick('Get Price Estimate', 'pricing_calculator');
       setShowResults(true);
     }
   };
@@ -44,7 +48,7 @@ const PricingCalculator = () => {
   };
 
   return (
-    <section className="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
+    <section ref={calculatorRef} className="bg-gradient-to-br from-blue-50 to-indigo-100 py-20">
       <div className="container mx-auto px-6">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">

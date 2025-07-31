@@ -1,9 +1,13 @@
 import React from 'react';
 import { Check, Zap } from 'lucide-react';
+import { useScrollTracking, trackButtonClick } from '../hooks/useScrollTracking';
+import { trackButtonClick } from '../utils/analytics';
 
 const Pricing = () => {
+  const pricingRef = useScrollTracking('pricing_section');
+  
   return (
-    <section className="bg-white py-20">
+    <section ref={pricingRef} className="bg-white py-20">
       <div className="container mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold text-gray-900 mb-6">
@@ -51,6 +55,10 @@ const Pricing = () => {
             </div>
             
             <button className="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold py-4 px-6 rounded-xl text-lg transition-colors">
+            <button 
+              onClick={() => trackButtonClick('Start Free Trial', 'monthly_plan')}
+              className="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold py-4 px-6 rounded-xl text-lg transition-colors"
+            >
               Start Free Trial
             </button>
             
@@ -105,6 +113,10 @@ const Pricing = () => {
             </div>
             
             <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-xl text-lg transition-colors">
+            <button 
+              onClick={() => trackButtonClick('Start Selling Now', 'commission_plan')}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-xl text-lg transition-colors"
+            >
               Start Selling Now
             </button>
             

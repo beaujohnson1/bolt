@@ -1,7 +1,10 @@
 import React from 'react';
 import { Brain, Target, MessageSquare, BarChart3, Shield, Smartphone } from 'lucide-react';
+import { useScrollTracking } from '../hooks/useScrollTracking';
 
 const Features = () => {
+  const featuresRef = useScrollTracking('features_section');
+  
   const features = [
     {
       icon: Brain,
@@ -54,7 +57,7 @@ const Features = () => {
   };
 
   return (
-    <section className="bg-white py-20">
+    <section ref={featuresRef} className="bg-white py-20">
       <div className="container mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold text-gray-900 mb-6">

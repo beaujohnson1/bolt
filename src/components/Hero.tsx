@@ -2,10 +2,13 @@ import React from 'react';
 import { Camera, Clock, DollarSign } from 'lucide-react';
 import EmailCapture from './EmailCapture';
 import GoogleSignIn from './GoogleSignIn';
+import { useScrollTracking } from '../hooks/useScrollTracking';
 
 const Hero = () => {
+  const heroRef = useScrollTracking('hero_section');
+  
   return (
-    <section className="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center pt-20">
+    <section ref={heroRef} className="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center pt-20">
       <div className="container mx-auto px-6 py-20">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           {/* Left Content */}

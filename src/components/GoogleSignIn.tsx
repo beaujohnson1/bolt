@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Mail, CheckCircle, AlertCircle } from 'lucide-react';
+import { trackConversion, trackButtonClick } from '../utils/analytics';
 
 interface GoogleSignInProps {
   buttonText?: string;
@@ -73,19 +74,8 @@ const GoogleSignIn: React.FC<GoogleSignInProps> = ({
         setStatus('success');
         setMessage('Welcome! You\'re all set for early access.');
         
-        // Track conversion
-        if (typeof gtag !== 'undefined') {
-          gtag('event', 'sign_up', {
-            method: 'Google',
-            value: 1.0,
-            currency: 'USD'
-          });
-        }
-        
-        // Facebook Pixel
-        if (typeof fbq !== 'undefined') {
-          fbq('track', 'CompleteRegistration');
-        }
+        // Track successful conversion
+        trackConversion(userData.email, 'google_signin');
 
         // Call success callback
         if (onSuccess) {
@@ -102,6 +92,9 @@ const GoogleSignIn: React.FC<GoogleSignInProps> = ({
   };
 
   const handleGoogleSignIn = () => {
+    // Track the signin attempt
+    trackButtonClick(buttonText, 'google_signin_button');
+    
     if (window.google) {
       window.google.accounts.id.prompt();
     }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, CheckCircle, AlertCircle } from 'lucide-react';
+import { trackConversion, trackButtonClick } from '../utils/analytics';
 
 interface EmailCaptureProps {
   placeholder?: string;
@@ -20,6 +21,9 @@ const EmailCapture: React.FC<EmailCaptureProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Track the signup attempt
+    trackButtonClick(buttonText, 'email_capture_form');
     
     if (!email || !email.includes('@')) {
       setStatus('error');
@@ -47,21 +51,12 @@ const EmailCapture: React.FC<EmailCaptureProps> = ({
       if (response.ok) {
         setStatus('success');
         setMessage('Success! Check your email for next steps.');
+        
+        // Track successful conversion
+        trackConversion(email, 'email_form');
+        
         setEmail('');
         
-        // Track conversion event
-        if (typeof gtag !== 'undefined') {
-          gtag('event', 'conversion', {
-            send_to: 'AW-CONVERSION_ID/CONVERSION_LABEL',
-            value: 1.0,
-            currency: 'USD'
-          });
-        }
-        
-        // Facebook Pixel tracking
-        if (typeof fbq !== 'undefined') {
-          fbq('track', 'Lead');
-        }
       } else {
         throw new Error('Subscription failed');
       }
