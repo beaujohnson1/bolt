@@ -8,7 +8,7 @@ declare global {
 // Track page views
 export const trackPageView = (url: string) => {
   if (typeof window !== 'undefined' && window.gtag) {
-    window.gtag('config', 'YOUR_GA_MEASUREMENT_ID', {
+    window.gtag('config', 'G-ZQ0WFBP8ZY', {
       page_path: url,
     });
   }
@@ -26,7 +26,7 @@ export const trackConversion = (email: string, source: string) => {
   if (typeof window !== 'undefined' && window.gtag) {
     // Track as conversion event
     window.gtag('event', 'conversion', {
-      send_to: 'YOUR_GA_MEASUREMENT_ID',
+      send_to: 'G-ZQ0WFBP8ZY',
       event_category: 'engagement',
       event_label: source,
       value: 1
