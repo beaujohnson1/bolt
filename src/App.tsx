@@ -1,33 +1,44 @@
 import React from 'react';
-import Header from './components/Header';
-import Hero from './components/Hero';
-import TrustIndicators from './components/TrustIndicators';
-import ProblemSection from './components/ProblemSection';
-import PricingCalculator from './components/PricingCalculator';
-import SolutionSection from './components/SolutionSection';
-import HowItWorks from './components/HowItWorks';
-import Features from './components/Features';
-import Pricing from './components/Pricing';
-import FAQ from './components/FAQ';
-import FinalCTA from './components/FinalCTA';
-import Footer from './components/Footer';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import LandingPage from './pages/LandingPage';
+import AppDashboard from './pages/AppDashboard';
+import PhotoCapture from './pages/PhotoCapture';
+import ItemDetails from './pages/ItemDetails';
+import ListingPreview from './pages/ListingPreview';
+import AuthProvider from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
-    <div className="min-h-screen">
-      <Header />
-      <Hero />
-      <TrustIndicators />
-      <ProblemSection />
-      <PricingCalculator />
-      <SolutionSection />
-      <HowItWorks />
-      <Features />
-      <Pricing />
-      <FAQ />
-      <FinalCTA />
-      <Footer />
-    </div>
+    <AuthProvider>
+      <Router>
+        <div className="min-h-screen bg-gray-50">
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/app" element={
+              <ProtectedRoute>
+                <AppDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/capture" element={
+              <ProtectedRoute>
+                <PhotoCapture />
+              </ProtectedRoute>
+            } />
+            <Route path="/details/:itemId" element={
+              <ProtectedRoute>
+                <ItemDetails />
+              </ProtectedRoute>
+            } />
+            <Route path="/preview/:itemId" element={
+              <ProtectedRoute>
+                <ListingPreview />
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 
