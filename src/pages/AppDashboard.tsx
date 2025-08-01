@@ -449,7 +449,15 @@ const AppDashboard = () => {
 
         {activeTab === 'sales' && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-900">Sales & Shipping</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">eBay Sales & Shipping</h2>
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                  <span className="text-yellow-600 font-bold">eB</span>
+                </div>
+                <span>Powered by eBay Managed Shipping</span>
+              </div>
+            </div>
 
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
               <div className="overflow-x-auto">
@@ -510,16 +518,16 @@ const AppDashboard = () => {
                           {sale.shippingStatus === 'pending' && (
                             <button
                               onClick={() => handlePrintLabel(sale.id)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs flex items-center space-x-1"
+                              className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs flex items-center space-x-1"
                             >
                               <Printer className="w-3 h-3" />
-                              <span>Print Label</span>
+                              <span>Print eBay Label</span>
                             </button>
                           )}
                           {sale.shippingStatus === 'label_printed' && (
                             <div className="flex space-x-2">
                               <button className="text-blue-600 hover:text-blue-900 text-xs">
-                                Mark Shipped
+                                Mark Shipped in eBay
                               </button>
                             </div>
                           )}
@@ -539,9 +547,9 @@ const AppDashboard = () => {
             {sales.length === 0 && (
               <div className="text-center py-12">
                 <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No sales yet</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No eBay sales yet</h3>
                 <p className="text-gray-600 mb-6">
-                  Once you make your first sale, you'll be able to manage shipping and tracking here.
+                  Once you make your first eBay sale, you'll be able to print labels and track shipments here.
                 </p>
                 <Link
                   to="/capture"

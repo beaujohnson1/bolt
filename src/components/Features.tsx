@@ -92,41 +92,34 @@ const Features = () => {
         <div className="mt-20 bg-gradient-to-r from-blue-50 to-indigo-50 p-8 rounded-2xl max-w-4xl mx-auto">
           <div className="text-center">
             <h3 className="text-2xl font-bold text-gray-900 mb-4">
-              The Power of Cross-Platform Selling
+              Starting with eBay - The World's Marketplace
             </h3>
             <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-              Why settle for one marketplace when you can reach them all? Our users see 3x more views 
-              and sell 40% faster by posting to multiple platforms simultaneously.
+              eBay's 182 million active buyers worldwide, plus built-in payment processing, 
+              shipping labels, and buyer protection. Perfect for your MVP launch.
             </p>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="text-center">
-                <div className="w-16 h-16 bg-red-500 rounded-xl mx-auto mb-3 flex items-center justify-center text-white font-bold text-lg">
+                <div className="w-16 h-16 bg-yellow-500 rounded-xl mx-auto mb-3 flex items-center justify-center text-white font-bold text-lg">
                   eB
                 </div>
                 <div className="text-sm font-medium">eBay</div>
-                <div className="text-xs text-gray-600">Global reach</div>
-              </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-blue-600 rounded-xl mx-auto mb-3 flex items-center justify-center text-white font-bold text-lg">
-                  f
-                </div>
-                <div className="text-sm font-medium">Facebook</div>
-                <div className="text-xs text-gray-600">Local buyers</div>
+                <div className="text-xs text-gray-600">182M active buyers</div>
               </div>
               <div className="text-center">
                 <div className="w-16 h-16 bg-green-500 rounded-xl mx-auto mb-3 flex items-center justify-center text-white font-bold text-lg">
-                  O
+                  💳
                 </div>
-                <div className="text-sm font-medium">OfferUp</div>
-                <div className="text-xs text-gray-600">Quick sales</div>
+                <div className="text-sm font-medium">Built-in Payments</div>
+                <div className="text-xs text-gray-600">Secure processing</div>
               </div>
               <div className="text-center">
-                <div className="w-16 h-16 bg-purple-500 rounded-xl mx-auto mb-3 flex items-center justify-center text-white font-bold text-lg">
-                  +
+                <div className="w-16 h-16 bg-blue-500 rounded-xl mx-auto mb-3 flex items-center justify-center text-white font-bold text-lg">
+                  📦
                 </div>
-                <div className="text-sm font-medium">More Soon</div>
-                <div className="text-xs text-gray-600">Growing daily</div>
+                <div className="text-sm font-medium">Managed Shipping</div>
+                <div className="text-xs text-gray-600">Labels & tracking</div>
               </div>
             </div>
           </div>

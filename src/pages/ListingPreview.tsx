@@ -37,15 +37,8 @@ const ListingPreview = () => {
       id: 'ebay',
       name: 'eBay',
       logo: '🛒',
-      description: 'Global marketplace with auction and buy-it-now options',
+      description: 'Global marketplace with built-in shipping & payment processing',
       color: 'bg-yellow-50 border-yellow-200'
-    },
-    {
-      id: 'facebook',
-      name: 'Facebook Marketplace',
-      logo: '📘',
-      description: 'Local buyers in your area',
-      color: 'bg-blue-50 border-blue-200'
     }
   ];
 
