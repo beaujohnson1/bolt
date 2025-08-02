@@ -31,6 +31,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session:', session?.user?.email);
       setAuthUser(session?.user ?? null);
       if (session?.user) {
         fetchUserProfile(session.user.id);
@@ -58,7 +59,6 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('users')
@@ -116,7 +116,6 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   };
 
   const signIn = async (email: string, password: string) => {
-    setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -127,13 +126,10 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string, name: string) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -167,13 +163,10 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('Error signing up:', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const signInWithGoogle = async () => {
-    setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -186,8 +179,6 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('Error signing in with Google:', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
