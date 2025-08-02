@@ -56,9 +56,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('📧 User email:', supabaseUser.email);
           console.log('🖼️ Avatar URL:', supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture);
 
-          const { data: newUser, error: createError } = await supabase
+          const { data: newUser, error: upsertError } = await supabase
             .from('users')
-            .insert([
+            .upsert([
               {
                 id: supabaseUser.id,
                 email: supabaseUser.email || '',
@@ -74,17 +74,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 timezone: 'America/New_York',
                 is_active: true
               }
-            ])
+            ], {
+              onConflict: 'id'
+            })
             .select()
             .single();
 
-          if (createError) {
-            console.error('❌ Error creating user profile:', createError);
+          if (upsertError) {
+            console.error('❌ Error upserting user profile:', upsertError);
             console.error('❌ Error details:', {
-              code: createError.code,
-              message: createError.message,
-              details: createError.details,
-              hint: createError.hint
+              code: upsertError.code,
+              message: upsertError.message,
+              details: upsertError.details,
+              hint: upsertError.hint
             });
             console.error('❌ Data being inserted:', {
               id: supabaseUser.id,
@@ -95,7 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return null;
           }
 
-          console.log('✅ User profile created successfully:', newUser);
+          console.log('✅ User profile upserted successfully:', newUser);
           return newUser;
         } else {
           console.error('❌ Error fetching user profile:', error);
