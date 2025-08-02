@@ -152,14 +152,14 @@ const Header = () => {
       {/* Auth Modal */}
       {showAuthModal && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-[100] p-4 overflow-y-auto pt-20"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowAuthModal(false);
             }
           }}
         >
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 my-8 mx-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 mt-4 mb-8 mx-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">
                 {isSignUp ? 'Create Account' : 'Sign In'}
