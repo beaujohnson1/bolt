@@ -292,7 +292,8 @@ const AppDashboard = () => {
             <div className="grid md:grid-cols-3 gap-6">
               <Link
                 to="/capture"
-                className="bg-blue-600 hover:bg-blue-700 text-white p-6 rounded-xl transition-colors group block"
+                onClick={() => console.log('New Listing button clicked - navigating to /capture')}
+                className="bg-blue-600 hover:bg-blue-700 text-white p-6 rounded-xl transition-colors group"
               >
                 <div className="flex items-center space-x-4">
                   <div className="bg-blue-500 p-3 rounded-lg group-hover:bg-blue-400 transition-colors">
@@ -344,7 +345,8 @@ const AppDashboard = () => {
               <h2 className="text-2xl font-bold text-gray-900">My Listings</h2>
               <Link
                 to="/capture"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 no-underline"
+                onClick={() => console.log('New Listing (top) button clicked')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2"
               >
                 <Plus className="w-4 h-4" />
                 <span>New Listing</span>
@@ -553,7 +555,8 @@ const AppDashboard = () => {
                 </p>
                 <Link
                   to="/capture"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2 no-underline"
+                  onClick={() => console.log('Create Your First Listing button clicked')}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
                 >
                   <Camera className="w-4 h-4" />
                   <span>Create Your First Listing</span>
