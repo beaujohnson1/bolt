@@ -8,6 +8,7 @@ import ListingPreview from './pages/ListingPreview';
 import AuthProvider from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthCallback from './components/AuthCallback';
+import ConnectionTestPage from './pages/ConnectionTestPage';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
                 <ListingPreview />
               </ProtectedRoute>
             } />
+            <Route path="/test-connection" element={<ConnectionTestPage />} />
           </Routes>
         </div>
       </Router>
