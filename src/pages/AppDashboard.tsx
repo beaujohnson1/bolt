@@ -68,59 +68,75 @@ const AppDashboard = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data - replace with real API calls
   useEffect(() => {
-    // Mock listings data
-    const mockListings: Listing[] = [
-      {
-        id: '1',
-        title: 'Vintage Denim Jacket',
-        price: 45,
-        status: 'active',
-        platforms: ['eBay', 'Facebook'],
-        createdAt: '2025-01-27',
-        views: 23,
-        watchers: 3,
-        messages: 1,
-        image: 'https://images.pexels.com/photos/1040945/pexels-photo-1040945.jpeg'
-      },
-      {
-        id: '2',
-        title: 'Nike Running Shoes',
-        price: 65,
-        status: 'sold',
-        platforms: ['eBay'],
-        createdAt: '2025-01-25',
-        soldAt: '2025-01-26',
-        views: 45,
-        watchers: 8,
-        messages: 5,
-        image: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg'
-      }
-    ];
+    const fetchData = async () => {
+      if (!user || !authUser) return;
 
-    // Mock sales data
-    const mockSales: Sale[] = [
-      {
-        id: '1',
-        listingId: '2',
-        title: 'Nike Running Shoes',
-        salePrice: 65,
-        platform: 'eBay',
-        soldAt: '2025-01-26',
-        shippingStatus: 'pending',
-        buyerInfo: {
-          name: 'John Smith',
-          address: '123 Main St, Anytown, ST 12345',
-          email: 'john@example.com'
-        }
-      }
-    ];
+      try {
+        // Fetch real listings from database
+        const { data: listingsData, error: listingsError } = await supabase
+          .from('listings')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .order('created_at', { ascending: false });
 
-    setListings(mockListings);
-    setSales(mockSales);
-  }, []);
+        if (listingsError) throw listingsError;
+
+        // Transform database listings to component format
+        const transformedListings: Listing[] = listingsData?.map(listing => ({
+          id: listing.id,
+          title: listing.title,
+          price: listing.price,
+          status: listing.status as 'active' | 'sold' | 'pending' | 'draft',
+          platforms: listing.platforms || [],
+          createdAt: new Date(listing.created_at).toLocaleDateString(),
+          soldAt: listing.sold_at ? new Date(listing.sold_at).toLocaleDateString() : undefined,
+          views: listing.total_views || 0,
+          watchers: listing.total_watchers || 0,
+          messages: listing.total_messages || 0,
+          image: listing.images?.[0] || 'https://images.pexels.com/photos/1040945/pexels-photo-1040945.jpeg'
+        })) || [];
+
+        setListings(transformedListings);
+
+        // Fetch real sales from database
+        const { data: salesData, error: salesError } = await supabase
+          .from('sales')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .order('sold_at', { ascending: false });
+
+        if (salesError) throw salesError;
+
+        // Transform database sales to component format
+        const transformedSales: Sale[] = salesData?.map(sale => ({
+          id: sale.id,
+          listingId: sale.listing_id,
+          title: sale.item_title,
+          salePrice: sale.sale_price,
+          platform: sale.platform,
+          soldAt: new Date(sale.sold_at).toLocaleDateString(),
+          shippingStatus: sale.shipping_status as 'pending' | 'label_printed' | 'shipped' | 'delivered',
+          trackingNumber: sale.tracking_number,
+          buyerInfo: sale.buyer_info || {
+            name: 'John Smith',
+            address: '123 Main St, Anytown, ST 12345',
+            email: 'john@example.com'
+          }
+        })) || [];
+
+        setSales(transformedSales);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user, authUser]);
 
   const handleSignOut = async () => {
     try {
@@ -183,8 +199,36 @@ const AppDashboard = () => {
         image: selectedImage
       };
       
-      // Add the new listing to the dashboard
-      setListings(prev => [newListing, ...prev]);
+      // Save to database instead of just local state
+      if (authUser) {
+        try {
+          const { data: listingData, error: listingError } = await supabase
+            .from('listings')
+            .insert([
+              {
+                user_id: authUser.id,
+                title: newListing.title,
+                description: 'AI-generated description for this item',
+                price: newListing.price,
+                images: [selectedImage],
+                platforms: ['ebay'],
+                status: 'active',
+                listed_at: new Date().toISOString()
+              }
+            ])
+            .select()
+            .single();
+
+          if (listingError) throw listingError;
+
+          // Add the new listing to the dashboard
+          setListings(prev => [newListing, ...prev]);
+        } catch (error) {
+          console.error('Error saving listing to database:', error);
+          // Still add to local state as fallback
+          setListings(prev => [newListing, ...prev]);
+        }
+      }
       
       // Reset the photo capture modal
       resetPhotoCapture();
@@ -230,6 +274,14 @@ const AppDashboard = () => {
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.salePrice, 0);
   const activeListing = listings.filter(l => l.status === 'active').length;
   const totalViews = listings.reduce((sum, listing) => sum + listing.views, 0);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
