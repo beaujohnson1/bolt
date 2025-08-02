@@ -15,9 +15,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-    console.log('✅ [AUTH] User profile updated successfully:', data);
+export const useAuth = () => {
   const context = useContext(AuthContext);
-    console.error('❌ [AUTH] Error updating user profile:', error);
+  if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
@@ -148,9 +148,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
 
       setUser(data);
-      console.log('✅ User profile updated successfully:', data);
+      console.log('✅ [AUTH] User profile updated successfully:', data);
     } catch (error) {
-      console.error('❌ Error updating user profile:', error);
+      console.error('❌ [AUTH] Error updating user profile:', error);
       throw error;
     }
   };
