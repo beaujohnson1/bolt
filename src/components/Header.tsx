@@ -1,7 +1,7 @@
 import React from 'react';
 import { Mail, LogIn, User, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const Header = () => {
   const { user, authUser, signIn, signUp, signInWithGoogle } = useAuth();
@@ -123,6 +123,13 @@ const Header = () => {
               <Mail className="w-4 h-4" />
               <span>Contact</span>
             </a>
+            
+            <Link
+              to="/test-connection"
+              className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors"
+            >
+              Test Connection
+            </Link>
           </div>
         </div>
       </div>
@@ -240,13 +247,6 @@ const Header = () => {
               >
                 {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
               </button>
-              
-              <Link
-                to="/test-connection"
-                className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors"
-              >
-                Test Connection
-              </Link>
             </div>
           </div>
         </div>
