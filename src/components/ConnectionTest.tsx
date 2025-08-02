@@ -99,7 +99,19 @@ const ConnectionTest = () => {
     // Test 4: Storage Access
     try {
       const { data, error } = await supabase.storage.getBucket('item-images');
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('Bucket not found') || error.message.includes('404')) {
+          setTests(prev => ({
+            ...prev,
+            storage: { 
+              status: 'error', 
+              message: 'Storage bucket "item-images" not found. Please create it in your Supabase dashboard.' 
+            }
+          }));
+          return;
+        }
+        throw error;
+      }
       
       setTests(prev => ({
         ...prev,
@@ -113,7 +125,9 @@ const ConnectionTest = () => {
         ...prev,
         storage: { 
           status: 'error', 
-          message: `Storage error: ${error.message}` 
+          message: error.message.includes('Bucket not found') 
+            ? 'Storage bucket "item-images" not found. Please create it in your Supabase dashboard.'
+            : `Storage error: ${error.message}` 
         }
       }));
     }
