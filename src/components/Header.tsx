@@ -159,7 +159,7 @@ const Header = () => {
             }
           }}
         >
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 mt-4 mb-8 mx-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 my-4 mx-auto max-h-[calc(100vh-6rem)] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">
                 {isSignUp ? 'Create Account' : 'Sign In'}
@@ -174,7 +174,7 @@ const Header = () => {
             
             {/* Error Message */}
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-red-700 text-sm">{error}</p>
               </div>
             )}
@@ -183,7 +183,7 @@ const Header = () => {
             <button
               onClick={handleGoogleSignIn}
               disabled={authLoading}
-              className="w-full bg-white hover:bg-gray-50 disabled:bg-gray-100 border-2 border-gray-300 hover:border-blue-400 disabled:border-gray-200 text-gray-700 disabled:text-gray-400 font-semibold py-4 px-6 rounded-lg transition-all duration-300 flex items-center justify-center space-x-3 mb-6 min-h-[56px]"
+              className="w-full bg-white hover:bg-gray-50 disabled:bg-gray-100 border-2 border-gray-300 hover:border-blue-400 disabled:border-gray-200 text-gray-700 disabled:text-gray-400 font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-3 mb-4"
             >
               {authLoading ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-600"></div>
@@ -195,10 +195,10 @@ const Header = () => {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
               )}
-              <span className="text-base font-medium">{authLoading ? 'Signing in...' : 'Continue with Google'}</span>
+              <span className="font-medium">{authLoading ? 'Signing in...' : 'Continue with Google'}</span>
             </button>
             
-            <div className="relative mb-4">
+            <div className="relative mb-3">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300"></div>
               </div>
@@ -208,14 +208,14 @@ const Header = () => {
             </div>
             
             {/* Email/Password Form */}
-            <form onSubmit={handleEmailAuth} className="space-y-4">
+            <form onSubmit={handleEmailAuth} className="space-y-3">
               {isSignUp && (
                 <input
                   type="text"
                   placeholder="Full Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
               )}
@@ -225,7 +225,7 @@ const Header = () => {
                 placeholder="Email Address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
               
@@ -234,7 +234,7 @@ const Header = () => {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
                 minLength={6}
               />
@@ -242,7 +242,7 @@ const Header = () => {
               <button
                 type="submit"
                 disabled={authLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors min-h-[48px]"
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
               >
                 {authLoading ? (
                   <div className="flex items-center justify-center space-x-2">
