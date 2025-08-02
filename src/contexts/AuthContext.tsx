@@ -62,6 +62,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const fetchUserProfile = async (userId: string) => {
     console.log('Fetching user profile for:', userId);
     try {
+      console.log('About to query users table for userId:', userId);
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -71,10 +72,13 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       console.log('User profile fetch result:', { data, error });
 
       if (error) {
+        console.log('Error details:', error.code, error.message);
         // If user doesn't exist in our users table, create them
         if (error.code === 'PGRST116') {
           console.log('User not found in database, creating new user...');
+          console.log('Getting auth user data...');
           const authUser = await supabase.auth.getUser();
+          console.log('Auth user data:', authUser.data.user?.email);
           if (authUser.data.user) {
             const newUserData = {
               id: authUser.data.user.id,
@@ -89,6 +93,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
             };
             console.log('Creating user with data:', newUserData);
             
+            console.log('About to insert new user into database...');
             const { error: insertError } = await supabase
               .from('users')
               .insert([newUserData]);
@@ -96,6 +101,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
             console.log('User creation result:', { insertError });
             
             if (!insertError) {
+              console.log('User created successfully, fetching new user...');
               // Fetch the newly created user
               const { data: newUser } = await supabase
                 .from('users')
