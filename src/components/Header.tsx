@@ -55,8 +55,10 @@ const Header = () => {
       if (isSignUp) {
         const { error } = await signUp(email, password, name);
         if (error) throw error;
+        if (error) throw error;
       } else {
         const { error } = await signIn(email, password);
+        if (error) throw error;
         if (error) throw error;
         // Don't show success message, let the auth flow handle navigation
       }
@@ -70,6 +72,15 @@ const Header = () => {
 
   const handleDashboard = () => {
     navigate('/app');
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const handleSignOut = async () => {
@@ -111,6 +122,14 @@ const Header = () => {
                 >
                   <User className="w-4 h-4" />
                   <span>Dashboard</span>
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
                 </button>
                 <button
                   onClick={handleSignOut}
