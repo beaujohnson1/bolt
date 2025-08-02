@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const Header = () => {
-  const { user, authUser, signIn, signUp, signInWithGoogle, loading } = useAuth();
+  const { user, authUser, signIn, signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = React.useState(false);
   const [isSignUp, setIsSignUp] = React.useState(false);
@@ -103,14 +103,6 @@ const Header = () => {
               >
                 <User className="w-4 h-4" />
                 <span>Dashboard</span>
-              </button>
-            ) : loading ? (
-              <button
-                disabled
-                className="bg-gray-400 text-white font-semibold py-3 px-6 rounded-full flex items-center space-x-2"
-              >
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>Loading...</span>
               </button>
             ) : (
               <button
