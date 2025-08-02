@@ -107,27 +107,6 @@ const PhotoCapture = () => {
 
       if (listingError) throw listingError;
 
-      // Create a listing for this item
-      const { data: listingData, error: listingError } = await supabase
-        .from('listings')
-        .insert([
-          {
-            item_id: itemData.id,
-            user_id: authUser.id,
-            title: itemData.title,
-            description: itemData.description || '',
-            price: itemData.suggested_price,
-            images: [publicUrl],
-            platforms: ['ebay'],
-            status: 'active',
-            listed_at: new Date().toISOString()
-          }
-        ])
-        .select()
-        .single();
-
-      if (listingError) throw listingError;
-
       // Update user's listing count
       await updateUser({ listings_used: user.listings_used + 1 });
 
