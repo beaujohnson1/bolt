@@ -1,11 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = 'https://kstmyodjnckgoosidsbb.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzdG15b2RqbmNrZ29vc2lkc2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQxMDM5MTMsImV4cCI6MjA2OTY3OTkxM30.5OsVbf1uCWZnkH5tgVL6ZJAoLvJIyEJzdscyR_g2k0Y';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
+// Note: Using hardcoded values for now since .env was exposed
+// In production, you'd want to use environment variables again
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
