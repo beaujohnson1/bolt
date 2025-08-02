@@ -98,29 +98,27 @@ const ConnectionTest = () => {
 
     // Test 4: Storage Access
     try {
-      const { data, error } = await supabase.storage.getBucket('item-images');
+      const { data, error } = await supabase.storage.listBuckets();
       if (error) throw error;
+      
+      const itemImagesBucket = data?.find(bucket => bucket.name === 'item-images');
+      if (!itemImagesBucket) {
+        throw new Error('item-images bucket not found in bucket list');
+      }
       
       setTests(prev => ({
         ...prev,
         storage: { 
           status: 'success', 
-          message: 'Storage bucket accessible' 
+          message: `Storage bucket "item-images" found and accessible` 
         }
       }));
     } catch (error) {
-      const errorMessage = error.message || '';
-      const isNotFound = errorMessage.includes('Bucket not found') || 
-                        errorMessage.includes('404') ||
-                        error.status === 400;
-      
       setTests(prev => ({
         ...prev,
         storage: { 
           status: 'error', 
-          message: isNotFound
-            ? 'Storage bucket "item-images" not found. Please create it in your Supabase dashboard.'
-            : `Storage error: ${error.message}` 
+          message: `Storage error: ${error.message}` 
         }
       }));
     }
