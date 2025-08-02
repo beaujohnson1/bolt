@@ -5,60 +5,51 @@ import { useAuth } from '../contexts/AuthContext';
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const { user, authUser, loading } = useAuth();
-  const [processing, setProcessing] = React.useState(false);
-  const [hasProcessed, setHasProcessed] = React.useState(false);
+  const [urlProcessed, setUrlProcessed] = React.useState(false);
 
   useEffect(() => {
-    // Check if there are auth tokens or errors in the URL hash
+    // Process URL hash only once
+    if (urlProcessed) return;
+    
+    console.log('🔗 AuthCallback: Processing URL hash...');
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
     const accessToken = hashParams.get('access_token');
     const error = hashParams.get('error');
     const errorDescription = hashParams.get('error_description');
     
+    // Clear the hash from URL immediately
+    window.history.replaceState(null, '', window.location.pathname);
+    setUrlProcessed(true);
+    
     // If there's an error in the URL, clear it and redirect to home
     if (error) {
-      console.log('Auth error in URL:', error, errorDescription);
-      window.history.replaceState(null, '', window.location.pathname);
+      console.log('❌ Auth error in URL:', error, errorDescription);
       navigate('/');
       return;
     }
     
-    // If there are auth tokens, let Supabase handle them automatically
-    if (accessToken && !hasProcessed) {
-      setProcessing(true);
-      setHasProcessed(true);
-      
-      // Clear the hash from URL
-      window.history.replaceState(null, '', window.location.pathname);
-      
-      // Give the auth context time to process the tokens
-      const timer = setTimeout(() => {
-        if (authUser) {
-          navigate('/app');
-        } else {
-          // If still no user after 3 seconds, redirect to home
-          navigate('/');
-        }
-        setProcessing(false);
-      }, 3000);
-      
-      return () => clearTimeout(timer);
+    // If there are auth tokens, log and let Supabase handle them
+    if (accessToken) {
+      console.log('🔑 Auth tokens found in URL, letting Supabase process...');
+    } else {
+      console.log('ℹ️ No auth tokens in URL, redirecting to home');
+      navigate('/');
     }
-  }, [navigate, authUser, hasProcessed]);
+  }, [navigate, urlProcessed]);
   
-  // If user is already authenticated, redirect immediately
+  // Monitor authentication state and navigate when ready
   useEffect(() => {
-    if (user && authUser && !loading && !processing) {
+    if (!loading && user && authUser) {
+      console.log('✅ AuthCallback: User authenticated and profile loaded, navigating to dashboard');
       navigate('/app');
+    } else if (!loading && !user && !authUser) {
+      console.log('❌ AuthCallback: No user found after loading, redirecting to home');
+      navigate('/');
     }
-  }, [user, authUser, loading, processing, navigate]);
+  }, [user, authUser, loading, navigate]);
   
-  // Only show loading if we're actually processing or if there are tokens in URL
-  const hashParams = new URLSearchParams(window.location.hash.substring(1));
-  const hasTokens = hashParams.get('access_token');
-  const shouldShowLoading = (loading && hasTokens) || processing;
-  
-  if (!shouldShowLoading) {
+  // Show loading while authentication is being processed
+  if (!loading && (!user || !authUser)) {
     return null;
   }
 
@@ -67,7 +58,7 @@ const AuthCallback: React.FC = () => {
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          {processing ? 'Confirming your email...' : 'Loading your account...'}
+          Setting up your account...
         </h2>
         <p className="text-gray-600">
           Please wait while we set up your account.
