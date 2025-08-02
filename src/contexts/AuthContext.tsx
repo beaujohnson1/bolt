@@ -62,61 +62,25 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const fetchUserProfile = async (userId: string) => {
     console.log('Fetching user profile for:', userId);
     try {
-      console.log('About to query users table for userId:', userId);
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      console.log('User profile fetch result:', { data, error });
-
-      if (error) {
-        console.log('Error details:', error.code, error.message);
-        // If user doesn't exist in our users table, create them
-        if (error.code === 'PGRST116') {
-          console.log('User not found in database, creating new user...');
-          console.log('Getting auth user data...');
-          const authUser = await supabase.auth.getUser();
-          console.log('Auth user data:', authUser.data.user?.email);
-          if (authUser.data.user) {
-            const newUserData = {
-              id: authUser.data.user.id,
-              email: authUser.data.user.email!,
-              name: authUser.data.user.user_metadata?.full_name || authUser.data.user.email!.split('@')[0],
-              subscription_plan: 'free',
-              subscription_status: 'active',
-              listings_used: 0,
-              listings_limit: 5,
-              monthly_revenue: 0,
-              total_sales: 0,
-            };
-            console.log('Creating user with data:', newUserData);
-            
-            console.log('About to insert new user into database...');
-            const { data: createdUser, error: insertError } = await supabase
-              .from('users')
-              .insert([newUserData])
-              .select()
-              .single();
-            console.log('User creation result:', { insertError });
-            
-            if (!insertError && createdUser) {
-              console.log('User created successfully, fetching new user...');
-              setUser(createdUser);
-              console.log('User state updated with new user');
-            } else {
-              console.error('Failed to create user:', insertError);
-            }
-          }
-        } else {
-          console.error('Error fetching user profile:', error);
-        }
-      }
-
-      if (data) {
-        console.log('Setting user state with existing user:', data);
-        setUser(data);
+      // For now, skip the database user profile and just create a mock user from auth data
+      const authUser = await supabase.auth.getUser();
+      if (authUser.data.user) {
+        const mockUser: SupabaseUser = {
+          id: authUser.data.user.id,
+          email: authUser.data.user.email!,
+          name: authUser.data.user.user_metadata?.full_name || authUser.data.user.email!.split('@')[0],
+          avatar_url: authUser.data.user.user_metadata?.avatar_url,
+          subscription_plan: 'free',
+          subscription_status: 'active',
+          listings_used: 0,
+          listings_limit: 5,
+          monthly_revenue: 0,
+          total_sales: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        console.log('Setting mock user state:', mockUser);
+        setUser(mockUser);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
