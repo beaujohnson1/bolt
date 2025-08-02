@@ -27,9 +27,7 @@ const Header = () => {
 
   // Close modal and navigate when user is authenticated
   React.useEffect(() => {
-    if (user && authUser && showAuthModal) {
       setShowAuthModal(false);
-      navigate('/app');
     }
   }, [user, authUser, showAuthModal, navigate]);
 
@@ -55,10 +53,8 @@ const Header = () => {
     try {
       if (isSignUp) {
         await signUp(email, password, name);
-        // Don't show success message, let the auth flow handle navigation
       } else {
-        await signIn(email, password);
-      }
+        // Don't show success message, let the auth flow handle navigation
     } catch (error: any) {
       console.error('Auth failed:', error);
       setError(error.message || 'Authentication failed. Please try again.');
@@ -71,7 +67,6 @@ const Header = () => {
     navigate('/app');
   };
 
-  const handleSignInClick = () => {
     setShowAuthModal(true);
   };
   
