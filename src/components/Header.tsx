@@ -47,6 +47,7 @@ const Header = () => {
       console.error('Login failed:', error);
       setError('Google sign-in failed. Please try email/password instead.');
       setAuthLoading(false);
+    }
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -88,6 +89,7 @@ const Header = () => {
     
     return () => clearTimeout(timer);
   }, [loading]);
+  
   return (
     <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-50">
       <div className="container mx-auto px-6 py-4">
