@@ -72,7 +72,6 @@ const AuthCallback: React.FC = () => {
         <p className="text-gray-600">
           Please wait while we set up your account.
         </p>
-      }
       </div>
     </div>
   );
