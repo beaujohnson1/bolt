@@ -58,25 +58,64 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   }, []);
   const fetchUserProfile = async (userId: string) => {
     try {
-      const authUser = await supabase.auth.getUser();
-      if (authUser.data.user) {
-        const mockUser: SupabaseUser = {
-          id: authUser.data.user.id,
-          email: authUser.data.user.email!,
-          name: authUser.data.user.user_metadata?.full_name || authUser.data.user.email!.split('@')[0],
-          avatar_url: authUser.data.user.user_metadata?.avatar_url,
-          subscription_plan: 'free',
-          subscription_status: 'active',
-          listings_used: 0,
-          listings_limit: 5,
-          monthly_revenue: 0,
-          total_sales: 0,
-          created_at: new Date().toISOString(),
-        };
-        setUser(mockUser);
+      // Try to fetch user profile from database
+      const { data: userProfile, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        // Check if it's a session/auth error
+        if (error.message?.includes('session_not_found') || error.code === 'PGRST301') {
+          console.log('Session invalid, signing out...');
+          await signOut();
+          return;
+        }
+        
+        // If user doesn't exist in database, create a profile
+        if (error.code === 'PGRST116') {
+          const { data: authUser } = await supabase.auth.getUser();
+          if (authUser.user) {
+            const newUser: Omit<SupabaseUser, 'id'> = {
+              email: authUser.user.email!,
+              name: authUser.user.user_metadata?.full_name || authUser.user.email!.split('@')[0],
+              avatar_url: authUser.user.user_metadata?.avatar_url,
+              subscription_plan: 'free',
+              subscription_status: 'active',
+              listings_used: 0,
+              listings_limit: 5,
+              monthly_revenue: 0,
+              total_sales: 0,
+              created_at: new Date().toISOString(),
+            };
+
+            const { data: createdUser, error: createError } = await supabase
+              .from('users')
+              .insert([{ id: authUser.user.id, ...newUser }])
+              .select()
+              .single();
+
+            if (createError) {
+              console.error('Error creating user profile:', createError);
+              await signOut();
+              return;
+            }
+
+            setUser(createdUser);
+          }
+        } else {
+          console.error('Error fetching user profile:', error);
+          await signOut();
+          return;
+        }
+      } else {
+        setUser(userProfile);
       }
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('Unexpected error in fetchUserProfile:', error);
+      // If there's any unexpected error, sign out to clear invalid session
+      await signOut();
     } finally {
       setLoading(false);
     }
