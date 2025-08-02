@@ -166,8 +166,8 @@ const AppDashboard = () => {
       // Simulate AI processing
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // For now, create a mock item and navigate to details
-      const mockItemId = `item_${Date.now()}`;
+      // Generate a proper UUID for the mock item
+      const mockItemId = crypto.randomUUID();
       const mockItem = {
         id: mockItemId,
         image: selectedImage,
@@ -185,8 +185,28 @@ const AppDashboard = () => {
       // Store in localStorage for now (since database isn't working)
       localStorage.setItem(`item_${mockItemId}`, JSON.stringify(mockItem));
 
-      // Navigate to item details
-      navigate(`/details/${mockItemId}`);
+      // Reset the photo capture modal
+      resetPhotoCapture();
+      
+      // Show success message and add to listings
+      alert('Item analyzed successfully! Your listing has been created.');
+      
+      // Add the new listing to the local state
+      const newListing: Listing = {
+        id: mockItemId,
+        title: mockItem.title,
+        price: mockItem.suggestedPrice,
+        status: 'active',
+        platforms: ['eBay'],
+        createdAt: new Date().toLocaleDateString(),
+        views: 0,
+        watchers: 0,
+        messages: 0,
+        image: mockItem.image
+      };
+      
+      setListings(prev => [newListing, ...prev]);
+      
     } catch (error) {
       console.error('Error processing image:', error);
       alert('Failed to process image. Please try again.');
