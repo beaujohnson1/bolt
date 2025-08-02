@@ -7,12 +7,14 @@ import ItemDetails from './pages/ItemDetails';
 import ListingPreview from './pages/ListingPreview';
 import AuthProvider from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import AuthCallback from './components/AuthCallback';
 
 function App() {
   return (
     <AuthProvider>
       <Router>
         <div className="min-h-screen bg-gray-50">
+          <AuthCallback />
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/app" element={
