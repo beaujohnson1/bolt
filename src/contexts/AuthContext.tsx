@@ -31,7 +31,6 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session:', session?.user?.email);
       setAuthUser(session?.user ?? null);
       if (session?.user) {
         fetchUserProfile(session.user.id);
@@ -42,9 +41,8 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     });
 
     // Listen for auth changes
-    supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.email);
         setAuthUser(session?.user ?? null);
         if (session?.user) {
           fetchUserProfile(session.user.id);
@@ -55,8 +53,15 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       }
     );
 
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
   const fetchUserProfile = async (userId: string) => {
+    console.log('🔍 Fetching user profile for:', userId);
+    setLoading(true);
+    
     try {
       // Try to fetch user profile from database
       const { data: userProfile, error } = await supabase
@@ -66,10 +71,204 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         .single();
 
       if (error) {
-        // Check if it's a session/auth error
-        if (error.message?.includes('session_not_found') || error.code === 'PGRST301') {
-          console.log('Session invalid, signing out...');
-          await signOut();
+        console.log('❌ Error fetching user profile:', error.code, error.message);
+        
+        // Only sign out for actual auth errors, not temporary session issues
+        if (error.code === 'PGRST301' && error.message?.includes('JWT')) {
+          console.log('🔄 JWT expired, attempting to refresh session...');
+          const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+          
+          if (refreshError || !session) {
+            console.log('❌ Session refresh failed, signing out...');
+            await signOut();
+            return;
+          }
+          
+          // Retry fetching profile with refreshed session
+          return fetchUserProfile(userId);
+        }
+        
+        // If user doesn't exist in database, create a profile
+        if (error.code === 'PGRST116') {
+          console.log('👤 User profile not found, creating new profile...');
+          const { data: authUser } = await supabase.auth.getUser();
+          
+          if (!authUser.user) {
+            console.log('❌ No authenticated user found');
+            await signOut();
+            return;
+          }
+
+          const newUser: Omit<SupabaseUser, 'id'> = {
+            email: authUser.user.email!,
+            name: authUser.user.user_metadata?.full_name || 
+                  authUser.user.user_metadata?.name || 
+                  authUser.user.email!.split('@')[0],
+            avatar_url: authUser.user.user_metadata?.avatar_url,
+            subscription_plan: 'free',
+            subscription_status: 'active',
+            listings_used: 0,
+            listings_limit: 5,
+            monthly_revenue: 0,
+            total_sales: 0,
+            created_at: new Date().toISOString(),
+          };
+
+          const { data: createdUser, error: createError } = await supabase
+            .from('users')
+            .insert([{ id: authUser.user.id, ...newUser }])
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('❌ Error creating user profile:', createError);
+            // Don't sign out immediately, might be a temporary issue
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+
+          console.log('✅ User profile created successfully');
+          setUser(createdUser);
+        } else {
+          console.error('❌ Unexpected error fetching user profile:', error);
+          // For other errors, don't sign out but set user to null
+          setUser(null);
+        }
+      } else {
+        console.log('✅ User profile found');
+        setUser(userProfile);
+      }
+    } catch (error) {
+      console.error('❌ Unexpected error in fetchUserProfile:', error);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signIn = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error signing in:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signUp = async (email: string, password: string, name: string) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+            name: name
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      // Don't create profile here - let the auth state change handler do it
+      // This prevents race conditions
+    } catch (error) {
+      console.error('Error signing up:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error signing in with Google:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error signing out:', error);
+        throw error;
+      }
+      
+      // Clear local state
+      setUser(null);
+      setAuthUser(null);
+    } catch (error) {
+      console.error('Error in signOut:', error);
+      // Even if signOut fails, clear local state
+      setUser(null);
+      setAuthUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateUser = async (updates: Partial<SupabaseUser>) => {
+    if (user && authUser) {
+      try {
+        const { error } = await supabase
+          .from('users')
+          .update(updates)
+          .eq('id', authUser.id);
+
+        if (error) throw error;
+
+        // Update local state
+        setUser({ ...user, ...updates });
+      } catch (error) {
+        console.error('Error updating user:', error);
+        throw error;
+      }
+    }
+  };
+
+  const value = {
+    user,
+    authUser,
+    loading,
+    signIn,
+    signUp,
+    signInWithGoogle,
+    signOut,
+    updateUser
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export default AuthProvider;
           return;
         }
         
