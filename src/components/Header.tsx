@@ -240,6 +240,13 @@ const Header = () => {
               >
                 {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
               </button>
+              
+              <Link
+                to="/test-connection"
+                className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors"
+              >
+                Test Connection
+              </Link>
             </div>
           </div>
         </div>
