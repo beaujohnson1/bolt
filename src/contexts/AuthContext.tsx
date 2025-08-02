@@ -47,7 +47,8 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         console.log('Auth state change:', event, session?.user?.email);
         setAuthUser(session?.user ?? null);
         if (session?.user) {
-          await fetchUserProfile(session.user.id);
+          console.log('Calling fetchUserProfile for user:', session.user.id);
+          fetchUserProfile(session.user.id);
         } else {
           setUser(null);
           setLoading(false);
