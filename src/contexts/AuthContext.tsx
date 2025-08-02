@@ -31,6 +31,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchUserProfile = async (supabaseUser: User): Promise<AppUser | null> => {
     try {
       console.log('🔍 Fetching user profile for:', supabaseUser.id);
+      console.log('📋 User metadata:', supabaseUser.user_metadata);
+      console.log('📧 User email:', supabaseUser.email);
       
       const { data, error } = await supabase
         .from('users')
@@ -48,6 +50,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             supabaseUser.user_metadata?.name || 
             supabaseUser.email?.split('@')[0] || 
             'User';
+
+          console.log('📝 Creating user profile with name:', userName);
+          console.log('🆔 User ID:', supabaseUser.id);
+          console.log('📧 User email:', supabaseUser.email);
+          console.log('🖼️ Avatar URL:', supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture);
 
           const { data: newUser, error: createError } = await supabase
             .from('users')
@@ -73,6 +80,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (createError) {
             console.error('❌ Error creating user profile:', createError);
+            console.error('❌ Error details:', {
+              code: createError.code,
+              message: createError.message,
+              details: createError.details,
+              hint: createError.hint
+            });
+            console.error('❌ Data being inserted:', {
+              id: supabaseUser.id,
+              email: supabaseUser.email,
+              name: userName,
+              avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null
+            });
             return null;
           }
 
@@ -80,6 +99,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return newUser;
         } else {
           console.error('❌ Error fetching user profile:', error);
+          console.error('❌ Fetch error details:', {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
           return null;
         }
       }
@@ -88,6 +113,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return data;
     } catch (error) {
       console.error('❌ Unexpected error in fetchUserProfile:', error);
+      console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'No stack trace available');
+      console.error('❌ User data that caused error:', {
+        id: supabaseUser.id,
+        email: supabaseUser.email,
+        metadata: supabaseUser.user_metadata
+      });
       return null;
     }
   };
