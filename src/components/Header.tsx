@@ -88,6 +88,7 @@ const Header = () => {
   };
   
   return (
+    <>
     <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-50">
       <div className="container mx-auto px-6 py-4">
         <div className="flex justify-between items-center">
@@ -148,18 +149,19 @@ const Header = () => {
           </div>
         </div>
       </div>
-      
+    </header>
+    
       {/* Auth Modal */}
       {showAuthModal && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4 overflow-y-auto"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowAuthModal(false);
             }
           }}
         >
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 my-8 mx-auto max-h-[calc(100vh-6rem)] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">
                 {isSignUp ? 'Create Account' : 'Sign In'}
@@ -266,7 +268,7 @@ const Header = () => {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 };
 
