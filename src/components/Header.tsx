@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Header = () => {
-  const { user, authUser, signIn, signUp, signInWithGoogle } = useAuth();
+  const { user, authUser, signIn, signUp, signInWithGoogle, signOut } = useAuth();
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = React.useState(false);
   const [isSignUp, setIsSignUp] = React.useState(false);
@@ -53,9 +53,11 @@ const Header = () => {
     
     try {
       if (isSignUp) {
-        await signUp(email, password, name);
+        const { error } = await signUp(email, password, name);
+        if (error) throw error;
       } else {
-        await signIn(email, password);
+        const { error } = await signIn(email, password);
+        if (error) throw error;
         // Don't show success message, let the auth flow handle navigation
       }
     } catch (error: any) {
@@ -68,6 +70,15 @@ const Header = () => {
 
   const handleDashboard = () => {
     navigate('/app');
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const handleSignInClick = () => {
@@ -93,13 +104,21 @@ const Header = () => {
           {/* Auth Buttons */}
           <div className="flex items-center space-x-4">
             {user && authUser ? (
-              <button
-                onClick={handleDashboard}
-                className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center space-x-2"
-              >
-                <User className="w-4 h-4" />
-                <span>Dashboard</span>
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={handleDashboard}
+                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center space-x-2"
+                >
+                  <User className="w-4 h-4" />
+                  <span>Dashboard</span>
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
             ) : (
               <button
                 onClick={handleSignInClick}

@@ -1,21 +1,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
-
-interface AuthUser {
-  id: string;
-  email: string;
-  created_at: string;
-  updated_at: string;
-}
+import { supabase, type User as AppUser } from '../lib/supabase';
 
 interface AuthContextType {
-  user: User | null;
-  authUser: AuthUser | null;
+  user: AppUser | null;
+  authUser: User | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  updateUser: (updates: Partial<AppUser>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,32 +24,48 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [authUser, setAuthUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId: string): Promise<AuthUser | null> => {
+  const fetchUserProfile = async (supabaseUser: User): Promise<AppUser | null> => {
     try {
-      console.log('🔍 Fetching user profile for:', userId);
+      console.log('🔍 Fetching user profile for:', supabaseUser.id);
       
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .eq('id', userId)
+        .eq('id', supabaseUser.id)
         .single();
 
       if (error) {
         if (error.code === 'PGRST116') {
           console.log('👤 User profile not found, creating new profile...');
           
+          // Extract name from user metadata or email
+          const userName = 
+            supabaseUser.user_metadata?.full_name || 
+            supabaseUser.user_metadata?.name || 
+            supabaseUser.email?.split('@')[0] || 
+            'User';
+
           const { data: newUser, error: createError } = await supabase
             .from('users')
             .insert([
               {
-                id: userId,
-                email: user?.email || '',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
+                id: supabaseUser.id,
+                email: supabaseUser.email || '',
+                name: userName,
+                avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
+                subscription_plan: 'free',
+                subscription_status: 'active',
+                listings_used: 0,
+                listings_limit: 5,
+                monthly_revenue: 0,
+                total_sales: 0,
+                notification_preferences: { email: true, push: true },
+                timezone: 'America/New_York',
+                is_active: true
               }
             ])
             .select()
@@ -78,6 +89,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('❌ Unexpected error in fetchUserProfile:', error);
       return null;
+    }
+  };
+
+  const updateUser = async (updates: Partial<AppUser>) => {
+    if (!authUser) {
+      throw new Error('No authenticated user');
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', authUser.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setUser(data);
+      console.log('✅ User profile updated successfully:', data);
+    } catch (error) {
+      console.error('❌ Error updating user profile:', error);
+      throw error;
     }
   };
 
@@ -105,9 +142,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
             if (refreshData.session) {
               console.log('✅ Session refreshed successfully');
-              setUser(refreshData.session.user);
-              const profile = await fetchUserProfile(refreshData.session.user.id);
-              setAuthUser(profile);
+              setAuthUser(refreshData.session.user);
+              const profile = await fetchUserProfile(refreshData.session.user);
+              setUser(profile);
             }
           }
           setLoading(false);
@@ -116,9 +153,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (session) {
           console.log('📱 Initial session found:', session.user.email);
-          setUser(session.user);
-          const profile = await fetchUserProfile(session.user.id);
-          setAuthUser(profile);
+          setAuthUser(session.user);
+          const profile = await fetchUserProfile(session.user);
+          setUser(profile);
         } else {
           console.log('ℹ️ No initial session found');
         }
@@ -138,9 +175,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('🔄 Auth state change:', event, session?.user?.email);
         
         if (session) {
-          setUser(session.user);
-          const profile = await fetchUserProfile(session.user.id);
-          setAuthUser(profile);
+          setAuthUser(session.user);
+          const profile = await fetchUserProfile(session.user);
+          setUser(profile);
         } else {
           setUser(null);
           setAuthUser(null);
@@ -153,13 +190,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, name: string) => {
     try {
       console.log('📝 Attempting to sign up:', email);
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          data: {
+            full_name: name,
+            name: name
+          },
           emailRedirectTo: `${window.location.origin}/auth/callback`
         }
       });
@@ -198,6 +239,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      console.log('🔑 Attempting to sign in with Google');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+      
+      if (error) {
+        console.error('❌ Google sign in error:', error);
+      } else {
+        console.log('✅ Google sign in initiated');
+      }
+      
+      return { error };
+    } catch (error) {
+      console.error('❌ Unexpected Google sign in error:', error);
+      return { error };
+    }
+  };
+
   const signOut = async () => {
     try {
       console.log('👋 Signing out...');
@@ -216,7 +280,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     signUp,
     signIn,
-    signOut
+    signInWithGoogle,
+    signOut,
+    updateUser
   };
 
   return (
