@@ -99,13 +99,10 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
               .insert([newUserData])
               .select()
               .single();
-            
             console.log('User creation result:', { insertError });
             
             if (!insertError && createdUser) {
               console.log('User created successfully, fetching new user...');
-              console.log('Newly created user:', createdUser);
-              
               setUser(createdUser);
               console.log('User state updated with new user');
             } else {
