@@ -14,11 +14,6 @@ const Header = () => {
   const [authLoading, setAuthLoading] = React.useState(false);
   const [error, setError] = React.useState('');
 
-  // Debug logging
-  React.useEffect(() => {
-    console.log('Header state:', { user: !!user, authUser: !!authUser, loading });
-  }, [user, authUser, loading]);
-
   // Reset form when modal opens/closes
   React.useEffect(() => {
     if (showAuthModal) {
@@ -39,13 +34,15 @@ const Header = () => {
   }, [user, authUser, showAuthModal, navigate]);
 
   const handleGoogleSignIn = async () => {
+    if (authLoading) return;
     setError('');
+    setAuthLoading(true);
     try {
-      setAuthLoading(true);
       await signInWithGoogle();
     } catch (error) {
       console.error('Login failed:', error);
       setError('Google sign-in failed. Please try email/password instead.');
+    } finally {
       setAuthLoading(false);
     }
   };
@@ -76,19 +73,10 @@ const Header = () => {
     navigate('/app');
   };
 
-  // Show loading only for a reasonable time
-  const [showLoading, setShowLoading] = React.useState(true);
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowLoading(false);
-    }, 3000); // Stop showing loading after 3 seconds max
-    
-    if (!loading) {
-      setShowLoading(false);
-    }
-    
-    return () => clearTimeout(timer);
-  }, [loading]);
+  const handleSignInClick = () => {
+    console.log('Sign in button clicked');
+    setShowAuthModal(true);
+  };
   
   return (
     <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-50">
@@ -117,6 +105,7 @@ const Header = () => {
                 <span>Dashboard</span>
               </button>
             ) : showLoading && loading ? (
+            ) : loading ? (
               <button
                 disabled
                 className="bg-gray-400 text-white font-semibold py-3 px-6 rounded-full flex items-center space-x-2"
@@ -126,7 +115,7 @@ const Header = () => {
               </button>
             ) : (
               <button
-                onClick={() => setShowAuthModal(true)}
+                onClick={handleSignInClick}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center space-x-2"
               >
                 <LogIn className="w-4 h-4" />
@@ -147,7 +136,14 @@ const Header = () => {
       
       {/* Auth Modal */}
       {showAuthModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAuthModal(false);
+            }
+          }}
+        >
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">
@@ -172,7 +168,7 @@ const Header = () => {
             <button
               onClick={handleGoogleSignIn}
               disabled={authLoading}
-              className="w-full bg-white hover:bg-gray-50 border-2 border-gray-300 hover:border-blue-400 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-3 mb-4"
+              className="w-full bg-white hover:bg-gray-50 disabled:bg-gray-100 border-2 border-gray-300 hover:border-blue-400 disabled:border-gray-200 text-gray-700 disabled:text-gray-400 font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center space-x-3 mb-4"
             >
               {authLoading ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-600"></div>
