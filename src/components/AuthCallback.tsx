@@ -48,7 +48,6 @@ const AuthCallback: React.FC = () => {
     };
 
     handleAuthCallback();
-    }
   }, [navigate, user]);
 
   // Show loading while processing
