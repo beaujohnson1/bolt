@@ -14,6 +14,11 @@ const Header = () => {
   const [authLoading, setAuthLoading] = React.useState(false);
   const [error, setError] = React.useState('');
 
+  // Debug logging
+  React.useEffect(() => {
+    console.log('Header state:', { user: !!user, authUser: !!authUser, loading });
+  }, [user, authUser, loading]);
+
   // Reset form when modal opens/closes
   React.useEffect(() => {
     if (showAuthModal) {
@@ -41,9 +46,7 @@ const Header = () => {
     } catch (error) {
       console.error('Login failed:', error);
       setError('Google sign-in failed. Please try email/password instead.');
-    } finally {
       setAuthLoading(false);
-    }
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -72,6 +75,19 @@ const Header = () => {
     navigate('/app');
   };
 
+  // Show loading only for a reasonable time
+  const [showLoading, setShowLoading] = React.useState(true);
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowLoading(false);
+    }, 3000); // Stop showing loading after 3 seconds max
+    
+    if (!loading) {
+      setShowLoading(false);
+    }
+    
+    return () => clearTimeout(timer);
+  }, [loading]);
   return (
     <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-50">
       <div className="container mx-auto px-6 py-4">
@@ -98,18 +114,21 @@ const Header = () => {
                 <User className="w-4 h-4" />
                 <span>Dashboard</span>
               </button>
+            ) : showLoading && loading ? (
+              <button
+                disabled
+                className="bg-gray-400 text-white font-semibold py-3 px-6 rounded-full flex items-center space-x-2"
+              >
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Loading...</span>
+              </button>
             ) : (
               <button
                 onClick={() => setShowAuthModal(true)}
-                disabled={loading}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 text-white font-semibold py-3 px-6 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center space-x-2"
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center space-x-2"
               >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                ) : (
-                  <LogIn className="w-4 h-4" />
-                )}
-                <span>{loading ? 'Loading...' : 'Sign In'}</span>
+                <LogIn className="w-4 h-4" />
+                <span>Sign In</span>
               </button>
             )}
             

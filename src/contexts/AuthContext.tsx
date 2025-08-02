@@ -35,6 +35,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       if (session?.user) {
         fetchUserProfile(session.user.id);
       } else {
+        setUser(null);
         setLoading(false);
       }
     });
@@ -42,6 +43,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.email);
         setAuthUser(session?.user ?? null);
         if (session?.user) {
           await fetchUserProfile(session.user.id);
@@ -56,6 +58,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('users')
@@ -64,11 +67,47 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         .single();
 
       if (error) {
-        console.error('Error fetching user profile:', error);
-        return;
+        // If user doesn't exist in our users table, create them
+        if (error.code === 'PGRST116') {
+          const authUser = await supabase.auth.getUser();
+          if (authUser.data.user) {
+            const { error: insertError } = await supabase
+              .from('users')
+              .insert([
+                {
+                  id: authUser.data.user.id,
+                  email: authUser.data.user.email!,
+                  name: authUser.data.user.user_metadata?.full_name || authUser.data.user.email!.split('@')[0],
+                  subscription_plan: 'free',
+                  subscription_status: 'active',
+                  listings_used: 0,
+                  listings_limit: 5,
+                  monthly_revenue: 0,
+                  total_sales: 0,
+                },
+              ]);
+            
+            if (!insertError) {
+              // Fetch the newly created user
+              const { data: newUser } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', authUser.data.user.id)
+                .single();
+              
+              if (newUser) {
+                setUser(newUser);
+              }
+            }
+          }
+        } else {
+          console.error('Error fetching user profile:', error);
+        }
       }
 
-      setUser(data);
+      if (data) {
+        setUser(data);
+      }
     } catch (error) {
       console.error('Error fetching user profile:', error);
     } finally {
