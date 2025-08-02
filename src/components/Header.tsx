@@ -104,7 +104,6 @@ const Header = () => {
                 <User className="w-4 h-4" />
                 <span>Dashboard</span>
               </button>
-            ) : showLoading && loading ? (
             ) : loading ? (
               <button
                 disabled
