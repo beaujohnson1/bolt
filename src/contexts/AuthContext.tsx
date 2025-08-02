@@ -94,25 +94,21 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
             console.log('Creating user with data:', newUserData);
             
             console.log('About to insert new user into database...');
-            const { error: insertError } = await supabase
-              .from('users')
-              .insert([newUserData]);
+            const { data: createdUser, error: insertError } = await supabase
+              .rpc('create_user_profile', {
+                user_id: authUser.data.user.id,
+                user_email: authUser.data.user.email!,
+                user_name: authUser.data.user.user_metadata?.full_name || authUser.data.user.email!.split('@')[0]
+              });
             
             console.log('User creation result:', { insertError });
             
             if (!insertError) {
               console.log('User created successfully, fetching new user...');
-              // Fetch the newly created user
-              const { data: newUser } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', authUser.data.user.id)
-                .single();
+              console.log('Newly created user:', createdUser);
               
-              console.log('Newly created user fetched:', newUser);
-              
-              if (newUser) {
-                setUser(newUser);
+              if (createdUser) {
+                setUser(createdUser);
                 console.log('User state updated with new user');
               }
             } else {
