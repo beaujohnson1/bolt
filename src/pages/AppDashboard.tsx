@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import { 
   Camera, 
   Plus, 
@@ -15,9 +16,12 @@ import {
   MessageSquare,
   Clock,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  X,
+  Zap
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 interface Listing {
   id: string;
@@ -56,9 +60,14 @@ interface Sale {
 
 const AppDashboard = () => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'overview' | 'listings' | 'sales' | 'analytics'>('overview');
   const [listings, setListings] = useState<Listing[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [showPhotoCapture, setShowPhotoCapture] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Mock data - replace with real API calls
   useEffect(() => {
@@ -129,6 +138,68 @@ const AppDashboard = () => {
         ? { ...sale, shippingStatus: 'label_printed' as const }
         : sale
     ));
+  };
+
+  const handleNewListing = () => {
+    console.log('New Listing button clicked');
+    setShowPhotoCapture(true);
+  };
+
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setSelectedImage(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleProcessImage = async () => {
+    if (!selectedImage || !selectedFile || !user) return;
+
+    setIsProcessing(true);
+
+    try {
+      // Simulate AI processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // For now, create a mock item and navigate to details
+      const mockItemId = `item_${Date.now()}`;
+      const mockItem = {
+        id: mockItemId,
+        image: selectedImage,
+        title: 'Vintage Denim Jacket',
+        category: 'Clothing',
+        condition: 'Good',
+        suggestedPrice: 45,
+        priceRange: { min: 35, max: 55 },
+        description: 'Classic vintage denim jacket in good condition. Perfect for casual wear or layering.',
+        brand: 'Levi\'s',
+        size: 'Medium',
+        confidence: 87
+      };
+
+      // Store in localStorage for now (since database isn't working)
+      localStorage.setItem(`item_${mockItemId}`, JSON.stringify(mockItem));
+
+      // Navigate to item details
+      navigate(`/details/${mockItemId}`);
+    } catch (error) {
+      console.error('Error processing image:', error);
+      alert('Failed to process image. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const resetPhotoCapture = () => {
+    setShowPhotoCapture(false);
+    setSelectedImage(null);
+    setSelectedFile(null);
+    setIsProcessing(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -290,10 +361,9 @@ const AppDashboard = () => {
 
             {/* Quick Actions */}
             <div className="grid md:grid-cols-3 gap-6">
-              <Link
-                to="/capture"
-                onClick={() => console.log('New Listing button clicked - navigating to /capture')}
-                className="bg-blue-600 hover:bg-blue-700 text-white p-6 rounded-xl transition-colors group"
+              <button
+                onClick={handleNewListing}
+                className="bg-blue-600 hover:bg-blue-700 text-white p-6 rounded-xl transition-colors group text-left w-full"
               >
                 <div className="flex items-center space-x-4">
                   <div className="bg-blue-500 p-3 rounded-lg group-hover:bg-blue-400 transition-colors">
@@ -304,7 +374,7 @@ const AppDashboard = () => {
                     <p className="text-blue-100">Snap a photo to get started</p>
                   </div>
                 </div>
-              </Link>
+              </button>
 
               <button
                 onClick={() => setActiveTab('sales')}
@@ -339,14 +409,120 @@ const AppDashboard = () => {
           </div>
         )}
 
+        {/* Photo Capture Modal */}
+        {showPhotoCapture && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Create New Listing</h2>
+                <button
+                  onClick={resetPhotoCapture}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {!selectedImage ? (
+                <div className="text-center">
+                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 hover:border-blue-400 transition-colors">
+                    <Camera className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      Add Your Photo
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      Take a clear photo of your item or upload from your device
+                    </p>
+                    
+                    <div className="space-y-4">
+                      <label className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2 cursor-pointer">
+                        <Upload className="w-4 h-4" />
+                        <span>Upload Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageSelect}
+                          className="hidden"
+                        />
+                      </label>
+                      
+                      <div className="text-sm text-gray-500">
+                        Supports JPG, PNG up to 10MB
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-center mb-6">
+                    <img
+                      src={selectedImage}
+                      alt="Selected item"
+                      className="max-w-full h-64 object-contain mx-auto rounded-lg"
+                    />
+                  </div>
+
+                  <div className="flex justify-center space-x-4">
+                    <button
+                      onClick={() => setSelectedImage(null)}
+                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      Choose Different Photo
+                    </button>
+                    
+                    <button
+                      onClick={handleProcessImage}
+                      disabled={isProcessing}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <span>Processing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4" />
+                          <span>Analyze Item</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {isProcessing && (
+                    <div className="mt-6 text-center">
+                      <div className="text-sm text-gray-600">
+                        Our AI is analyzing your item...
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        This usually takes 2-3 seconds
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tips */}
+              <div className="mt-8 bg-blue-50 rounded-xl p-6">
+                <h3 className="font-semibold text-gray-900 mb-3">📸 Photo Tips for Best Results</h3>
+                <ul className="text-sm text-gray-600 space-y-2">
+                  <li>• Use good lighting - natural light works best</li>
+                  <li>• Show the entire item in the frame</li>
+                  <li>• Include any brand labels or tags if visible</li>
+                  <li>• Take photos from multiple angles if needed</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'listings' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-900">My Listings</h2>
               <Link
                 to="/capture"
-                onClick={() => console.log('New Listing (top) button clicked')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 no-underline"
               >
                 <Plus className="w-4 h-4" />
                 <span>New Listing</span>
@@ -555,7 +731,6 @@ const AppDashboard = () => {
                 </p>
                 <Link
                   to="/capture"
-                  onClick={() => console.log('Create Your First Listing button clicked')}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
                 >
                   <Camera className="w-4 h-4" />
