@@ -42,6 +42,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     });
 
     // Listen for auth changes
+    supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state change:', event, session?.user?.email);
         setAuthUser(session?.user ?? null);
@@ -76,6 +77,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
+    } finally {
       setLoading(false);
     }
   };
