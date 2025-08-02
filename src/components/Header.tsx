@@ -121,14 +121,6 @@ const Header = () => {
                   Sign Out
                 </button>
               </div>
-                </button>
-                <button
-                  onClick={handleSignOut}
-                  className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors"
-                >
-                  Sign Out
-                </button>
-              </div>
             ) : (
               <button
                 onClick={handleSignInClick}
