@@ -28,12 +28,11 @@ const AuthCallback: React.FC = () => {
       return;
     }
     
-    // If there are auth tokens, log and let Supabase handle them
+    // Log token presence and let Supabase handle authentication
     if (accessToken) {
       console.log('🔑 Auth tokens found in URL, letting Supabase process...');
     } else {
-      console.log('ℹ️ No auth tokens in URL, redirecting to home');
-      navigate('/');
+      console.log('ℹ️ No auth tokens in URL, waiting for auth context...');
     }
   }, [navigate, urlProcessed]);
   
