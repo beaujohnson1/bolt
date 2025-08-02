@@ -47,7 +47,6 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         console.log('Auth state change:', event, session?.user?.email);
         setAuthUser(session?.user ?? null);
         if (session?.user) {
-          console.log('Calling fetchUserProfile for user:', session.user.id);
           fetchUserProfile(session.user.id);
         } else {
           setUser(null);
@@ -60,9 +59,7 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   }, []);
 
   const fetchUserProfile = async (userId: string) => {
-    console.log('Fetching user profile for:', userId);
     try {
-      // For now, skip the database user profile and just create a mock user from auth data
       const authUser = await supabase.auth.getUser();
       if (authUser.data.user) {
         const mockUser: SupabaseUser = {
@@ -79,13 +76,11 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
-        console.log('Setting mock user state:', mockUser);
         setUser(mockUser);
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
     } finally {
-      console.log('Setting loading to false');
       setLoading(false);
     }
   };
