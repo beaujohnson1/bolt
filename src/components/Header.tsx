@@ -27,7 +27,9 @@ const Header = () => {
 
   // Close modal and navigate when user is authenticated
   React.useEffect(() => {
+    console.log('Auth effect triggered:', { user: !!user, authUser: !!authUser, showAuthModal });
     if (user && authUser && showAuthModal) {
+      console.log('Closing modal and navigating to dashboard');
       setShowAuthModal(false);
       navigate('/app');
     }
