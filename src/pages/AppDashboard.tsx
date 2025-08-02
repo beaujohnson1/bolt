@@ -59,7 +59,7 @@ interface Sale {
 }
 
 const AppDashboard = () => {
-  const { user, signOut } = useAuth();
+  const { user, authUser, signOut } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'overview' | 'listings' | 'sales' | 'analytics'>('overview');
   const [listings, setListings] = useState<Listing[]>([]);
