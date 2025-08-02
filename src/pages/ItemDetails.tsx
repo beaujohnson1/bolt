@@ -1,44 +1,73 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Edit3, DollarSign, Tag, Package, Star } from 'lucide-react';
-
-interface ItemData {
-  id: string;
-  image: string;
-  title: string;
-  category: string;
-  condition: string;
-  suggestedPrice: number;
-  priceRange: { min: number; max: number };
-  description: string;
-  brand: string;
-  size: string;
-  confidence: number;
-}
+import { supabase, type Item } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const ItemDetails = () => {
   const { itemId } = useParams();
   const navigate = useNavigate();
-  const [item, setItem] = useState<ItemData | null>(null);
-  const [editedItem, setEditedItem] = useState<ItemData | null>(null);
+  const { authUser } = useAuth();
+  const [item, setItem] = useState<Item | null>(null);
+  const [editedItem, setEditedItem] = useState<Item | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (itemId) {
-      const savedItem = localStorage.getItem(`item_${itemId}`);
-      if (savedItem) {
-        const itemData = JSON.parse(savedItem);
-        setItem(itemData);
-        setEditedItem(itemData);
-      }
-    }
-  }, [itemId]);
+    const fetchItem = async () => {
+      if (!itemId || !authUser) return;
 
-  const handleSave = () => {
-    if (editedItem && itemId) {
-      localStorage.setItem(`item_${itemId}`, JSON.stringify(editedItem));
+      try {
+        const { data, error } = await supabase
+          .from('items')
+          .select('*')
+          .eq('id', itemId)
+          .eq('user_id', authUser.id)
+          .single();
+
+        if (error) throw error;
+
+        setItem(data);
+        setEditedItem(data);
+      } catch (error) {
+        console.error('Error fetching item:', error);
+        alert('Failed to load item details.');
+        navigate('/app');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchItem();
+  }, [itemId, authUser, navigate]);
+
+  const handleSave = async () => {
+    if (!editedItem || !itemId || !authUser) return;
+
+    try {
+      const { error } = await supabase
+        .from('items')
+        .update({
+          title: editedItem.title,
+          description: editedItem.description,
+          category: editedItem.category,
+          condition: editedItem.condition,
+          brand: editedItem.brand,
+          size: editedItem.size,
+          suggested_price: editedItem.suggested_price,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', itemId)
+        .eq('user_id', authUser.id);
+
+      if (error) throw error;
+
       setItem(editedItem);
       setIsEditing(false);
+      alert('Item updated successfully!');
+    } catch (error) {
+      console.error('Error updating item:', error);
+      alert('Failed to update item. Please try again.');
     }
   };
 
@@ -48,7 +77,7 @@ const ItemDetails = () => {
     }
   };
 
-  if (!item) {
+  if (loading || !item) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -87,7 +116,7 @@ const ItemDetails = () => {
           {/* Image */}
           <div className="bg-white rounded-xl shadow-sm border p-6">
             <img
-              src={item.image}
+              src={item.primary_image_url || item.images[0]}
               alt={item.title}
               className="w-full h-96 object-contain rounded-lg"
             />
@@ -100,7 +129,7 @@ const ItemDetails = () => {
               <div className="flex items-center space-x-2">
                 <Star className="w-5 h-5 text-green-600" />
                 <span className="font-medium text-green-800">
-                  AI Confidence: {Math.round(item.confidence * 100)}%
+                  AI Confidence: {Math.round(item.ai_confidence * 100)}%
                 </span>
               </div>
               <p className="text-sm text-green-700 mt-1">
@@ -136,18 +165,18 @@ const ItemDetails = () => {
                     <DollarSign className="w-5 h-5 text-gray-400" />
                     <input
                       type="number"
-                      value={editedItem?.suggestedPrice || 0}
-                      onChange={(e) => setEditedItem(prev => prev ? {...prev, suggestedPrice: parseInt(e.target.value)} : null)}
+                      value={editedItem?.suggested_price || 0}
+                      onChange={(e) => setEditedItem(prev => prev ? {...prev, suggested_price: parseFloat(e.target.value)} : null)}
                       className="w-24 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 ) : (
                   <div className="text-3xl font-bold text-green-600">
-                    ${item.suggestedPrice}
+                    ${item.suggested_price}
                   </div>
                 )}
                 <div className="text-sm text-gray-600">
-                  Range: ${item.priceRange.min} - ${item.priceRange.max}
+                  Range: ${item.price_range_min} - ${item.price_range_max}
                 </div>
               </div>
             </div>
@@ -164,15 +193,17 @@ const ItemDetails = () => {
                     onChange={(e) => setEditedItem(prev => prev ? {...prev, category: e.target.value} : null)}
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="Clothing">Clothing</option>
-                    <option value="Electronics">Electronics</option>
-                    <option value="Home & Garden">Home & Garden</option>
-                    <option value="Toys & Games">Toys & Games</option>
+                    <option value="clothing">Clothing</option>
+                    <option value="electronics">Electronics</option>
+                    <option value="home_garden">Home & Garden</option>
+                    <option value="toys_games">Toys & Games</option>
+                    <option value="shoes">Shoes</option>
+                    <option value="accessories">Accessories</option>
                   </select>
                 ) : (
                   <div className="flex items-center space-x-2">
                     <Tag className="w-4 h-4 text-blue-600" />
-                    <span className="font-medium">{item.category}</span>
+                    <span className="font-medium">{item.category.replace('_', ' ')}</span>
                   </div>
                 )}
               </div>
@@ -187,15 +218,15 @@ const ItemDetails = () => {
                     onChange={(e) => setEditedItem(prev => prev ? {...prev, condition: e.target.value} : null)}
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="Like New">Like New</option>
-                    <option value="Good">Good</option>
-                    <option value="Fair">Fair</option>
-                    <option value="Poor">Poor</option>
+                    <option value="like_new">Like New</option>
+                    <option value="good">Good</option>
+                    <option value="fair">Fair</option>
+                    <option value="poor">Poor</option>
                   </select>
                 ) : (
                   <div className="flex items-center space-x-2">
                     <Package className="w-4 h-4 text-green-600" />
-                    <span className="font-medium">{item.condition}</span>
+                    <span className="font-medium">{item.condition.replace('_', ' ')}</span>
                   </div>
                 )}
               </div>

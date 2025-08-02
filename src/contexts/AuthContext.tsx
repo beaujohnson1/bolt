@@ -1,23 +1,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  avatar?: string;
-  isPro: boolean;
-  listingsUsed: number;
-  listingsLimit: number;
-}
+import { supabase, type User as SupabaseUser } from '../lib/supabase';
+import type { User as AuthUser } from '@supabase/supabase-js';
 
 interface AuthContextType {
-  user: User | null;
+  user: SupabaseUser | null;
+  authUser: AuthUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
-  updateUser: (updates: Partial<User>) => void;
+  updateUser: (updates: Partial<SupabaseUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,36 +24,70 @@ export const useAuth = () => {
 };
 
 const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session
-    const savedUser = localStorage.getItem('homeSaleHelper_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthUser(session?.user ?? null);
+      if (session?.user) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setAuthUser(session?.user ?? null);
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        } else {
+          setUser(null);
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return;
+      }
+
+      setUser(data);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // TODO: Implement actual authentication with Supabase
-      // For now, simulate successful login
-      const mockUser: User = {
-        id: '1',
+      const { error } = await supabase.auth.signInWithPassword({
         email,
-        name: email.split('@')[0],
-        isPro: false,
-        listingsUsed: 0,
-        listingsLimit: 5
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem('homeSaleHelper_user', JSON.stringify(mockUser));
+        password,
+      });
+
+      if (error) throw error;
     } catch (error) {
-      throw new Error('Failed to sign in');
+      console.error('Error signing in:', error);
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -69,20 +96,38 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const signUp = async (email: string, password: string, name: string) => {
     setLoading(true);
     try {
-      // TODO: Implement actual authentication with Supabase
-      const mockUser: User = {
-        id: '1',
+      const { data, error } = await supabase.auth.signUp({
         email,
-        name,
-        isPro: false,
-        listingsUsed: 0,
-        listingsLimit: 5
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem('homeSaleHelper_user', JSON.stringify(mockUser));
+        password,
+      });
+
+      if (error) throw error;
+
+      // Create user profile
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: data.user.id,
+              email: data.user.email!,
+              name,
+              subscription_plan: 'free',
+              subscription_status: 'active',
+              listings_used: 0,
+              listings_limit: 5,
+              monthly_revenue: 0,
+              total_sales: 0,
+            },
+          ]);
+
+        if (profileError) {
+          console.error('Error creating user profile:', profileError);
+        }
+      }
     } catch (error) {
-      throw new Error('Failed to sign up');
+      console.error('Error signing up:', error);
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -91,40 +136,52 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const signInWithGoogle = async () => {
     setLoading(true);
     try {
-      // TODO: Implement Google OAuth with Supabase
-      const mockUser: User = {
-        id: '1',
-        email: 'user@gmail.com',
-        name: 'Google User',
-        isPro: false,
-        listingsUsed: 0,
-        listingsLimit: 5
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem('homeSaleHelper_user', JSON.stringify(mockUser));
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/app`,
+        },
+      });
+
+      if (error) throw error;
     } catch (error) {
-      throw new Error('Failed to sign in with Google');
+      console.error('Error signing in with Google:', error);
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
   const signOut = async () => {
-    setUser(null);
-    localStorage.removeItem('homeSaleHelper_user');
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error signing out:', error);
+      throw error;
+    }
   };
 
-  const updateUser = (updates: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...updates };
-      setUser(updatedUser);
-      localStorage.setItem('homeSaleHelper_user', JSON.stringify(updatedUser));
+  const updateUser = async (updates: Partial<SupabaseUser>) => {
+    if (user && authUser) {
+      try {
+        const { error } = await supabase
+          .from('users')
+          .update(updates)
+          .eq('id', authUser.id);
+
+        if (error) throw error;
+
+        // Update local state
+        setUser({ ...user, ...updates });
+      } catch (error) {
+        console.error('Error updating user:', error);
+        throw error;
+      }
     }
   };
 
   const value = {
     user,
+    authUser,
     loading,
     signIn,
     signUp,

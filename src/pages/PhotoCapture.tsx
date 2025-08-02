@@ -2,17 +2,20 @@ import React, { useState, useRef } from 'react';
 import { Camera, Upload, ArrowLeft, Zap } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 const PhotoCapture = () => {
-  const { user, updateUser } = useAuth();
+  const { user, authUser, updateUser } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      setSelectedFile(file);
       const reader = new FileReader();
       reader.onload = (e) => {
         setSelectedImage(e.target?.result as string);
@@ -22,10 +25,10 @@ const PhotoCapture = () => {
   };
 
   const handleProcessImage = async () => {
-    if (!selectedImage || !user) return;
+    if (!selectedImage || !selectedFile || !user || !authUser) return;
 
     // Check if user has reached their limit
-    if (user.listingsUsed >= user.listingsLimit && !user.isPro) {
+    if (user.listings_used >= user.listings_limit && user.subscription_plan === 'free') {
       alert('You\'ve reached your free listing limit. Upgrade to Pro for unlimited listings!');
       return;
     }
@@ -36,29 +39,58 @@ const PhotoCapture = () => {
       // Simulate AI processing
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Create mock item data
-      const mockItem = {
-        id: Date.now().toString(),
-        image: selectedImage,
-        title: 'Vintage Denim Jacket',
-        category: 'Clothing',
-        condition: 'Good',
-        suggestedPrice: 45,
-        priceRange: { min: 35, max: 55 },
-        description: 'Classic vintage denim jacket in good condition. Perfect for casual wear or layering. Shows minimal signs of wear with authentic vintage character.',
-        brand: 'Levi\'s',
-        size: 'Medium',
-        confidence: 0.87
-      };
+      // Upload image to Supabase Storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${authUser.id}/${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('item-images')
+        .upload(fileName, selectedFile);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL for the uploaded image
+      const { data: { publicUrl } } = supabase.storage
+        .from('item-images')
+        .getPublicUrl(fileName);
+
+      // Create item in database
+      const { data: itemData, error: itemError } = await supabase
+        .from('items')
+        .insert([
+          {
+            user_id: authUser.id,
+            title: 'Vintage Denim Jacket', // TODO: Replace with AI detection
+            description: 'Classic vintage denim jacket in good condition. Perfect for casual wear or layering. Shows minimal signs of wear with authentic vintage character.',
+            category: 'clothing',
+            condition: 'good',
+            brand: 'Levi\'s', // TODO: Replace with AI detection
+            size: 'Medium', // TODO: Replace with AI detection
+            suggested_price: 45.00,
+            price_range_min: 35.00,
+            price_range_max: 55.00,
+            images: [publicUrl],
+            primary_image_url: publicUrl,
+            ai_confidence: 0.87,
+            ai_analysis: {
+              detected_category: 'clothing',
+              detected_brand: 'Levi\'s',
+              detected_condition: 'good',
+              key_features: ['vintage', 'denim', 'jacket', 'classic']
+            },
+            status: 'draft'
+          }
+        ])
+        .select()
+        .single();
+
+      if (itemError) throw itemError;
 
       // Update user's listing count
-      updateUser({ listingsUsed: user.listingsUsed + 1 });
-
-      // Store item data (in real app, this would go to database)
-      localStorage.setItem(`item_${mockItem.id}`, JSON.stringify(mockItem));
+      await updateUser({ listings_used: user.listings_used + 1 });
 
       // Navigate to item details
-      navigate(`/details/${mockItem.id}`);
+      navigate(`/details/${itemData.id}`);
     } catch (error) {
       console.error('Error processing image:', error);
       alert('Failed to process image. Please try again.');
