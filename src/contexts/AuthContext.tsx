@@ -201,11 +201,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           console.log('ℹ️ [AUTH] No initial session found');
         }
-        
-        setLoading(false);
       } catch (error) {
         console.error('❌ [AUTH] Unexpected error getting initial session:', error);
-        setLoading(false);
       }
     };
 
