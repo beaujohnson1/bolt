@@ -17,8 +17,6 @@ const AuthCallback: React.FC = () => {
     const error = hashParams.get('error');
     const errorDescription = hashParams.get('error_description');
     
-    // Clear the hash from URL immediately
-    window.history.replaceState(null, '', window.location.pathname);
     setUrlProcessed(true);
     
     // If there's an error in the URL, clear it and redirect to home
