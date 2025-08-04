@@ -7,7 +7,7 @@ import PricingCalculator from '../components/PricingCalculator';
 import SolutionSection from '../components/SolutionSection';
 import HowItWorks from '../components/HowItWorks';
 import Features from '../components/Features';
-import Pricing from '../components/Pricing';
+import PricingSection from '../components/PricingSection';
 import FAQ from '../components/FAQ';
 import FinalCTA from '../components/FinalCTA';
 import Footer from '../components/Footer';
@@ -23,7 +23,7 @@ const LandingPage = () => {
       <SolutionSection />
       <HowItWorks />
       <Features />
-      <Pricing />
+      <PricingSection />
       <FAQ />
       <FinalCTA />
       <Footer />
