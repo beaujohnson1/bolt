@@ -32,6 +32,10 @@ const FAQ = () => {
     {
       question: "What happens to my existing listings?", 
       answer: "EasyFlip can import and manage your existing listings from supported platforms. You'll be able to track and manage everything from one dashboard, even items you listed before using our app."
+    },
+    {
+      question: "What does the AI Reseller Coach do?",
+      answer: "Our AI Reseller Coach is your personal business optimization assistant. It analyzes your eBay sales data to identify patterns and opportunities: which items sell fastest vs. slowest, your most profitable categories, optimal pricing strategies, seasonal trends, and inventory recommendations. The coach provides actionable insights like 'Electronics sell 40% faster when listed on Thursday evenings' or 'Your vintage clothing has 85% higher profit margins than modern items.' It's like having a data scientist dedicated to growing your reselling business."
     }
   ];
 
