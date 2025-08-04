@@ -2,6 +2,30 @@
 
 ## 🎯 **Next Steps to Complete Integration**
 
+### 0. **AI Services Setup (Required for Core Features)**
+
+#### Google Cloud Vision API:
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create a new project or select existing
+3. Enable the **Vision API**
+4. Go to **Credentials** → **Create Credentials** → **Service Account**
+5. Download the JSON key file
+6. In Netlify, add environment variables:
+   - `GOOGLE_APPLICATION_CREDENTIALS`: Upload the JSON key file content
+   - `GOOGLE_CLOUD_PROJECT_ID`: Your Google Cloud project ID
+
+#### OpenAI API:
+1. Go to [OpenAI Platform](https://platform.openai.com)
+2. Create an account and get API access
+3. Generate an API key from the API keys section
+4. In Netlify, add environment variable:
+   - `OPENAI_API_KEY`: Your OpenAI API key
+
+**Note**: These AI services are essential for:
+- Photo analysis and automatic item detection
+- AI Reseller Coach functionality
+- Pricing recommendations and market insights
+
 ### 1. **GoHighLevel Setup**
 
 #### Get Your API Key:

@@ -277,7 +277,7 @@ const AppDashboard = () => {
     setChatMessages([
       {
         id: 1,
-        text: `👋 Hey ${user?.name || 'there'}! I'm your AI Reseller Coach. I can help with pricing, sourcing, creating eBay listings, and market insights. Upload a photo or ask me anything!`,
+        text: `👋 Hey ${user?.name || 'there'}! I'm your AI Reseller Coach powered by advanced AI. I can analyze your sales data, optimize pricing strategies, recommend sourcing locations, identify market trends, and help maximize your profits. What would you like to optimize in your reselling business?`,
         sender: 'ai',
         timestamp: new Date()
       }
@@ -313,9 +313,8 @@ const AppDashboard = () => {
       const messageToProcess = currentMessage;
       setCurrentMessage('');
       
-      setTimeout(() => {
-        handleAIResponse(generateAIResponse(messageToProcess));
-      }, 1500);
+      // Call real AI coach API
+      callAICoach(messageToProcess);
     }
   };
 
@@ -343,6 +342,80 @@ const AppDashboard = () => {
       "📊 That's a solid flip! Based on your selling history, you typically do well with similar items. Your average profit margin is looking great!"
     ];
     return responses[Math.floor(Math.random() * responses.length)];
+  };
+
+  const callAICoach = async (message) => {
+    try {
+      // Add typing indicator
+      const typingMessage = {
+        id: Date.now(),
+        text: '...',
+        sender: 'ai',
+        timestamp: new Date(),
+        typing: true
+      };
+      setChatMessages(prev => [...prev, typingMessage]);
+
+      // Prepare user context for better AI responses
+      const userContext = {
+        totalSales: dashboardStats.totalSales,
+        totalRevenue: dashboardStats.totalRevenue,
+        activeListings: dashboardStats.activeListings,
+        subscriptionPlan: user?.subscription_plan
+      };
+
+      const response = await fetch('/.netlify/functions/ai-coach', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          userContext
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI Coach API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'AI Coach request failed');
+      }
+
+      // Remove typing indicator and add real response
+      setChatMessages(prev => {
+        const filtered = prev.filter(msg => !msg.typing);
+        return [...filtered, {
+          id: Date.now(),
+          text: result.response,
+          sender: 'ai',
+          timestamp: new Date()
+        }];
+      });
+
+      // Voice mode handling
+      if (voiceMode) {
+        setAiSpeaking(true);
+        setTimeout(() => setAiSpeaking(false), 3000);
+      }
+
+    } catch (error) {
+      console.error('AI Coach error:', error);
+      
+      // Remove typing indicator and show fallback response
+      setChatMessages(prev => {
+        const filtered = prev.filter(msg => !msg.typing);
+        return [...filtered, {
+          id: Date.now(),
+          text: generateAIResponse(message),
+          sender: 'ai',
+          timestamp: new Date()
+        }];
+      });
+    }
   };
 
   const getRandomItem = () => {

@@ -209,14 +209,38 @@ export interface APIResponse<T> {
 export interface VisionAnalysisResult {
   category: ItemCategory;
   confidence: number;
-  detectedText: string[];
-  colors: string[];
-  objects: DetectedObject[];
+  labels: VisionLabel[];
+  webEntities: WebEntity[];
+  textAnnotations: TextAnnotation[];
   brand?: string;
   condition?: string;
   suggestedTitle: string;
   suggestedDescription: string;
   keyFeatures: string[];
+  suggestedPrice: number;
+  priceRange: {
+    min: number;
+    max: number;
+  };
+}
+
+export interface VisionLabel {
+  description: string;
+  score: number;
+  mid?: string;
+}
+
+export interface WebEntity {
+  entityId?: string;
+  score: number;
+  description: string;
+}
+
+export interface TextAnnotation {
+  description: string;
+  boundingPoly?: {
+    vertices: Array<{ x: number; y: number }>;
+  };
 }
 
 export interface DetectedObject {

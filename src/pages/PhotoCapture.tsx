@@ -36,8 +36,40 @@ const PhotoCapture = () => {
     setIsProcessing(true);
 
     try {
-      // Simulate AI processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Convert image to base64 for API
+      const reader = new FileReader();
+      const imageDataPromise = new Promise((resolve) => {
+        reader.onload = (e) => resolve(e.target?.result);
+        reader.readAsDataURL(selectedFile);
+      });
+      
+      const imageData = await imageDataPromise;
+      
+      console.log('Sending image to AI analysis...');
+      
+      // Call our Netlify function for AI analysis
+      const analysisResponse = await fetch('/.netlify/functions/analyze-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageData: imageData
+        }),
+      });
+      
+      if (!analysisResponse.ok) {
+        throw new Error(`Analysis failed: ${analysisResponse.status}`);
+      }
+      
+      const analysisResult = await analysisResponse.json();
+      
+      if (!analysisResult.success) {
+        throw new Error(analysisResult.error || 'Analysis failed');
+      }
+      
+      const analysis = analysisResult.analysis;
+      console.log('AI analysis completed:', analysis);
 
       // Upload image to Supabase Storage
       const fileExt = selectedFile.name.split('.').pop();
@@ -60,23 +92,26 @@ const PhotoCapture = () => {
         .insert([
           {
             user_id: authUser.id,
-            title: 'Vintage Denim Jacket', // TODO: Replace with AI detection
-            description: 'Classic vintage denim jacket in good condition. Perfect for casual wear or layering. Shows minimal signs of wear with authentic vintage character.',
-            category: 'clothing',
-            condition: 'good',
-            brand: 'Levi\'s', // TODO: Replace with AI detection
-            size: 'Medium', // TODO: Replace with AI detection
-            suggested_price: 45.00,
-            price_range_min: 35.00,
-            price_range_max: 55.00,
+            title: analysis.suggestedTitle,
+            description: analysis.suggestedDescription,
+            category: analysis.category,
+            condition: analysis.condition || 'good',
+            brand: analysis.brand,
+            size: null, // Will be manually entered by user if needed
+            suggested_price: analysis.suggestedPrice,
+            price_range_min: analysis.priceRange.min,
+            price_range_max: analysis.priceRange.max,
             images: [publicUrl],
             primary_image_url: publicUrl,
-            ai_confidence: 0.87,
+            ai_confidence: analysis.confidence,
             ai_analysis: {
-              detected_category: 'clothing',
-              detected_brand: 'Levi\'s',
-              detected_condition: 'good',
-              key_features: ['vintage', 'denim', 'jacket', 'classic']
+              detected_category: analysis.category,
+              detected_brand: analysis.brand,
+              detected_condition: analysis.condition,
+              key_features: analysis.keyFeatures,
+              labels: analysis.labels,
+              web_entities: analysis.webEntities,
+              text_annotations: analysis.textAnnotations
             },
             status: 'draft'
           }
@@ -114,7 +149,7 @@ const PhotoCapture = () => {
       navigate(`/details/${itemData.id}`);
     } catch (error) {
       console.error('Error processing image:', error);
-      alert('Failed to process image. Please try again.');
+      alert(`Failed to process image: ${error.message}. Please try again.`);
     } finally {
       setIsProcessing(false);
     }
