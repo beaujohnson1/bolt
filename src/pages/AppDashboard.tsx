@@ -2,6 +2,43 @@ import React, { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, DollarSign, Package, Eye, ShoppingCart, Calendar, Target, Zap, Plus, Settings, Bell, Mic, MicOff, Upload, Camera, MessageCircle, Send, Play, Pause, Image, Trash2, Bot, User } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
+
+// Types for dashboard data
+interface DashboardStats {
+  totalRevenue: number;
+  totalSales: number;
+  totalViews: number;
+  activeListings: number;
+  revenueChange: number;
+  salesChange: number;
+  viewsChange: number;
+  listingsChange: number;
+}
+
+interface PerformanceData {
+  date: string;
+  revenue: number;
+  sales: number;
+  views: number;
+  profit: number;
+}
+
+interface CategoryData {
+  name: string;
+  value: number;
+  color: string;
+  sales: number;
+}
+
+interface RecentSaleData {
+  id: string;
+  item: string;
+  price: number;
+  time: string;
+  status: string;
+  profit: number;
+}
 
 const AppDashboard = () => {
   const { user, authUser } = useAuth();
@@ -18,31 +55,198 @@ const AppDashboard = () => {
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
 
-  // Sample data
-  const performanceData = [
-    { date: 'Mon', revenue: 1200, sales: 8, views: 156, profit: 480 },
-    { date: 'Tue', revenue: 1800, sales: 12, views: 203, profit: 720 },
-    { date: 'Wed', revenue: 2200, sales: 15, views: 289, profit: 880 },
-    { date: 'Thu', revenue: 1600, sales: 11, views: 234, profit: 640 },
-    { date: 'Fri', revenue: 2800, sales: 18, views: 345, profit: 1120 },
-    { date: 'Sat', revenue: 3200, sales: 22, views: 412, profit: 1280 },
-    { date: 'Sun', revenue: 2400, sales: 16, views: 321, profit: 960 }
-  ];
+  // Supabase data states
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    totalRevenue: 0,
+    totalSales: 0,
+    totalViews: 0,
+    activeListings: 0,
+    revenueChange: 0,
+    salesChange: 0,
+    viewsChange: 0,
+    listingsChange: 0
+  });
+  const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
+  const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
+  const [recentSales, setRecentSales] = useState<RecentSaleData[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
 
-  const categoryData = [
-    { name: 'Electronics', value: 35, color: '#8b5cf6', sales: 4200 },
-    { name: 'Clothing', value: 28, color: '#06b6d4', sales: 3360 },
-    { name: 'Home & Garden', value: 20, color: '#10b981', sales: 2400 },
-    { name: 'Books', value: 10, color: '#f59e0b', sales: 1200 },
-    { name: 'Collectibles', value: 7, color: '#ef4444', sales: 840 }
-  ];
-
-  const recentSales = [
-    { id: 1, item: 'iPhone 13 Pro', price: 899, time: '2h ago', status: 'sold', profit: 320 },
-    { id: 2, item: 'Nike Air Jordan', price: 245, time: '4h ago', status: 'sold', profit: 85 },
-    { id: 3, item: 'MacBook Air', price: 1299, time: '6h ago', status: 'pending', profit: 450 },
-    { id: 4, item: 'Samsung Galaxy', price: 699, time: '8h ago', status: 'sold', profit: 210 }
-  ];
+  // Fetch and process Supabase data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!authUser) return;
+      
+      setLoadingData(true);
+      
+      try {
+        // Calculate date range
+        const now = new Date();
+        const daysBack = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+        const startDate = new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
+        
+        // Fetch data from Supabase
+        const [salesResult, listingsResult, itemsResult] = await Promise.all([
+          supabase
+            .from('sales')
+            .select('*')
+            .eq('user_id', authUser.id)
+            .gte('sold_at', startDate.toISOString()),
+          supabase
+            .from('listings')
+            .select('*')
+            .eq('user_id', authUser.id),
+          supabase
+            .from('items')
+            .select('*')
+            .eq('user_id', authUser.id)
+        ]);
+        
+        if (salesResult.error) throw salesResult.error;
+        if (listingsResult.error) throw listingsResult.error;
+        if (itemsResult.error) throw itemsResult.error;
+        
+        const sales = salesResult.data || [];
+        const listings = listingsResult.data || [];
+        const items = itemsResult.data || [];
+        
+        // Process dashboard stats
+        const totalRevenue = sales.reduce((sum, sale) => sum + (sale.sale_price || 0), 0);
+        const totalSales = sales.length;
+        const totalViews = listings.reduce((sum, listing) => sum + (listing.total_views || 0), 0);
+        const activeListings = listings.filter(listing => listing.status === 'active').length;
+        
+        // Calculate changes (mock for now - would need historical data)
+        const revenueChange = totalRevenue > 0 ? Math.random() * 30 - 5 : 0;
+        const salesChange = totalSales > 0 ? Math.random() * 25 - 5 : 0;
+        const viewsChange = totalViews > 0 ? Math.random() * 20 - 10 : 0;
+        const listingsChange = activeListings > 0 ? Math.random() * 15 - 5 : 0;
+        
+        setDashboardStats({
+          totalRevenue,
+          totalSales,
+          totalViews,
+          activeListings,
+          revenueChange,
+          salesChange,
+          viewsChange,
+          listingsChange
+        });
+        
+        // Process performance data (group by day)
+        const performanceMap = new Map<string, PerformanceData>();
+        const last7Days = Array.from({ length: 7 }, (_, i) => {
+          const date = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
+          const dateStr = date.toLocaleDateString('en-US', { weekday: 'short' });
+          performanceMap.set(dateStr, {
+            date: dateStr,
+            revenue: 0,
+            sales: 0,
+            views: 0,
+            profit: 0
+          });
+          return dateStr;
+        }).reverse();
+        
+        // Aggregate sales by day
+        sales.forEach(sale => {
+          const saleDate = new Date(sale.sold_at);
+          const dayStr = saleDate.toLocaleDateString('en-US', { weekday: 'short' });
+          const dayData = performanceMap.get(dayStr);
+          if (dayData) {
+            dayData.revenue += sale.sale_price || 0;
+            dayData.sales += 1;
+            dayData.profit += sale.net_profit || 0;
+          }
+        });
+        
+        // Add views from listings
+        listings.forEach(listing => {
+          if (listing.listed_at) {
+            const listingDate = new Date(listing.listed_at);
+            const dayStr = listingDate.toLocaleDateString('en-US', { weekday: 'short' });
+            const dayData = performanceMap.get(dayStr);
+            if (dayData) {
+              dayData.views += listing.total_views || 0;
+            }
+          }
+        });
+        
+        setPerformanceData(Array.from(performanceMap.values()));
+        
+        // Process category data
+        const categoryMap = new Map<string, { sales: number, revenue: number }>();
+        const categoryColors = {
+          'electronics': '#8b5cf6',
+          'clothing': '#06b6d4',
+          'home_garden': '#10b981',
+          'books_media': '#f59e0b',
+          'collectibles': '#ef4444',
+          'shoes': '#ec4899',
+          'accessories': '#14b8a6',
+          'toys_games': '#f97316',
+          'sports_outdoors': '#84cc16',
+          'jewelry': '#a855f7',
+          'other': '#6b7280'
+        };
+        
+        // Link sales to items to get categories
+        sales.forEach(sale => {
+          // Find the listing for this sale
+          const listing = listings.find(l => l.id === sale.listing_id);
+          if (listing) {
+            // Find the item for this listing
+            const item = items.find(i => i.id === listing.item_id);
+            if (item && item.category) {
+              const category = item.category;
+              const existing = categoryMap.get(category) || { sales: 0, revenue: 0 };
+              existing.sales += 1;
+              existing.revenue += sale.sale_price || 0;
+              categoryMap.set(category, existing);
+            }
+          }
+        });
+        
+        const totalCategorySales = Array.from(categoryMap.values()).reduce((sum, cat) => sum + cat.sales, 0);
+        const processedCategoryData = Array.from(categoryMap.entries()).map(([category, data]) => ({
+          name: category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          value: totalCategorySales > 0 ? Math.round((data.sales / totalCategorySales) * 100) : 0,
+          color: categoryColors[category as keyof typeof categoryColors] || '#6b7280',
+          sales: data.revenue
+        }));
+        
+        setCategoryData(processedCategoryData);
+        
+        // Process recent sales
+        const processedRecentSales = sales
+          .sort((a, b) => new Date(b.sold_at).getTime() - new Date(a.sold_at).getTime())
+          .slice(0, 4)
+          .map(sale => {
+            const saleDate = new Date(sale.sold_at);
+            const now = new Date();
+            const diffHours = Math.floor((now.getTime() - saleDate.getTime()) / (1000 * 60 * 60));
+            const timeAgo = diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
+            
+            return {
+              id: sale.id,
+              item: sale.item_title,
+              price: sale.sale_price,
+              time: timeAgo,
+              status: sale.payment_status === 'completed' ? 'sold' : 'pending',
+              profit: sale.net_profit || 0
+            };
+          });
+        
+        setRecentSales(processedRecentSales);
+        
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+    
+    fetchDashboardData();
+  }, [authUser, timeRange]);
 
   useEffect(() => {
     setChatMessages([
@@ -266,11 +470,18 @@ const AppDashboard = () => {
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {loadingData ? (
+                <div className="col-span-4 flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-gray-600">Loading dashboard data...</span>
+                </div>
+              ) : (
+                <>
               <StatCard
                 icon={DollarSign}
                 title="Total Revenue"
-                value="$14,200"
-                change={23.5}
+                value={`$${dashboardStats.totalRevenue.toLocaleString()}`}
+                change={dashboardStats.revenueChange}
                 gradient="from-green-500 to-emerald-600"
                 metric="revenue"
                 subtitle="This week"
@@ -278,8 +489,8 @@ const AppDashboard = () => {
               <StatCard
                 icon={ShoppingCart}
                 title="Total Sales"
-                value="102"
-                change={18.2}
+                value={dashboardStats.totalSales.toString()}
+                change={dashboardStats.salesChange}
                 gradient="from-blue-500 to-cyan-600"
                 metric="sales"
                 subtitle="Items sold"
@@ -287,8 +498,8 @@ const AppDashboard = () => {
               <StatCard
                 icon={Eye}
                 title="Total Views"
-                value="1,960"
-                change={-5.3}
+                value={dashboardStats.totalViews.toLocaleString()}
+                change={dashboardStats.viewsChange}
                 gradient="from-purple-500 to-pink-600"
                 metric="views"
                 subtitle="Listing views"
@@ -296,16 +507,19 @@ const AppDashboard = () => {
               <StatCard
                 icon={Package}
                 title="Active Listings"
-                value="47"
-                change={12.1}
+                value={dashboardStats.activeListings.toString()}
+                change={dashboardStats.listingsChange}
                 gradient="from-orange-500 to-red-600"
                 metric="listings"
                 subtitle="Currently listed"
               />
+                </>
+              )}
             </div>
 
             {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            {!loadingData && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               {/* Performance Chart */}
               <div className="bg-white rounded-2xl p-6 shadow-lg">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Performance Trend</h2>
@@ -362,12 +576,15 @@ const AppDashboard = () => {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-            </div>
+              </div>
+            )}
 
             {/* Recent Sales */}
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
+            {!loadingData && (
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Sales</h2>
-              <div className="space-y-4">
+              {recentSales.length > 0 ? (
+                <div className="space-y-4">
                 {recentSales.map((sale) => (
                   <div key={sale.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                     <div className="flex items-center space-x-4">
@@ -390,8 +607,15 @@ const AppDashboard = () => {
                     </span>
                   </div>
                 ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No sales yet. Create your first listing to get started!</p>
+                </div>
+              )}
               </div>
-            </div>
+            )}
           </>
         )}
 
