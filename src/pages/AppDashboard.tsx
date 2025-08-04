@@ -354,6 +354,13 @@ const AppDashboard = () => {
     if (!authUser || !user) {
       alert('Please sign in to create listings');
       return;
+    }
+  };
+
+  const handleNewListing = () => {
+    navigate('/add-item');
+  };
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       handleSendMessage();
@@ -576,9 +583,9 @@ const AppDashboard = () => {
                         const timeAgo = diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
                         
                         return (
-                          <Link
+                          <div
                             key={listing.id}
-                            to={`/details/${listing.item_id}`}
+                            onClick={() => navigate(`/details/${listing.item_id}`)}
                             className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
                           >
                             <div className="flex items-center space-x-4">
@@ -614,7 +621,7 @@ const AppDashboard = () => {
                             <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                               Active
                             </span>
-                          </Link>
+                          </div>
                         );
                       })}
                   </div>
@@ -666,10 +673,10 @@ const AppDashboard = () => {
                   <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                   <p>No sales yet. Create your first listing to get started!</p>
                 </div>
-                </div>
               )}
             </div>
-          </div>
+            )}
+          </>
         )}
 
         {/* AI Coach Tab */}
