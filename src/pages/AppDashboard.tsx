@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, DollarSign, Package, Eye, ShoppingCart, Calendar, Target, Zap, Plus, Settings, Bell, Mic, MicOff, Upload, Camera, MessageCircle, Send, Play, Pause, Image, Trash2, Bot, User } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,7 +42,8 @@ interface RecentSaleData {
 }
 
 const AppDashboard = () => {
-  const { user, authUser } = useAuth();
+  const { user, authUser, updateUser } = useAuth();
+  const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState('7d');
   const [selectedMetric, setSelectedMetric] = useState('revenue');
   const [isRecording, setIsRecording] = useState(false);
@@ -49,6 +51,7 @@ const AppDashboard = () => {
   const [currentMessage, setCurrentMessage] = useState('');
   const [uploadedPhotos, setUploadedPhotos] = useState([]);
   const [isCreatingListing, setIsCreatingListing] = useState(false);
+  const [processingPhotoId, setProcessingPhotoId] = useState(null);
   const [voiceMode, setVoiceMode] = useState(false);
   const [aiSpeaking, setAiSpeaking] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -367,7 +370,116 @@ const AppDashboard = () => {
     return items[Math.floor(Math.random() * items.length)];
   };
 
-  const createEbayListing = () => {
+  const createDraftListing = async (photo) => {
+    if (!authUser || !user) {
+      alert('Please sign in to create listings');
+      return;
+    }
+
+    // Check if user has reached their limit
+    if (user.listings_used >= user.listings_limit && user.subscription_plan === 'free') {
+      alert('You\'ve reached your free listing limit. Upgrade to Pro for unlimited listings!');
+      return;
+    }
+
+    setProcessingPhotoId(photo.id);
+    
+    try {
+      // Upload image to Supabase Storage
+      const fileExt = photo.file.name.split('.').pop();
+      const fileName = `${authUser.id}/${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('item-images')
+        .upload(fileName, photo.file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL for the uploaded image
+      const { data: { publicUrl } } = supabase.storage
+        .from('item-images')
+        .getPublicUrl(fileName);
+
+      // Create item in database with placeholder data
+      const { data: itemData, error: itemError } = await supabase
+        .from('items')
+        .insert([
+          {
+            user_id: authUser.id,
+            title: 'New Item - Please Edit', // Placeholder title
+            description: 'Please add a description for this item.',
+            category: 'other', // Default category
+            condition: 'good', // Default condition
+            brand: null,
+            size: null,
+            suggested_price: 25.00, // Default price
+            price_range_min: 20.00,
+            price_range_max: 35.00,
+            images: [publicUrl],
+            primary_image_url: publicUrl,
+            ai_confidence: 0.5, // Placeholder confidence
+            ai_analysis: {
+              detected_category: 'other',
+              detected_condition: 'good',
+              key_features: ['needs_review']
+            },
+            status: 'draft'
+          }
+        ])
+        .select()
+        .single();
+
+      if (itemError) throw itemError;
+
+      // Create a listing for this item
+      const { data: listingData, error: listingError } = await supabase
+        .from('listings')
+        .insert([
+          {
+            item_id: itemData.id,
+            user_id: authUser.id,
+            title: itemData.title,
+            description: itemData.description || '',
+            price: itemData.suggested_price,
+            images: [publicUrl],
+            platforms: ['ebay'],
+            status: 'draft'
+          }
+        ])
+        .select()
+        .single();
+
+      if (listingError) throw listingError;
+
+      // Update user's listing count
+      await updateUser({ listings_used: user.listings_used + 1 });
+
+      // Remove the photo from uploaded photos
+      setUploadedPhotos(prev => prev.filter(p => p.id !== photo.id));
+      
+      // Show success message
+      handleAIResponse(`✅ Draft listing created successfully! I've uploaded your photo and created a basic listing. Click "Edit Details" to customize the title, description, and pricing before publishing.`);
+      
+      // Navigate to item details page
+      navigate(`/details/${itemData.id}`);
+      
+    } catch (error) {
+      console.error('Error creating listing:', error);
+      alert('Failed to create listing. Please try again.');
+    } finally {
+      setProcessingPhotoId(null);
+    }
+  };
+
+  const handleNewListing = () => {
+    navigate('/capture');
+  };
+
+  const createEbayListing = (photo) => {
+    createDraftListing(photo);
+  };
+
+  const createEbayListingOld = () => {
     setIsCreatingListing(true);
     setTimeout(() => {
       setIsCreatingListing(false);
@@ -445,7 +557,10 @@ const AppDashboard = () => {
                 <option value="30d">Last 30 days</option>
                 <option value="90d">Last 90 days</option>
               </select>
-              <button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center shadow-lg">
+              <button 
+                onClick={handleNewListing}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center shadow-lg"
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 New Listing
               </button>
@@ -663,12 +778,19 @@ const AppDashboard = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={createEbayListing}
-                          className="absolute bottom-2 left-2 right-2 bg-blue-600 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          Create Listing
-                        </button>
+                        {processingPhotoId === photo.id ? (
+                          <div className="absolute bottom-2 left-2 right-2 bg-blue-600 text-white text-xs py-1 px-2 rounded flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-3 w-3 border-b border-white mr-1"></div>
+                            Creating...
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => createEbayListing(photo)}
+                            className="absolute bottom-2 left-2 right-2 bg-blue-600 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-700"
+                          >
+                            Create Listing
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
