@@ -1,364 +1,263 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { TrendingUp, DollarSign, Package, Eye, ShoppingCart, Calendar, Target, Zap, Plus, Settings, Bell, Mic, MicOff, Upload, Camera, MessageCircle, Send, Play, Pause, Image, Trash2, Bot, User } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
-import { 
-  Camera, 
-  Plus, 
-  BarChart3, 
-  Settings, 
-  LogOut, 
-  Crown,
-  Package,
-  DollarSign,
-  TrendingUp,
-  Eye,
-  Printer,
-  MessageSquare,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Upload,
-  X,
-  Zap
-} from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-
-interface Listing {
-  id: string;
-  title: string;
-  price: number;
-  status: 'active' | 'sold' | 'pending' | 'draft';
-  platforms: string[];
-  createdAt: string;
-  soldAt?: string;
-  views: number;
-  watchers: number;
-  messages: number;
-  image: string;
-  buyerInfo?: {
-    name: string;
-    address: string;
-    email: string;
-  };
-}
-
-interface Sale {
-  id: string;
-  listingId: string;
-  title: string;
-  salePrice: number;
-  platform: string;
-  soldAt: string;
-  shippingStatus: 'pending' | 'label_printed' | 'shipped' | 'delivered';
-  trackingNumber?: string;
-  buyerInfo: {
-    name: string;
-    address: string;
-    email: string;
-  };
-}
 
 const AppDashboard = () => {
-  const { user, authUser, signOut } = useAuth();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'overview' | 'listings' | 'sales' | 'analytics'>('overview');
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [showPhotoCapture, setShowPhotoCapture] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { user, authUser } = useAuth();
+  const [timeRange, setTimeRange] = useState('7d');
+  const [selectedMetric, setSelectedMetric] = useState('revenue');
+  const [isRecording, setIsRecording] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [currentMessage, setCurrentMessage] = useState('');
+  const [uploadedPhotos, setUploadedPhotos] = useState([]);
+  const [isCreatingListing, setIsCreatingListing] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [aiSpeaking, setAiSpeaking] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const fileInputRef = useRef(null);
+  const chatEndRef = useRef(null);
+
+  // Sample data
+  const performanceData = [
+    { date: 'Mon', revenue: 1200, sales: 8, views: 156, profit: 480 },
+    { date: 'Tue', revenue: 1800, sales: 12, views: 203, profit: 720 },
+    { date: 'Wed', revenue: 2200, sales: 15, views: 289, profit: 880 },
+    { date: 'Thu', revenue: 1600, sales: 11, views: 234, profit: 640 },
+    { date: 'Fri', revenue: 2800, sales: 18, views: 345, profit: 1120 },
+    { date: 'Sat', revenue: 3200, sales: 22, views: 412, profit: 1280 },
+    { date: 'Sun', revenue: 2400, sales: 16, views: 321, profit: 960 }
+  ];
+
+  const categoryData = [
+    { name: 'Electronics', value: 35, color: '#8b5cf6', sales: 4200 },
+    { name: 'Clothing', value: 28, color: '#06b6d4', sales: 3360 },
+    { name: 'Home & Garden', value: 20, color: '#10b981', sales: 2400 },
+    { name: 'Books', value: 10, color: '#f59e0b', sales: 1200 },
+    { name: 'Collectibles', value: 7, color: '#ef4444', sales: 840 }
+  ];
+
+  const recentSales = [
+    { id: 1, item: 'iPhone 13 Pro', price: 899, time: '2h ago', status: 'sold', profit: 320 },
+    { id: 2, item: 'Nike Air Jordan', price: 245, time: '4h ago', status: 'sold', profit: 85 },
+    { id: 3, item: 'MacBook Air', price: 1299, time: '6h ago', status: 'pending', profit: 450 },
+    { id: 4, item: 'Samsung Galaxy', price: 699, time: '8h ago', status: 'sold', profit: 210 }
+  ];
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!user || !authUser) return;
-
-      try {
-        // Fetch real listings from database
-        const { data: listingsData, error: listingsError } = await supabase
-          .from('listings')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .order('created_at', { ascending: false });
-
-        if (listingsError) throw listingsError;
-
-        // Transform database listings to component format
-        const transformedListings: Listing[] = listingsData?.map(listing => ({
-          id: listing.id,
-          title: listing.title,
-          price: listing.price,
-          status: listing.status as 'active' | 'sold' | 'pending' | 'draft',
-          platforms: listing.platforms || [],
-          createdAt: new Date(listing.created_at).toLocaleDateString(),
-          soldAt: listing.sold_at ? new Date(listing.sold_at).toLocaleDateString() : undefined,
-          views: listing.total_views || 0,
-          watchers: listing.total_watchers || 0,
-          messages: listing.total_messages || 0,
-          image: listing.images?.[0] || 'https://images.pexels.com/photos/1040945/pexels-photo-1040945.jpeg'
-        })) || [];
-
-        setListings(transformedListings);
-
-        // Fetch real sales from database
-        const { data: salesData, error: salesError } = await supabase
-          .from('sales')
-          .select('*')
-          .eq('user_id', authUser.id)
-          .order('sold_at', { ascending: false });
-
-        if (salesError) throw salesError;
-
-        // Transform database sales to component format
-        const transformedSales: Sale[] = salesData?.map(sale => ({
-          id: sale.id,
-          listingId: sale.listing_id,
-          title: sale.item_title,
-          salePrice: sale.sale_price,
-          platform: sale.platform,
-          soldAt: new Date(sale.sold_at).toLocaleDateString(),
-          shippingStatus: sale.shipping_status as 'pending' | 'label_printed' | 'shipped' | 'delivered',
-          trackingNumber: sale.tracking_number,
-          buyerInfo: sale.buyer_info || {
-            name: 'John Smith',
-            address: '123 Main St, Anytown, ST 12345',
-            email: 'john@example.com'
-          }
-        })) || [];
-
-        setSales(transformedSales);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
+    setChatMessages([
+      {
+        id: 1,
+        text: `👋 Hey ${user?.name || 'there'}! I'm your AI Reseller Coach. I can help with pricing, sourcing, creating eBay listings, and market insights. Upload a photo or ask me anything!`,
+        sender: 'ai',
+        timestamp: new Date()
       }
-    };
+    ]);
+  }, [user]);
 
-    fetchData();
-  }, [user, authUser]);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
+  // Voice Functions
+  const toggleRecording = async () => {
+    if (isRecording) {
+      setIsRecording(false);
+      setTimeout(() => {
+        handleAIResponse("I heard you! Based on what you described, here's my analysis and pricing recommendation...");
+      }, 1500);
+    } else {
+      setIsRecording(true);
     }
   };
 
-  const handlePrintLabel = (saleId: string) => {
-    // In real app, this would generate and print shipping label
-    alert('Shipping label generation would be integrated with USPS/UPS/FedEx APIs');
-    setSales(prev => prev.map(sale => 
-      sale.id === saleId 
-        ? { ...sale, shippingStatus: 'label_printed' as const }
-        : sale
-    ));
-  };
-
-  const handleNewListing = () => {
-    console.log('New Listing button clicked');
-    setShowPhotoCapture(true);
-  };
-
-  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
+  // Photo Upload Functions
+  const handlePhotoUpload = (event) => {
+    const files = Array.from(event.target.files);
+    files.forEach(file => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        setSelectedImage(e.target?.result as string);
+        const newPhoto = {
+          id: Date.now() + Math.random(),
+          url: e.target.result,
+          name: file.name,
+          file: file
+        };
+        setUploadedPhotos(prev => [...prev, newPhoto]);
+        
+        // Simulate AI analysis
+        setTimeout(() => {
+          handleAIResponse(`🔍 I've analyzed your photo! This looks like a ${getRandomItem()}. Based on current market data, I suggest pricing it at $${Math.floor(Math.random() * 200 + 50)}. Want me to create an eBay listing?`);
+        }, 2000);
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    
+    if (imageFiles.length > 0) {
+      const event = { target: { files: imageFiles } };
+      handlePhotoUpload(event);
     }
   };
 
-  const handleProcessImage = async () => {
-    if (!selectedImage || !selectedFile || !user) return;
+  const removePhoto = (photoId) => {
+    setUploadedPhotos(prev => prev.filter(photo => photo.id !== photoId));
+  };
 
-    setIsProcessing(true);
-
-    try {
-      // Simulate AI processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Generate a simple ID for the mock item (no database needed)
-      const mockItemId = `listing_${Date.now()}`;
-      
-      // Create a new listing directly in the local state
-      const newListing: Listing = {
-        id: mockItemId,
-        title: 'Vintage Denim Jacket', // AI would detect this
-        price: 45,
-        status: 'active',
-        platforms: ['eBay'],
-        createdAt: new Date().toLocaleDateString(),
-        views: 0,
-        watchers: 0,
-        messages: 0,
-        image: selectedImage
+  // Chat Functions
+  const handleSendMessage = () => {
+    if (currentMessage.trim()) {
+      const newMessage = {
+        id: Date.now(),
+        text: currentMessage,
+        sender: 'user',
+        timestamp: new Date()
       };
+      setChatMessages(prev => [...prev, newMessage]);
+      const messageToProcess = currentMessage;
+      setCurrentMessage('');
       
-      // Save to database instead of just local state
-      if (authUser) {
-        try {
-          const { data: listingData, error: listingError } = await supabase
-            .from('listings')
-            .insert([
-              {
-                user_id: authUser.id,
-                title: newListing.title,
-                description: 'AI-generated description for this item',
-                price: newListing.price,
-                images: [selectedImage],
-                platforms: ['ebay'],
-                status: 'active',
-                listed_at: new Date().toISOString()
-              }
-            ])
-            .select()
-            .single();
-
-          if (listingError) throw listingError;
-
-          // Add the new listing to the dashboard
-          setListings(prev => [newListing, ...prev]);
-        } catch (error) {
-          console.error('Error saving listing to database:', error);
-          // Still add to local state as fallback
-          setListings(prev => [newListing, ...prev]);
-        }
-      }
-      
-      // Reset the photo capture modal
-      resetPhotoCapture();
-      
-      // Show success message
-      alert('🎉 Item analyzed successfully! Your listing is now active on eBay.');
-      
-    } catch (error) {
-      console.error('Error processing image:', error);
-      alert('Failed to process image. Please try again.');
-    } finally {
-      setIsProcessing(false);
+      setTimeout(() => {
+        handleAIResponse(generateAIResponse(messageToProcess));
+      }, 1500);
     }
   };
 
-  const resetPhotoCapture = () => {
-    setShowPhotoCapture(false);
-    setSelectedImage(null);
-    setSelectedFile(null);
-    setIsProcessing(false);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'text-green-600 bg-green-100';
-      case 'sold': return 'text-blue-600 bg-blue-100';
-      case 'pending': return 'text-yellow-600 bg-yellow-100';
-      case 'draft': return 'text-gray-600 bg-gray-100';
-      default: return 'text-gray-600 bg-gray-100';
+  const handleAIResponse = (response) => {
+    const aiMessage = {
+      id: Date.now(),
+      text: response,
+      sender: 'ai',
+      timestamp: new Date()
+    };
+    setChatMessages(prev => [...prev, aiMessage]);
+    
+    if (voiceMode) {
+      setAiSpeaking(true);
+      setTimeout(() => setAiSpeaking(false), 3000);
     }
   };
 
-  const getShippingStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'text-red-600 bg-red-100';
-      case 'label_printed': return 'text-yellow-600 bg-yellow-100';
-      case 'shipped': return 'text-blue-600 bg-blue-100';
-      case 'delivered': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
+  const generateAIResponse = (message) => {
+    const responses = [
+      "💰 Based on current market data, I'd suggest pricing that item between $45-65 for optimal sales velocity. Would you like me to create an eBay listing draft?",
+      "📈 Great find! Electronics in that category are trending up 23% this month. I recommend listing with these keywords for better visibility.",
+      "🎯 For sourcing, try estate sales on weekends - they typically have 40% better profit margins than thrift stores in your area.",
+      "⏰ Thursday evenings around 7 PM EST have the highest conversion rates for that category. Want me to schedule your listing?",
+      "📊 That's a solid flip! Based on your selling history, you typically do well with similar items. Your average profit margin is looking great!"
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  };
+
+  const getRandomItem = () => {
+    const items = ['vintage collectible', 'electronics device', 'designer clothing item', 'home decor piece', 'book or media item'];
+    return items[Math.floor(Math.random() * items.length)];
+  };
+
+  const createEbayListing = () => {
+    setIsCreatingListing(true);
+    setTimeout(() => {
+      setIsCreatingListing(false);
+      handleAIResponse("✅ eBay listing created successfully! I've optimized the title, description, and keywords. Your item is now live and should start getting views within the hour.");
+    }, 3000);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSendMessage();
     }
   };
 
-  const totalRevenue = sales.reduce((sum, sale) => sum + sale.salePrice, 0);
-  const activeListing = listings.filter(l => l.status === 'active').length;
-  const totalViews = listings.reduce((sum, listing) => sum + listing.views, 0);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  // Stat Card Component
+  const StatCard = ({ icon: Icon, title, value, change, gradient, metric, subtitle }) => (
+    <div 
+      className={`bg-gradient-to-br ${gradient} rounded-2xl p-6 text-white shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:scale-105 ${selectedMetric === metric ? 'ring-4 ring-white ring-opacity-30' : ''}`}
+      onClick={() => setSelectedMetric(metric)}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className="p-3 bg-white bg-opacity-20 rounded-xl backdrop-blur-sm">
+          <Icon className="w-6 h-6" />
+        </div>
+        <div className={`flex items-center text-sm ${change >= 0 ? 'text-green-200' : 'text-red-200'}`}>
+          <TrendingUp className="w-4 h-4 mr-1" />
+          <span>{change >= 0 ? '+' : ''}{change}%</span>
+        </div>
       </div>
-    );
-  }
+      <div>
+        <p className="text-white text-opacity-80 text-sm font-medium">{title}</p>
+        <p className="text-3xl font-bold mt-1">{value}</p>
+        <p className="text-white text-opacity-70 text-xs mt-1">{subtitle}</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+      {/* Navigation */}
+      <nav className="bg-white shadow-lg border-b">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">EasyFlip</h1>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {!user?.isPro && (
-                <button className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 hover:from-purple-700 hover:to-blue-700 transition-colors">
-                  <Crown className="w-4 h-4" />
-                  <span>Upgrade to Pro</span>
-                </button>
-              )}
-              
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <div className="text-sm font-medium text-gray-900">{user?.name}</div>
-                  <div className="text-xs text-gray-500">
-                    {user?.listingsUsed}/{user?.listingsLimit} listings used
-                  </div>
-                </div>
-                
-                <button
-                  onClick={handleSignOut}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+            <div className="flex items-center space-x-8">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                EasyFlip AI
+              </h1>
+              <div className="flex space-x-6">
+                <button 
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'}`}
                 >
-                  <LogOut className="w-5 h-5" />
+                  Dashboard
+                </button>
+                <button 
+                  onClick={() => setActiveTab('photos')}
+                  className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'photos' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'}`}
+                >
+                  Photo Upload
+                </button>
+                <button 
+                  onClick={() => setActiveTab('coach')}
+                  className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'coach' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'}`}
+                >
+                  AI Coach
                 </button>
               </div>
             </div>
+            <div className="flex items-center space-x-4">
+              <select 
+                value={timeRange} 
+                onChange={(e) => setTimeRange(e.target.value)}
+                className="bg-gray-50 border-0 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="7d">Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="90d">Last 90 days</option>
+              </select>
+              <button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center shadow-lg">
+                <Plus className="w-4 h-4 mr-2" />
+                New Listing
+              </button>
+            </div>
           </div>
         </div>
-      </header>
+      </nav>
 
-      {/* Navigation Tabs */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-8">
-            {[
-              { id: 'overview', label: 'Overview', icon: BarChart3 },
-              { id: 'listings', label: 'My Listings', icon: Package },
-              { id: 'sales', label: 'Sales & Shipping', icon: DollarSign },
-              { id: 'analytics', label: 'Analytics', icon: TrendingUp }
-            ].map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'overview' && (
-          <div className="space-y-8">
-            {/* Welcome Section */}
-            <div>
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && (
+          <>
+            {/* Welcome Message */}
+            <div className="mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                Welcome back, {user?.name}!
+                Welcome back, {user?.name || 'Seller'}! 👋
               </h2>
               <p className="text-gray-600">
                 Here's what's happening with your listings today.
@@ -366,529 +265,298 @@ const AppDashboard = () => {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid md:grid-cols-4 gap-6">
-              <div className="bg-white p-6 rounded-xl shadow-sm border">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <DollarSign className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                    <p className="text-2xl font-bold text-gray-900">${totalRevenue}</p>
-                  </div>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <StatCard
+                icon={DollarSign}
+                title="Total Revenue"
+                value="$14,200"
+                change={23.5}
+                gradient="from-green-500 to-emerald-600"
+                metric="revenue"
+                subtitle="This week"
+              />
+              <StatCard
+                icon={ShoppingCart}
+                title="Total Sales"
+                value="102"
+                change={18.2}
+                gradient="from-blue-500 to-cyan-600"
+                metric="sales"
+                subtitle="Items sold"
+              />
+              <StatCard
+                icon={Eye}
+                title="Total Views"
+                value="1,960"
+                change={-5.3}
+                gradient="from-purple-500 to-pink-600"
+                metric="views"
+                subtitle="Listing views"
+              />
+              <StatCard
+                icon={Package}
+                title="Active Listings"
+                value="47"
+                change={12.1}
+                gradient="from-orange-500 to-red-600"
+                metric="listings"
+                subtitle="Currently listed"
+              />
+            </div>
+
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              {/* Performance Chart */}
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Performance Trend</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={performanceData}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="date" stroke="#666" />
+                    <YAxis stroke="#666" />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'white', 
+                        border: 'none', 
+                        borderRadius: '12px', 
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' 
+                      }} 
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey={selectedMetric} 
+                      stroke="#8b5cf6" 
+                      fillOpacity={1} 
+                      fill="url(#colorRevenue)" 
+                      strokeWidth={3}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-sm border">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Package className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Active Listings</p>
-                    <p className="text-2xl font-bold text-gray-900">{activeListing}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm border">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Eye className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Views</p>
-                    <p className="text-2xl font-bold text-gray-900">{totalViews}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm border">
-                <div className="flex items-center">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <TrendingUp className="w-6 h-6 text-orange-600" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Conversion Rate</p>
-                    <p className="text-2xl font-bold text-gray-900">12.5%</p>
-                  </div>
-                </div>
+              {/* Category Breakdown */}
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Sales by Category</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ name, value }) => `${name}: ${value}%`}
+                    >
+                      {categoryData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="grid md:grid-cols-3 gap-6">
-              <button
-                onClick={handleNewListing}
-                className="bg-blue-600 hover:bg-blue-700 text-white p-6 rounded-xl transition-colors group text-left w-full"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="bg-blue-500 p-3 rounded-lg group-hover:bg-blue-400 transition-colors">
-                    <Camera className="w-6 h-6" />
+            {/* Recent Sales */}
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Sales</h2>
+              <div className="space-y-4">
+                {recentSales.map((sale) => (
+                  <div key={sale.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                        <Package className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{sale.item}</h3>
+                        <p className="text-gray-600 text-sm">{sale.time}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900">${sale.price}</p>
+                      <p className="text-green-600 text-sm">+${sale.profit} profit</p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      sale.status === 'sold' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {sale.status}
+                    </span>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">New Listing</h3>
-                    <p className="text-blue-100">Snap a photo to get started</p>
-                  </div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('sales')}
-                className="bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition-shadow text-left"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="bg-green-100 p-3 rounded-lg">
-                    <Package className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Manage Sales</h3>
-                    <p className="text-gray-600">Print labels & track shipments</p>
-                  </div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('analytics')}
-                className="bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition-shadow text-left"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="bg-purple-100 p-3 rounded-lg">
-                    <BarChart3 className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">View Analytics</h3>
-                    <p className="text-gray-600">Track your performance</p>
-                  </div>
-                </div>
-              </button>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
 
-        {/* Photo Capture Modal */}
-        {showPhotoCapture && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Create New Listing</h2>
-                <button
-                  onClick={resetPhotoCapture}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
+        {/* Photo Upload Tab */}
+        {activeTab === 'photos' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl p-6 shadow-lg">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Upload Item Photos</h2>
+              
+              {/* Drag & Drop Area */}
+              <div 
+                className="border-2 border-dashed border-blue-300 rounded-xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50 hover:bg-blue-100"
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">Drop photos here or click to upload</h3>
+                <p className="text-gray-500">AI will analyze your items and suggest pricing</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
               </div>
 
-              {!selectedImage ? (
-                <div className="text-center">
-                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 hover:border-blue-400 transition-colors">
-                    <Camera className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      Add Your Photo
-                    </h3>
-                    <p className="text-gray-600 mb-6">
-                      Take a clear photo of your item or upload from your device
-                    </p>
-                    
-                    <div className="space-y-4">
-                      <label className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2 cursor-pointer">
-                        <Upload className="w-4 h-4" />
-                        <span>Upload Photo</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageSelect}
-                          className="hidden"
+              {/* Uploaded Photos */}
+              {uploadedPhotos.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Uploaded Photos</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {uploadedPhotos.map((photo) => (
+                      <div key={photo.id} className="relative group">
+                        <img 
+                          src={photo.url} 
+                          alt={photo.name}
+                          className="w-full h-32 object-cover rounded-lg shadow-md"
                         />
-                      </label>
-                      
-                      <div className="text-sm text-gray-500">
-                        Supports JPG, PNG up to 10MB
+                        <button
+                          onClick={() => removePhoto(photo.id)}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={createEbayListing}
+                          className="absolute bottom-2 left-2 right-2 bg-blue-600 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          Create Listing
+                        </button>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                </div>
-              ) : (
-                <div>
-                  <div className="text-center mb-6">
-                    <img
-                      src={selectedImage}
-                      alt="Selected item"
-                      className="max-w-full h-64 object-contain mx-auto rounded-lg"
-                    />
-                  </div>
-
-                  <div className="flex justify-center space-x-4">
-                    <button
-                      onClick={() => setSelectedImage(null)}
-                      className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                    >
-                      Choose Different Photo
-                    </button>
-                    
-                    <button
-                      onClick={handleProcessImage}
-                      disabled={isProcessing}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
-                    >
-                      {isProcessing ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          <span>Processing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="w-4 h-4" />
-                          <span>Analyze Item</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {isProcessing && (
-                    <div className="mt-6 text-center">
-                      <div className="text-sm text-gray-600">
-                        Our AI is analyzing your item...
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        This usually takes 2-3 seconds
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
-              {/* Tips */}
-              <div className="mt-8 bg-blue-50 rounded-xl p-6">
-                <h3 className="font-semibold text-gray-900 mb-3">📸 Photo Tips for Best Results</h3>
-                <ul className="text-sm text-gray-600 space-y-2">
-                  <li>• Use good lighting - natural light works best</li>
-                  <li>• Show the entire item in the frame</li>
-                  <li>• Include any brand labels or tags if visible</li>
-                  <li>• Take photos from multiple angles if needed</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'listings' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-900">My Listings</h2>
-              <Link
-                to="/capture"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 no-underline"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Listing</span>
-              </Link>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Item
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Price
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Platforms
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Performance
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {listings.map((listing) => (
-                      <tr key={listing.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <img
-                              className="h-12 w-12 rounded-lg object-cover"
-                              src={listing.image}
-                              alt={listing.title}
-                            />
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
-                                {listing.title}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                Listed {listing.createdAt}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            ${listing.price}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(listing.status)}`}>
-                            {listing.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex space-x-1">
-                            {listing.platforms.map((platform) => (
-                              <span
-                                key={platform}
-                                className="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded"
-                              >
-                                {platform}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          <div className="flex items-center space-x-4">
-                            <div className="flex items-center">
-                              <Eye className="w-4 h-4 mr-1" />
-                              {listing.views}
-                            </div>
-                            <div className="flex items-center">
-                              <MessageSquare className="w-4 h-4 mr-1" />
-                              {listing.messages}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button className="text-blue-600 hover:text-blue-900 mr-3">
-                            Edit
-                          </button>
-                          <button className="text-red-600 hover:text-red-900">
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'sales' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-900">eBay Sales & Shipping</h2>
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                  <span className="text-yellow-600 font-bold">eB</span>
+              {/* Create Listing Loading */}
+              {isCreatingListing && (
+                <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                    <span className="text-blue-700">Creating your eBay listing...</span>
+                  </div>
                 </div>
-                <span>Powered by eBay Managed Shipping</span>
-              </div>
+              )}
             </div>
+          </div>
+        )}
 
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Item
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Sale Price
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Platform
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Buyer
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Shipping Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {sales.map((sale) => (
-                      <tr key={sale.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {sale.title}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            Sold {sale.soldAt}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-green-600">
-                            ${sale.salePrice}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-                            {sale.platform}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{sale.buyerInfo.name}</div>
-                          <div className="text-sm text-gray-500">{sale.buyerInfo.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getShippingStatusColor(sale.shippingStatus)}`}>
-                            {sale.shippingStatus.replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          {sale.shippingStatus === 'pending' && (
-                            <button
-                              onClick={() => handlePrintLabel(sale.id)}
-                              className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs flex items-center space-x-1"
-                            >
-                              <Printer className="w-3 h-3" />
-                              <span>Print eBay Label</span>
-                            </button>
-                          )}
-                          {sale.shippingStatus === 'label_printed' && (
-                            <div className="flex space-x-2">
-                              <button className="text-blue-600 hover:text-blue-900 text-xs">
-                                Mark Shipped in eBay
-                              </button>
-                            </div>
-                          )}
-                          {sale.trackingNumber && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              Tracking: {sale.trackingNumber}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        {/* AI Coach Tab */}
+        {activeTab === 'coach' && (
+          <div className="bg-white rounded-2xl shadow-lg h-[600px] flex flex-col">
+            {/* Chat Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-t-2xl flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                  <Bot className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="font-semibold">AI Reseller Coach</h2>
+                  <p className="text-sm text-blue-100">Online • Ready to help</p>
+                </div>
               </div>
-            </div>
-
-            {sales.length === 0 && (
-              <div className="text-center py-12">
-                <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No eBay sales yet</h3>
-                <p className="text-gray-600 mb-6">
-                  Once you make your first eBay sale, you'll be able to print labels and track shipments here.
-                </p>
-                <Link
-                  to="/capture"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setVoiceMode(!voiceMode)}
+                  className={`p-2 rounded-lg transition-colors ${voiceMode ? 'bg-white bg-opacity-20' : 'hover:bg-white hover:bg-opacity-10'}`}
                 >
-                  <Camera className="w-4 h-4" />
-                  <span>Create Your First Listing</span>
-                </Link>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'analytics' && (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-900">Analytics</h2>
-            
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-xl shadow-sm border">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Overview</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Average Sale Price</span>
-                    <span className="font-medium">${totalRevenue / Math.max(sales.length, 1)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Avg. Time to Sale</span>
-                    <span className="font-medium">2.3 days</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Success Rate</span>
-                    <span className="font-medium">85%</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm border">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Platform Performance</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">eBay</span>
-                    <span className="font-medium">65% of sales</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Facebook</span>
-                    <span className="font-medium">35% of sales</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm border">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">This Month</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Revenue</span>
-                    <span className="font-medium text-green-600">${totalRevenue}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Items Sold</span>
-                    <span className="font-medium">{sales.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Active Listings</span>
-                    <span className="font-medium">{activeListing}</span>
-                  </div>
-                </div>
+                  {voiceMode ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                </button>
+                <button
+                  onClick={toggleRecording}
+                  className={`p-2 rounded-lg transition-colors ${isRecording ? 'bg-red-500' : 'hover:bg-white hover:bg-opacity-10'}`}
+                >
+                  {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-              <div className="space-y-4">
-                {sales.map((sale) => (
-                  <div key={sale.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        {sale.title} sold for ${sale.salePrice}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {sale.soldAt} on {sale.platform}
-                      </p>
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {chatMessages.map((message) => (
+                <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                    message.sender === 'user' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-900'
+                  }`}>
+                    <div className="flex items-start space-x-2">
+                      {message.sender === 'ai' && (
+                        <Bot className="w-5 h-5 mt-0.5 text-blue-600" />
+                      )}
+                      <p className="text-sm">{message.text}</p>
                     </div>
                   </div>
-                ))}
-                
-                {listings.filter(l => l.status === 'active').map((listing) => (
-                  <div key={listing.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <Clock className="w-5 h-5 text-blue-600" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        {listing.title} listed for ${listing.price}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {listing.createdAt} • {listing.views} views
-                      </p>
+                </div>
+              ))}
+              {aiSpeaking && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 px-4 py-2 rounded-2xl">
+                    <div className="flex items-center space-x-2">
+                      <Bot className="w-5 h-5 text-blue-600" />
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                      </div>
                     </div>
                   </div>
-                ))}
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Chat Input */}
+            <div className="border-t p-4">
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={currentMessage}
+                  onChange={(e) => setCurrentMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask about pricing, sourcing, or anything reselling related..."
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
               </div>
+              {isRecording && (
+                <div className="mt-2 flex items-center justify-center text-red-600">
+                  <Mic className="w-4 h-4 mr-2 animate-pulse" />
+                  <span className="text-sm">Listening...</span>
+                </div>
+              )}
             </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };
