@@ -358,7 +358,7 @@ const AppDashboard = () => {
   };
 
   const handleNewListing = () => {
-    navigate('/add-item');
+    navigate('/capture');
   };
 
   const handleKeyPress = (e) => {
@@ -406,12 +406,6 @@ const AppDashboard = () => {
                   className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'}`}
                 >
                   Dashboard
-                </button>
-                <button 
-                  onClick={() => setActiveTab('photos')}
-                  className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'photos' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'}`}
-                >
-                  Photo Upload
                 </button>
                 <button 
                   onClick={() => setActiveTab('coach')}
