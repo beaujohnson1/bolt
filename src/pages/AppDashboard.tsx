@@ -41,6 +41,22 @@ interface RecentSaleData {
   profit: number;
 }
 
+interface ListingWithItemImage {
+  id: string;
+  item_id: string;
+  title: string;
+  price: number;
+  status: string;
+  total_views: number;
+  total_watchers: number;
+  created_at: string;
+  listed_at: string;
+  items: {
+    primary_image_url: string;
+    category: string;
+  };
+}
+
 const AppDashboard = () => {
   const { user, authUser, updateUser } = useAuth();
   const navigate = useNavigate();
@@ -49,13 +65,9 @@ const AppDashboard = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [currentMessage, setCurrentMessage] = useState('');
-  const [uploadedPhotos, setUploadedPhotos] = useState([]);
-  const [isCreatingListing, setIsCreatingListing] = useState(false);
-  const [processingPhotoId, setProcessingPhotoId] = useState(null);
   const [voiceMode, setVoiceMode] = useState(false);
   const [aiSpeaking, setAiSpeaking] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
 
   // Supabase data states
@@ -72,6 +84,7 @@ const AppDashboard = () => {
   const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
   const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
   const [recentSales, setRecentSales] = useState<RecentSaleData[]>([]);
+  const [allListings, setAllListings] = useState<ListingWithItemImage[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Fetch and process Supabase data
@@ -96,7 +109,13 @@ const AppDashboard = () => {
             .gte('sold_at', startDate.toISOString()),
           supabase
             .from('listings')
-            .select('*')
+            .select(`
+              *,
+              items (
+                primary_image_url,
+                category
+              )
+            `)
             .eq('user_id', authUser.id),
           supabase
             .from('items')
@@ -111,6 +130,9 @@ const AppDashboard = () => {
         const sales = salesResult.data || [];
         const listings = listingsResult.data || [];
         const items = itemsResult.data || [];
+        
+        // Store all listings for the active listings section
+        setAllListings(listings);
         
         // Process dashboard stats
         const totalRevenue = sales.reduce((sum, sale) => sum + (sale.sale_price || 0), 0);
@@ -278,48 +300,6 @@ const AppDashboard = () => {
     }
   };
 
-  // Photo Upload Functions
-  const handlePhotoUpload = (event) => {
-    const files = Array.from(event.target.files);
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const newPhoto = {
-          id: Date.now() + Math.random(),
-          url: e.target.result,
-          name: file.name,
-          file: file
-        };
-        setUploadedPhotos(prev => [...prev, newPhoto]);
-        
-        // Simulate AI analysis
-        setTimeout(() => {
-          handleAIResponse(`🔍 I've analyzed your photo! This looks like a ${getRandomItem()}. Based on current market data, I suggest pricing it at $${Math.floor(Math.random() * 200 + 50)}. Want me to create an eBay listing?`);
-        }, 2000);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    const files = Array.from(e.dataTransfer.files);
-    const imageFiles = files.filter(file => file.type.startsWith('image/'));
-    
-    if (imageFiles.length > 0) {
-      const event = { target: { files: imageFiles } };
-      handlePhotoUpload(event);
-    }
-  };
-
-  const removePhoto = (photoId) => {
-    setUploadedPhotos(prev => prev.filter(photo => photo.id !== photoId));
-  };
-
   // Chat Functions
   const handleSendMessage = () => {
     if (currentMessage.trim()) {
@@ -374,119 +354,6 @@ const AppDashboard = () => {
     if (!authUser || !user) {
       alert('Please sign in to create listings');
       return;
-    }
-
-    // Check if user has reached their limit
-    if (user.listings_used >= user.listings_limit && user.subscription_plan === 'free') {
-      alert('You\'ve reached your free listing limit. Upgrade to Pro for unlimited listings!');
-      return;
-    }
-
-    setProcessingPhotoId(photo.id);
-    
-    try {
-      // Upload image to Supabase Storage
-      const fileExt = photo.file.name.split('.').pop();
-      const fileName = `${authUser.id}/${Date.now()}.${fileExt}`;
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('item-images')
-        .upload(fileName, photo.file);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL for the uploaded image
-      const { data: { publicUrl } } = supabase.storage
-        .from('item-images')
-        .getPublicUrl(fileName);
-
-      // Create item in database with placeholder data
-      const { data: itemData, error: itemError } = await supabase
-        .from('items')
-        .insert([
-          {
-            user_id: authUser.id,
-            title: 'New Item - Please Edit', // Placeholder title
-            description: 'Please add a description for this item.',
-            category: 'other', // Default category
-            condition: 'good', // Default condition
-            brand: null,
-            size: null,
-            suggested_price: 25.00, // Default price
-            price_range_min: 20.00,
-            price_range_max: 35.00,
-            images: [publicUrl],
-            primary_image_url: publicUrl,
-            ai_confidence: 0.5, // Placeholder confidence
-            ai_analysis: {
-              detected_category: 'other',
-              detected_condition: 'good',
-              key_features: ['needs_review']
-            },
-            status: 'draft'
-          }
-        ])
-        .select()
-        .single();
-
-      if (itemError) throw itemError;
-
-      // Create a listing for this item
-      const { data: listingData, error: listingError } = await supabase
-        .from('listings')
-        .insert([
-          {
-            item_id: itemData.id,
-            user_id: authUser.id,
-            title: itemData.title,
-            description: itemData.description || '',
-            price: itemData.suggested_price,
-            images: [publicUrl],
-            platforms: ['ebay'],
-            status: 'draft'
-          }
-        ])
-        .select()
-        .single();
-
-      if (listingError) throw listingError;
-
-      // Update user's listing count
-      await updateUser({ listings_used: user.listings_used + 1 });
-
-      // Remove the photo from uploaded photos
-      setUploadedPhotos(prev => prev.filter(p => p.id !== photo.id));
-      
-      // Show success message
-      handleAIResponse(`✅ Draft listing created successfully! I've uploaded your photo and created a basic listing. Click "Edit Details" to customize the title, description, and pricing before publishing.`);
-      
-      // Navigate to item details page
-      navigate(`/details/${itemData.id}`);
-      
-    } catch (error) {
-      console.error('Error creating listing:', error);
-      alert('Failed to create listing. Please try again.');
-    } finally {
-      setProcessingPhotoId(null);
-    }
-  };
-
-  const handleNewListing = () => {
-    navigate('/capture');
-  };
-
-  const createEbayListing = (photo) => {
-    createDraftListing(photo);
-  };
-
-  const createEbayListingOld = () => {
-    setIsCreatingListing(true);
-    setTimeout(() => {
-      setIsCreatingListing(false);
-      handleAIResponse("✅ eBay listing created successfully! I've optimized the title, description, and keywords. Your item is now live and should start getting views within the hour.");
-    }, 3000);
-  };
-
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       handleSendMessage();
@@ -694,6 +561,77 @@ const AppDashboard = () => {
               </div>
             )}
 
+            {/* Active Listings */}
+            {!loadingData && (
+              <div className="bg-white rounded-2xl p-6 shadow-lg mt-8">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Active Listings</h2>
+                {allListings.filter(listing => listing.status === 'active').length > 0 ? (
+                  <div className="space-y-4">
+                    {allListings
+                      .filter(listing => listing.status === 'active')
+                      .map((listing) => {
+                        const listingDate = new Date(listing.listed_at || listing.created_at);
+                        const now = new Date();
+                        const diffHours = Math.floor((now.getTime() - listingDate.getTime()) / (1000 * 60 * 60));
+                        const timeAgo = diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
+                        
+                        return (
+                          <Link
+                            key={listing.id}
+                            to={`/details/${listing.item_id}`}
+                            className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center space-x-4">
+                              {listing.items?.primary_image_url ? (
+                                <img
+                                  src={listing.items.primary_image_url}
+                                  alt={listing.title}
+                                  className="w-12 h-12 object-cover rounded-lg"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
+                                  <Package className="w-6 h-6 text-white" />
+                                </div>
+                              )}
+                              <div>
+                                <h3 className="font-semibold text-gray-900">{listing.title}</h3>
+                                <p className="text-gray-600 text-sm">Listed {timeAgo}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-gray-900">${listing.price}</p>
+                              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                <span className="flex items-center">
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  {listing.total_views || 0}
+                                </span>
+                                <span className="flex items-center">
+                                  <Target className="w-4 h-4 mr-1" />
+                                  {listing.total_watchers || 0}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                              Active
+                            </span>
+                          </Link>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No active listings yet. Create your first listing to get started!</p>
+                    <button
+                      onClick={handleNewListing}
+                      className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Create New Listing
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             {/* Recent Sales */}
             {!loadingData && (
               <div className="bg-white rounded-2xl p-6 shadow-lg">
@@ -728,82 +666,6 @@ const AppDashboard = () => {
                   <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                   <p>No sales yet. Create your first listing to get started!</p>
                 </div>
-              )}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Photo Upload Tab */}
-        {activeTab === 'photos' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Upload Item Photos</h2>
-              
-              {/* Drag & Drop Area */}
-              <div 
-                className="border-2 border-dashed border-blue-300 rounded-xl p-12 text-center hover:border-blue-500 transition-colors cursor-pointer bg-blue-50 hover:bg-blue-100"
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Camera className="w-16 h-16 text-blue-500 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">Drop photos here or click to upload</h3>
-                <p className="text-gray-500">AI will analyze your items and suggest pricing</p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handlePhotoUpload}
-                  className="hidden"
-                />
-              </div>
-
-              {/* Uploaded Photos */}
-              {uploadedPhotos.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Uploaded Photos</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {uploadedPhotos.map((photo) => (
-                      <div key={photo.id} className="relative group">
-                        <img 
-                          src={photo.url} 
-                          alt={photo.name}
-                          className="w-full h-32 object-cover rounded-lg shadow-md"
-                        />
-                        <button
-                          onClick={() => removePhoto(photo.id)}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        {processingPhotoId === photo.id ? (
-                          <div className="absolute bottom-2 left-2 right-2 bg-blue-600 text-white text-xs py-1 px-2 rounded flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-3 w-3 border-b border-white mr-1"></div>
-                            Creating...
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => createEbayListing(photo)}
-                            className="absolute bottom-2 left-2 right-2 bg-blue-600 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-700"
-                          >
-                            Create Listing
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Create Listing Loading */}
-              {isCreatingListing && (
-                <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
-                    <span className="text-blue-700">Creating your eBay listing...</span>
-                  </div>
                 </div>
               )}
             </div>
@@ -825,12 +687,6 @@ const AppDashboard = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setVoiceMode(!voiceMode)}
-                  className={`p-2 rounded-lg transition-colors ${voiceMode ? 'bg-white bg-opacity-20' : 'hover:bg-white hover:bg-opacity-10'}`}
-                >
-                  {voiceMode ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                </button>
                 <button
                   onClick={toggleRecording}
                   className={`p-2 rounded-lg transition-colors ${isRecording ? 'bg-red-500' : 'hover:bg-white hover:bg-opacity-10'}`}
