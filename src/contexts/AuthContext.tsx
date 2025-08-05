@@ -155,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('🔍 [AUTH] Getting initial session...');
         const { data: { session }, error } = await withTimeout(
           supabase.auth.getSession(),
-          3, // maxRetries
+          SESSION_TIMEOUT,
           'Session fetch timed out'
         );
         
@@ -196,10 +196,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             () => withTimeout(
               fetchUserProfile(session.user),
               PROFILE_FETCH_TIMEOUT,
-              'User profile fetch timed out during auth state change'
-            ),
-            3, // maxRetries
-            2000 // baseDelay
               'User profile fetch timed out during initial session'
             ),
             3, // maxRetries
