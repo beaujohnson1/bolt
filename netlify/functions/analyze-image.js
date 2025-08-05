@@ -1,7 +1,5 @@
 const { ImageAnnotatorClient } = require('@google-cloud/vision');
 
-const { ImageAnnotatorClient } = require('@google-cloud/vision');
-
 // Parse the JSON content from the environment variable
 let googleCredentials;
 try {
