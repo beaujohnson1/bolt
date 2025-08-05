@@ -161,6 +161,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       console.log('🔧 [AUTH] Fixing user listing limit...');
+      console.log('🔧 [AUTH] Current user before fix:', {
+        listings_used: user?.listings_used,
+        listings_limit: user?.listings_limit,
+        user_id: authUser.id
+      });
+      
       const { data, error } = await supabase
         .from('users')
         .update({
@@ -173,7 +179,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) throw error;
 
+      console.log('✅ [AUTH] Database update result:', data);
       setUser(data);
+      console.log('✅ [AUTH] User state updated in context:', {
+        listings_used: data.listings_used,
+        listings_limit: data.listings_limit,
+        user_id: data.id
+      });
       console.log('✅ [AUTH] User listing limit fixed:', data.listings_limit);
     } catch (error) {
       console.error('❌ [AUTH] Error fixing user listing limit:', error);
@@ -226,9 +238,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('🔄 [AUTH] Fetching user profile for initial session...');
           const profile = await fetchUserProfile(session.user);
           console.log('📊 [AUTH] Profile fetch result for initial session:', profile ? 'success' : 'failed');
+          console.log('📊 [AUTH] Initial profile data:', {
+            listings_used: profile?.listings_used,
+            listings_limit: profile?.listings_limit,
+            user_id: profile?.id
+          });
           setUser(profile);
           // Fix listing limit for existing users
           if (profile && profile.listings_limit < 999) {
+            console.log('🔧 [AUTH] Profile needs listing limit fix, calling fixUserListingLimit...');
             await fixUserListingLimit();
           }
         } else {
@@ -258,9 +276,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('🔄 [AUTH] Fetching user profile for auth state change...');
           const profile = await fetchUserProfile(session.user);
           console.log('📊 [AUTH] Profile fetch result for auth state change:', profile ? 'success' : 'failed');
+          console.log('📊 [AUTH] Auth state change profile data:', {
+            listings_used: profile?.listings_used,
+            listings_limit: profile?.listings_limit,
+            user_id: profile?.id
+          });
           setUser(profile);
           // Fix listing limit for existing users
           if (profile && profile.listings_limit < 999) {
+            console.log('🔧 [AUTH] Profile needs listing limit fix, calling fixUserListingLimit...');
             await fixUserListingLimit();
           }
         } else {

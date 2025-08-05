@@ -35,8 +35,21 @@ const PhotoCapture = () => {
   const handleProcessImage = async () => {
     if (selectedImages.length === 0 || selectedFiles.length === 0 || !user || !authUser) return;
 
+    // Debug: Log current user limits
+    console.log('🔍 [PHOTO] Current user limits:', {
+      listings_used: user.listings_used,
+      listings_limit: user.listings_limit,
+      subscription_plan: user.subscription_plan,
+      user_id: user.id
+    });
+
     // Check if user has reached their limit
     if (user.listings_used >= user.listings_limit && user.subscription_plan === 'free') {
+      console.log('❌ [PHOTO] Listing limit reached!', {
+        used: user.listings_used,
+        limit: user.listings_limit,
+        plan: user.subscription_plan
+      });
       alert('You\'ve reached your free listing limit. Upgrade to Pro for unlimited listings!');
       return;
     }
