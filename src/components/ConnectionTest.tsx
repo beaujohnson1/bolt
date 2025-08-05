@@ -18,10 +18,6 @@ const ConnectionTest = () => {
     status: 'idle',
     message: 'Click Test to check eBay trending items API'
   });
-  const [trendingTest, setTrendingTest] = useState({
-    status: 'idle',
-    message: 'Click Test to check eBay trending items API'
-  });
 
   useEffect(() => {
     runTests();
