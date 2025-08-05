@@ -3,7 +3,8 @@
 // =============================================
 
 import { SupabaseClient } from '@supabase/supabase-js';
-import { analyzeClothingItem, convertToBase64 } from './openaiService.js';
+import { analyzeClothingItem } from './openaiService.js';
+import { fetchImageAsBase64 } from '../utils/imageUtils';
 
 // Types for the keyword system
 interface PhotoAnalysis {
@@ -152,15 +153,8 @@ export class KeywordOptimizationService {
     try {
       console.log('🤖 [KEYWORDS] Starting AI keyword generation...');
       
-      // Fetch the image and convert to base64
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.statusText}`);
-      }
-      
-      const blob = await response.blob();
-      const file = new File([blob], 'image.jpg', { type: blob.type });
-      const imageBase64 = await convertToBase64(file);
+      // Fetch the image and convert to base64 using utility function
+      const imageBase64 = await fetchImageAsBase64(imageUrl);
       
       console.log('🤖 [KEYWORDS] Image converted to base64, calling OpenAI...');
       
@@ -566,15 +560,8 @@ export class KeywordOptimizationService {
     try {
       console.log('🤖 [KEYWORDS] Using existing OpenAI service for keyword analysis...');
       
-      // Fetch the image and convert to base64
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.statusText}`);
-      }
-      
-      const blob = await response.blob();
-      const file = new File([blob], 'image.jpg', { type: blob.type });
-      const imageBase64 = await convertToBase64(file);
+      // Fetch the image and convert to base64 using utility function
+      const imageBase64 = await fetchImageAsBase64(imageUrl);
       
       console.log('🤖 [KEYWORDS] Image converted to base64, calling analyzeClothingItem...');
       
