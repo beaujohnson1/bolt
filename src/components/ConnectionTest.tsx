@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { CheckCircle, XCircle, AlertCircle, Database, Shield, Image, ShoppingCart } from 'lucide-react';
@@ -174,6 +174,25 @@ const ConnectionTest = () => {
       }));
     }
   };
+
+  const testTrendingItems = useCallback(async () => {
+    setTrendingTest({ status: 'testing', message: 'Testing eBay trending items API...' });
+
+    try {
+      const ebayService = new EbayApiService();
+      const trendingItems = await ebayService.getTrendingItems();
+      
+      setTrendingTest({
+        status: 'success',
+        message: `Successfully fetched ${trendingItems.length} trending items`
+      });
+    } catch (error) {
+      setTrendingTest({
+        status: 'error',
+        message: `Failed to fetch trending items: ${error.message}`
+      });
+    }
+  }, []);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
