@@ -497,27 +497,28 @@ class EbayApiService {
       
       console.log('🔗 [EBAY] API URL:', apiUrl);
 
-      const response = await fetch(apiUrl, {
-        headers: {
+      // Use proxy to avoid CORS issues
+      const response = await this._callProxy(
+        apiUrl,
+        'GET',
+        {
           'Authorization': `Bearer ${await this.getApplicationToken()}`,
           'Content-Type': 'application/json',
           'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
         }
-      });
+      );
 
-      if (!response.ok) {
-        const errorText = await response.text();
+      if (response.status !== 200) {
         console.error('❌ [EBAY] Failed to fetch trending items:', {
           status: response.status,
-          statusText: response.statusText,
-          error: errorText
+          error: response.data
         });
         
         // Return empty array instead of throwing to prevent dashboard from breaking
         return [];
       }
 
-      const data = await response.json();
+      const data = response.data;
       console.log('✅ [EBAY] Trending items fetched successfully:', {
         count: data.itemSummaries?.length || 0,
         total: data.total || 0
