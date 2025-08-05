@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, DollarSign, Package, Eye, ShoppingCart, Calendar, Target, Zap, Plus, Settings, Bell, Mic, MicOff, Upload, Camera, MessageCircle, Send, Play, Pause, Image, Trash2, Bot, User } from 'lucide-react';
+import { TrendingUp, DollarSign, Package, Eye, ShoppingCart, Calendar, Target, Zap, Plus, Settings, Bell, Mic, MicOff, Upload, Camera, MessageCircle, Send, Play, Pause, Image, Trash2, Bot, User, Star } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
+import EbayApiService, { type TrendingItem } from '../services/ebayApi';
 
 // Types for dashboard data
 interface DashboardStats {
@@ -86,7 +87,51 @@ const AppDashboard = () => {
   const [recentSales, setRecentSales] = useState<RecentSaleData[]>([]);
   const [allListings, setAllListings] = useState<ListingWithItemImage[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  
+  // eBay trending items state
   const [ebayService] = useState(() => new EbayApiService());
+  const [trendingItems, setTrendingItems] = useState<TrendingItem[]>([]);
+  const [loadingTrending, setLoadingTrending] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('11450'); // Default to Clothing category
+  const [trendingTest, setTrendingTest] = useState({ status: 'idle', message: 'Click to test eBay trending items API' });
+
+  // Fetch trending items function
+  const fetchTrendingItems = async (categoryId: string = selectedCategory) => {
+    setLoadingTrending(true);
+    try {
+      console.log('📈 [DASHBOARD] Fetching trending items for category:', categoryId);
+      const items = await ebayService.getTrendingItems([categoryId], 8);
+      console.log('✅ [DASHBOARD] Trending items fetched:', items.length);
+      setTrendingItems(items);
+    } catch (error) {
+      console.error('❌ [DASHBOARD] Error fetching trending items:', error);
+      setTrendingItems([]);
+    } finally {
+      setLoadingTrending(false);
+    }
+  };
+
+  // Test trending items API
+  const testTrendingItems = async () => {
+    setTrendingTest({ status: 'testing', message: 'Testing eBay trending items API...' });
+    try {
+      const testItems = await ebayService.getTrendingItems(['11450'], 3); // Test with clothing category
+      setTrendingTest({ 
+        status: 'success', 
+        message: `Successfully fetched ${testItems.length} trending items` 
+      });
+    } catch (error) {
+      setTrendingTest({ 
+        status: 'error', 
+        message: `Failed to fetch trending items: ${error.message}` 
+      });
+    }
+  };
+
+  // Load trending items on component mount
+  useEffect(() => {
+    fetchTrendingItems();
+  }, []);
 
   // Fetch and process Supabase data
   useEffect(() => {
