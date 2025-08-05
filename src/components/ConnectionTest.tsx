@@ -219,6 +219,28 @@ const ConnectionTest = () => {
               </div>
             </div>
           ))}
+          
+          {/* Additional eBay Trending Items Test */}
+          <div className={`p-4 rounded-lg border-2 ${getStatusColor(trendingTest.status)}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                {getStatusIcon(trendingTest.status)}
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900">
+                    eBay Trending Items API
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">{trendingTest.message}</p>
+                </div>
+              </div>
+              <button
+                onClick={testTrendingItems}
+                disabled={trendingTest.status === 'testing'}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 py-1 rounded text-sm transition-colors"
+              >
+                {trendingTest.status === 'testing' ? 'Testing...' : 'Test'}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="mt-8 p-4 bg-blue-50 rounded-lg">

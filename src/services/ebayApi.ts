@@ -459,6 +459,158 @@ class EbayApiService {
     };
   }
 
+  // Get trending/best-selling items from eBay
+  async getTrendingItems(categoryIds: string[] = [], limit: number = 12): Promise<TrendingItem[]> {
+    try {
+      console.log('📈 [EBAY] Fetching trending items...', {
+        categoryIds,
+        limit,
+        sandbox: this.config.sandbox
+      });
+
+      // Use eBay Browse API to get popular items
+      // Note: This endpoint doesn't require user authentication, just app credentials
+      const searchParams = new URLSearchParams({
+        category_ids: categoryIds.length > 0 ? categoryIds.join(',') : '11450,15724,1249,11233', // Default popular categories
+        limit: limit.toString(),
+        sort: 'newlyListed', // Can also use 'price', 'distance', 'endingSoonest'
+        filter: 'buyingOptions:{FIXED_PRICE},itemLocationCountry:US,deliveryCountry:US',
+        fieldgroups: 'MATCHING_ITEMS,EXTENDED'
+      });
+
+      const apiUrl = `${this.config.baseUrl}/buy/browse/v1/item_summary/search?${searchParams}`;
+      
+      console.log('🔗 [EBAY] API URL:', apiUrl);
+
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${await this.getApplicationToken()}`,
+          'Content-Type': 'application/json',
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [EBAY] Failed to fetch trending items:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        
+        // Return empty array instead of throwing to prevent dashboard from breaking
+        return [];
+      }
+
+      const data = await response.json();
+      console.log('✅ [EBAY] Trending items fetched successfully:', {
+        count: data.itemSummaries?.length || 0,
+        total: data.total || 0
+      });
+      
+      // Transform eBay API response to our format
+      const trendingItems: TrendingItem[] = (data.itemSummaries || []).map((item: any) => ({
+        itemId: item.itemId,
+        title: item.title,
+        price: parseFloat(item.price?.value || '0'),
+        currency: item.price?.currency || 'USD',
+        imageUrl: item.image?.imageUrl || item.thumbnailImages?.[0]?.imageUrl || '',
+        categoryId: item.categories?.[0]?.categoryId || '',
+        categoryName: item.categories?.[0]?.categoryName || 'Other',
+        condition: item.condition || 'Used',
+        itemWebUrl: item.itemWebUrl || '',
+        seller: {
+          username: item.seller?.username || 'Unknown',
+          feedbackPercentage: item.seller?.feedbackPercentage || 0
+        },
+        shippingOptions: item.shippingOptions || [],
+        watchCount: item.watchCount || 0,
+        bidCount: item.bidCount || 0,
+        listingDate: item.itemCreationDate || new Date().toISOString(),
+        endDate: item.itemEndDate || '',
+        buyItNowAvailable: item.buyItNowAvailable || false
+      }));
+      
+      return trendingItems;
+    } catch (error) {
+      console.error('❌ [EBAY] Error fetching trending items:', error);
+      return []; // Return empty array to prevent dashboard from breaking
+    }
+  }
+
+  // Get application token for public API calls (doesn't require user auth)
+  private async getApplicationToken(): Promise<string> {
+    try {
+      // Check if we have a cached app token
+      const cachedToken = localStorage.getItem('ebay_app_token');
+      const tokenExpiry = localStorage.getItem('ebay_app_token_expiry');
+      
+      if (cachedToken && tokenExpiry && new Date().getTime() < parseInt(tokenExpiry)) {
+        console.log('🔑 [EBAY] Using cached application token');
+        return cachedToken;
+      }
+
+      console.log('🔑 [EBAY] Requesting new application token...');
+      
+      const tokenUrl = `${this.config.baseUrl}/identity/v1/oauth2/token`;
+      
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${btoa(`${this.config.clientId}:${this.config.certId}`)}`
+        },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          scope: 'https://api.ebay.com/oauth/api_scope'
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [EBAY] Application token request failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error(`eBay application token request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const tokenData = await response.json();
+      const appToken = tokenData.access_token;
+      const expiresIn = tokenData.expires_in || 7200; // Default 2 hours
+      
+      // Cache the token
+      localStorage.setItem('ebay_app_token', appToken);
+      localStorage.setItem('ebay_app_token_expiry', (new Date().getTime() + (expiresIn * 1000)).toString());
+      
+      console.log('✅ [EBAY] Application token obtained successfully', {
+        expiresIn: `${expiresIn} seconds`
+      });
+      
+      return appToken;
+    } catch (error) {
+      console.error('❌ [EBAY] Error getting application token:', error);
+      throw error;
+    }
+  }
+
+  // Get popular categories for trending items
+  getPopularCategories(): { id: string; name: string }[] {
+    return [
+      { id: '11450', name: 'Clothing, Shoes & Accessories' },
+      { id: '15724', name: 'Cell Phones & Accessories' },
+      { id: '1249', name: 'Video Games & Consoles' },
+      { id: '11233', name: 'Home & Garden' },
+      { id: '293', name: 'Consumer Electronics' },
+      { id: '220', name: 'Toys & Hobbies' },
+      { id: '888', name: 'Sporting Goods' },
+      { id: '267', name: 'Books, Movies & Music' },
+      { id: '281', name: 'Jewelry & Watches' },
+      { id: '58058', name: 'Health & Beauty' }
+    ];
+  }
+
   // Helper methods
   private buildXmlRequest(callName: string, data: any): string {
     // Simplified XML builder for MVP
@@ -497,5 +649,28 @@ class EbayApiService {
   }
 }
 
+// Additional types for trending items
+interface TrendingItem {
+  itemId: string;
+  title: string;
+  price: number;
+  currency: string;
+  imageUrl: string;
+  categoryId: string;
+  categoryName: string;
+  condition: string;
+  itemWebUrl: string;
+  seller: {
+    username: string;
+    feedbackPercentage: number;
+  };
+  shippingOptions: any[];
+  watchCount: number;
+  bidCount: number;
+  listingDate: string;
+  endDate: string;
+  buyItNowAvailable: boolean;
+}
+
 export default EbayApiService;
-export type { EbayItem, EbayListing, EbaySale, EbayConfig };
+export type { EbayItem, EbayListing, EbaySale, EbayConfig, TrendingItem };

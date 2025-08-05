@@ -825,6 +825,144 @@ const AppDashboard = () => {
                 )}
               </div>
             )}
+
+            {/* Trending Items Section */}
+            <div className="bg-white rounded-2xl p-6 shadow-lg mt-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">🔥 Trending on eBay</h2>
+                <div className="flex items-center space-x-4">
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                  >
+                    {ebayService.getPopularCategories().map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => fetchTrendingItems(selectedCategory)}
+                    disabled={loadingTrending}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center space-x-2"
+                  >
+                    {loadingTrending ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Loading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <TrendingUp className="w-4 h-4" />
+                        <span>Refresh</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {loadingTrending ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="animate-pulse">
+                      <div className="bg-gray-200 h-48 rounded-lg mb-3"></div>
+                      <div className="bg-gray-200 h-4 rounded mb-2"></div>
+                      <div className="bg-gray-200 h-4 rounded w-3/4"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : trendingItems.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {trendingItems.map((item) => {
+                    const listingDate = new Date(item.listingDate);
+                    const now = new Date();
+                    const diffHours = Math.floor((now.getTime() - listingDate.getTime()) / (1000 * 60 * 60));
+                    const timeAgo = diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
+                    
+                    return (
+                      <div
+                        key={item.itemId}
+                        className="bg-gray-50 rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer group"
+                        onClick={() => window.open(item.itemWebUrl, '_blank')}
+                      >
+                        <div className="relative mb-3">
+                          <img
+                            src={item.imageUrl}
+                            alt={item.title}
+                            className="w-full h-40 object-cover rounded-lg group-hover:scale-105 transition-transform duration-200"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = 'https://via.placeholder.com/200x200?text=No+Image';
+                            }}
+                          />
+                          <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white px-2 py-1 rounded text-xs">
+                            {item.condition}
+                          </div>
+                          {item.watchCount > 0 && (
+                            <div className="absolute bottom-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs flex items-center space-x-1">
+                              <Eye className="w-3 h-3" />
+                              <span>{item.watchCount}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <h3 className="font-medium text-gray-900 text-sm line-clamp-2 group-hover:text-blue-600 transition-colors">
+                            {item.title}
+                          </h3>
+                          
+                          <div className="flex items-center justify-between">
+                            <span className="text-lg font-bold text-green-600">
+                              ${item.price.toLocaleString()}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              Listed {timeAgo}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between text-xs text-gray-600">
+                            <span className="truncate">{item.seller.username}</span>
+                            <span className="flex items-center space-x-1">
+                              <Star className="w-3 h-3 text-yellow-500" />
+                              <span>{item.seller.feedbackPercentage}%</span>
+                            </span>
+                          </div>
+                          
+                          <div className="pt-2 border-t border-gray-200">
+                            <span className="text-xs text-blue-600 font-medium">
+                              {item.categoryName}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <TrendingUp className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>No trending items found for this category.</p>
+                  <button
+                    onClick={() => fetchTrendingItems(selectedCategory)}
+                    className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+              
+              {/* Trending Items Info */}
+              <div className="mt-6 bg-blue-50 rounded-xl p-4">
+                <h4 className="font-semibold text-blue-900 mb-2">💡 How to Use This Data:</h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• <strong>Sourcing Ideas:</strong> Look for similar items at thrift stores, garage sales, or estate sales</li>
+                  <li>• <strong>Pricing Reference:</strong> See what similar items are selling for in real-time</li>
+                  <li>• <strong>Market Trends:</strong> Identify which categories and brands are hot right now</li>
+                  <li>• <strong>Competition Analysis:</strong> Study successful listings for title and description ideas</li>
+                </ul>
+              </div>
+            </div>
             {/* Recent Sales */}
             {!loadingData && (
               <div className="bg-white rounded-2xl p-6 shadow-lg">
