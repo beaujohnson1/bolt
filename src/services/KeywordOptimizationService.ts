@@ -542,8 +542,12 @@ export class KeywordOptimizationService {
       const keywordCounts = allKeywords.reduce((acc, keyword) => {
         acc[keyword] = (acc[keyword] || 0) + 1;
         return acc;
+      }
+      )
+    }
    * Use existing OpenAI service for GPT-4 Vision analysis
       
+  }
   private async callGPT4Vision(imageUrl: string, prompt: string): Promise<string> {
     try {
       console.log('🤖 [KEYWORDS] Using existing OpenAI service for keyword analysis...');
