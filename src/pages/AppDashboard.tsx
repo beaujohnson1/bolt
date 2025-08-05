@@ -86,6 +86,7 @@ const AppDashboard = () => {
   const [recentSales, setRecentSales] = useState<RecentSaleData[]>([]);
   const [allListings, setAllListings] = useState<ListingWithItemImage[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [ebayService] = useState(() => new EbayApiService());
 
   // Fetch and process Supabase data
   useEffect(() => {

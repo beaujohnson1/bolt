@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { CheckCircle, XCircle, AlertCircle, Database, Shield, Image } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Database, Shield, Image, ShoppingCart } from 'lucide-react';
+import EbayApiService from '../services/ebayApi';
 
 const ConnectionTest = () => {
   const { user, authUser } = useAuth();
@@ -10,7 +11,8 @@ const ConnectionTest = () => {
     authentication: { status: 'testing', message: 'Testing...' },
     database: { status: 'testing', message: 'Testing...' },
     storage: { status: 'testing', message: 'Testing...' },
-    googleOAuth: { status: 'testing', message: 'Testing...' }
+    googleOAuth: { status: 'testing', message: 'Testing...' },
+    ebayApi: { status: 'testing', message: 'Testing...' }
   });
 
   useEffect(() => {
@@ -141,6 +143,29 @@ const ConnectionTest = () => {
         googleOAuth: { 
           status: 'error', 
           message: `OAuth test failed: ${error.message}` 
+        }
+      }));
+    }
+
+    // Test 6: eBay API Configuration
+    try {
+      const ebayService = new EbayApiService();
+      const connectionTest = await ebayService.testConnection();
+      const config = ebayService.getConfig();
+      
+      setTests(prev => ({
+        ...prev,
+        ebayApi: { 
+          status: connectionTest.success ? 'success' : 'warning', 
+          message: `${connectionTest.message} (${connectionTest.environment})`
+        }
+      }));
+    } catch (error) {
+      setTests(prev => ({
+        ...prev,
+        ebayApi: { 
+          status: 'error', 
+          message: `eBay API configuration error: ${error.message}` 
         }
       }));
     }
