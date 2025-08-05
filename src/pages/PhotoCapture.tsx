@@ -172,6 +172,8 @@ const PhotoCapture = () => {
             condition: analysis.condition || 'good',
             brand: analysis.brand,
             size: null, // Will be manually entered by user if needed
+            size: analysis.size,
+            color: analysis.color,
             suggested_price: analysis.suggestedPrice,
             price_range_min: analysis.priceRange.min,
             price_range_max: analysis.priceRange.max,

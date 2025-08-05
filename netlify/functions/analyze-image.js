@@ -87,6 +87,214 @@ const BRAND_PATTERNS = {
   'burberry': ['burberry']
 };
 
+// Expanded brand patterns with more comprehensive coverage
+const EXPANDED_BRAND_PATTERNS = {
+  // Electronics & Tech
+  'apple': ['apple', 'iphone', 'ipad', 'macbook', 'airpods', 'imac', 'apple watch'],
+  'samsung': ['samsung', 'galaxy', 'note', 'tab'],
+  'sony': ['sony', 'playstation', 'bravia', 'walkman'],
+  'canon': ['canon', 'eos', 'powershot'],
+  'nikon': ['nikon', 'd3500', 'd5600', 'd850'],
+  'microsoft': ['microsoft', 'xbox', 'surface'],
+  'dell': ['dell', 'inspiron', 'xps', 'alienware'],
+  'hp': ['hp', 'hewlett packard', 'pavilion', 'envy'],
+  'lenovo': ['lenovo', 'thinkpad', 'ideapad'],
+  'asus': ['asus', 'rog', 'zenbook'],
+  'lg': ['lg', 'oled', 'nanocell'],
+  'panasonic': ['panasonic', 'lumix'],
+  'bose': ['bose', 'quietcomfort', 'soundlink'],
+  'beats': ['beats', 'by dre', 'studio', 'solo'],
+  
+  // Premium Fashion & Luxury
+  'gucci': ['gucci', 'gg', 'guccissima'],
+  'prada': ['prada', 'milano'],
+  'louis vuitton': ['louis vuitton', 'lv', 'vuitton', 'monogram'],
+  'chanel': ['chanel', 'coco', 'cc'],
+  'hermes': ['hermes', 'birkin', 'kelly'],
+  'dior': ['dior', 'christian dior'],
+  'versace': ['versace', 'medusa'],
+  'armani': ['armani', 'giorgio armani', 'emporio'],
+  'dolce gabbana': ['dolce gabbana', 'd&g', 'dolce & gabbana'],
+  'balenciaga': ['balenciaga'],
+  'saint laurent': ['saint laurent', 'ysl', 'yves saint laurent'],
+  'bottega veneta': ['bottega veneta'],
+  'fendi': ['fendi'],
+  'givenchy': ['givenchy'],
+  'valentino': ['valentino'],
+  'burberry': ['burberry', 'nova check'],
+  
+  // Popular Fashion Brands
+  'nike': ['nike', 'swoosh', 'just do it', 'air jordan', 'air max'],
+  'adidas': ['adidas', 'three stripes', 'originals', 'boost'],
+  'puma': ['puma', 'suede', 'clyde'],
+  'reebok': ['reebok', 'classic'],
+  'converse': ['converse', 'chuck taylor', 'all star'],
+  'vans': ['vans', 'off the wall'],
+  'new balance': ['new balance', 'nb'],
+  'asics': ['asics', 'gel', 'tiger'],
+  
+  // Denim & Casual
+  'levi': ['levi', 'levis', 'levi\'s', '501', '511', '721'],
+  'wrangler': ['wrangler'],
+  'lee': ['lee jeans', 'lee'],
+  'diesel': ['diesel'],
+  'true religion': ['true religion'],
+  'seven for all mankind': ['seven for all mankind', '7 for all mankind'],
+  'citizens of humanity': ['citizens of humanity'],
+  'ag jeans': ['ag jeans', 'ag'],
+  
+  // Department Store Brands
+  'calvin klein': ['calvin klein', 'ck', 'calvin', 'klein'],
+  'tommy hilfiger': ['tommy hilfiger', 'tommy', 'hilfiger', 'th'],
+  'polo ralph lauren': ['polo ralph lauren', 'polo', 'ralph lauren', 'rl'],
+  'lacoste': ['lacoste', 'crocodile'],
+  'hugo boss': ['hugo boss', 'boss', 'hugo'],
+  'brooks brothers': ['brooks brothers'],
+  'banana republic': ['banana republic', 'br'],
+  'j crew': ['j crew', 'j.crew', 'jcrew'],
+  'gap': ['gap'],
+  'old navy': ['old navy'],
+  'ann taylor': ['ann taylor'],
+  'loft': ['loft', 'ann taylor loft'],
+  'express': ['express'],
+  'the limited': ['the limited', 'limited'],
+  
+  // Fast Fashion
+  'zara': ['zara'],
+  'h&m': ['h&m', 'hm', 'hennes mauritz'],
+  'uniqlo': ['uniqlo'],
+  'forever 21': ['forever 21', 'f21'],
+  'topshop': ['topshop'],
+  'asos': ['asos'],
+  'primark': ['primark'],
+  'shein': ['shein'],
+  
+  // American Casual
+  'american eagle': ['american eagle', 'ae', 'aeo'],
+  'abercrombie': ['abercrombie', 'a&f', 'abercrombie & fitch'],
+  'hollister': ['hollister', 'hco'],
+  'aeropostale': ['aeropostale', 'aero'],
+  'american apparel': ['american apparel'],
+  
+  // Outdoor & Athletic
+  'patagonia': ['patagonia'],
+  'north face': ['north face', 'northface', 'tnf', 'the north face'],
+  'columbia': ['columbia', 'sportswear'],
+  'rei': ['rei', 'co-op'],
+  'll bean': ['ll bean', 'l.l. bean'],
+  'eddie bauer': ['eddie bauer'],
+  'under armour': ['under armour', 'underarmour', 'ua'],
+  'lululemon': ['lululemon', 'lulu'],
+  'athleta': ['athleta'],
+  'outdoor research': ['outdoor research', 'or'],
+  'arc\'teryx': ['arcteryx', 'arc\'teryx'],
+  
+  // Accessories & Bags
+  'coach': ['coach', 'new york'],
+  'michael kors': ['michael kors', 'mk', 'kors'],
+  'kate spade': ['kate spade', 'spade'],
+  'tory burch': ['tory burch'],
+  'marc jacobs': ['marc jacobs'],
+  'rebecca minkoff': ['rebecca minkoff'],
+  'longchamp': ['longchamp', 'le pliage'],
+  'fossil': ['fossil'],
+  'dooney bourke': ['dooney bourke', 'dooney & bourke'],
+  
+  // Watches
+  'rolex': ['rolex', 'submariner', 'datejust', 'daytona'],
+  'omega': ['omega', 'speedmaster', 'seamaster'],
+  'casio': ['casio', 'g-shock', 'edifice'],
+  'timex': ['timex', 'weekender', 'expedition'],
+  'seiko': ['seiko', 'prospex', 'presage'],
+  'citizen': ['citizen', 'eco-drive'],
+  'tissot': ['tissot'],
+  'tag heuer': ['tag heuer', 'carrera', 'formula'],
+  
+  // Home & Lifestyle
+  'ikea': ['ikea'],
+  'pottery barn': ['pottery barn'],
+  'west elm': ['west elm'],
+  'crate barrel': ['crate barrel', 'crate & barrel'],
+  'williams sonoma': ['williams sonoma'],
+  'anthropologie': ['anthropologie'],
+  'urban outfitters': ['urban outfitters'],
+  'target': ['target', 'goodfellow', 'a new day', 'wild fable'],
+  'walmart': ['walmart', 'great value', 'equate'],
+  
+  // Vintage & Designer
+  'worthington': ['worthington'],
+  'talbots': ['talbots'],
+  'chicos': ['chicos', 'chico\'s'],
+  'eileen fisher': ['eileen fisher'],
+  'theory': ['theory'],
+  'equipment': ['equipment'],
+  'madewell': ['madewell'],
+  'everlane': ['everlane'],
+  'reformation': ['reformation'],
+  'ganni': ['ganni']
+};
+
+// Size detection patterns
+const SIZE_PATTERNS = {
+  // Clothing sizes
+  clothing: [
+    // Letter sizes
+    /\b(XXS|XS|S|M|L|XL|XXL|XXXL)\b/gi,
+    /\b(Extra Small|Small|Medium|Large|Extra Large)\b/gi,
+    // Numeric sizes
+    /\b(0|2|4|6|8|10|12|14|16|18|20|22|24|26|28)\b/g,
+    // Plus sizes
+    /\b(1X|2X|3X|4X|5X)\b/gi,
+    // International sizes
+    /\b(US|UK|EU|FR|IT|DE|JP)\s*(\d+)\b/gi,
+    // Petite/Tall
+    /\b(Petite|Tall|Short|Regular)\b/gi,
+    /\b(P|T|S|R)\s*(XS|S|M|L|XL|XXL)\b/gi
+  ],
+  // Pants/Jeans sizes
+  pants: [
+    /\b(\d{2,3})\s*[xX×]\s*(\d{2,3})\b/g, // 32x34, 30X32
+    /\b(\d{2,3})\s*[\/\\]\s*(\d{2,3})\b/g, // 32/34, 30\32
+    /\bW\s*(\d{2,3})\s*L\s*(\d{2,3})\b/gi, // W32 L34
+    /\b(\d{2,3})\s*(W|Waist)\b/gi, // 32W, 32 Waist
+    /\b(\d{2,3})\s*(L|Length|Inseam)\b/gi // 34L, 34 Length
+  ],
+  // Shoe sizes
+  shoes: [
+    /\b(US|UK|EU|FR|IT|JP|CM)\s*(\d+(?:\.\d+)?)\b/gi,
+    /\bSize\s*(\d+(?:\.\d+)?)\b/gi,
+    /\b(\d+(?:\.\d+)?)\s*(US|UK|EU|D|B|C|E|EE|EEE|EEEE|W|WW|WWW)\b/gi,
+    /\b(\d+(?:\.\d+)?)\s*(Wide|Narrow|Medium)\b/gi
+  ],
+  // Bra sizes
+  bra: [
+    /\b(\d{2,3})\s*([A-K]{1,3})\b/gi, // 34B, 36DD, 38DDD
+    /\b(AA|A|B|C|D|DD|DDD|E|F|G|H|I|J|K)\s*(\d{2,3})\b/gi // B34, DD36
+  ],
+  // Ring sizes
+  ring: [
+    /\bSize\s*(\d+(?:\.\d+)?)\b/gi,
+    /\b(\d+(?:\.\d+)?)\s*(US|UK|EU|JP)\b/gi
+  ],
+  // One size
+  onesize: [
+    /\b(One Size|OS|OSFA|One Size Fits All|Free Size|Universal)\b/gi
+  ]
+};
+
+// Color detection patterns
+const COLOR_PATTERNS = [
+  'black', 'white', 'gray', 'grey', 'brown', 'tan', 'beige', 'cream', 'ivory',
+  'red', 'pink', 'rose', 'burgundy', 'maroon', 'wine',
+  'blue', 'navy', 'royal', 'teal', 'turquoise', 'aqua', 'cyan',
+  'green', 'olive', 'forest', 'lime', 'mint', 'sage',
+  'yellow', 'gold', 'mustard', 'amber',
+  'orange', 'coral', 'peach', 'salmon',
+  'purple', 'violet', 'lavender', 'plum', 'magenta',
+  'silver', 'bronze', 'copper', 'metallic',
+  'multicolor', 'multi-color', 'rainbow', 'floral', 'striped', 'plaid', 'checkered'
+];
+
 // Condition keywords
 const CONDITION_KEYWORDS = {
   'like_new': ['new', 'mint', 'perfect', 'excellent', 'pristine'],
@@ -178,6 +386,14 @@ exports.handler = async (event, context) => {
     const brand = extractBrand(labels, webDetection.webEntities || [], textAnnotations);
     console.log('🏢 [VISION] Extracted brand:', brand);
     
+    // Extract size information
+    const size = extractSize(textAnnotations);
+    console.log('📏 [VISION] Extracted size:', size);
+    
+    // Extract color information
+    const color = extractColor(labels, textAnnotations);
+    console.log('🎨 [VISION] Extracted color:', color);
+    
     // Determine condition (basic heuristic)
     const condition = determineCondition(labels, textAnnotations);
     console.log('📋 [VISION] Determined condition:', condition);
@@ -187,7 +403,8 @@ exports.handler = async (event, context) => {
       labels, 
       webDetection.webEntities || [], 
       brand, 
-      category
+      category,
+      color
     );
     console.log('📝 [VISION] Generated content:', { title, keyFeatures });
     
@@ -203,6 +420,8 @@ exports.handler = async (event, context) => {
       category,
       confidence,
       brand,
+      size,
+      color,
       condition,
       suggestedTitle: title,
       suggestedDescription: description,
@@ -314,54 +533,137 @@ function determineCategory(labels, objects) {
 
 
 function extractBrand(labels, webEntities, textAnnotations) {
+  console.log('🏢 [VISION] Starting brand extraction...');
+  
+  // Combine all text sources
+  const labelText = labels.map(l => l.description.toLowerCase()).join(' ');
+  const webEntityText = webEntities.map(e => e.description.toLowerCase()).join(' ');
+  const ocrText = textAnnotations.map(t => t.description.toLowerCase()).join(' ');
+  const allText = `${labelText} ${webEntityText} ${ocrText}`;
+  
+  console.log('🔍 [VISION] Text sources for brand detection:', {
+    labelText: labelText.substring(0, 100) + '...',
+    webEntityText: webEntityText.substring(0, 100) + '...',
+    ocrText: ocrText.substring(0, 100) + '...'
+  });
+  
+  // Create brand scoring system
+  const brandScores = {};
+  
+  // Score brands based on different text sources (OCR text gets highest priority)
+  const scoreBrand = (brandName, patterns, source, multiplier = 1) => {
+    for (const pattern of patterns) {
+      if (source.includes(pattern.toLowerCase())) {
+        const score = (pattern === brandName ? 3 : 1) * multiplier;
+        brandScores[brandName] = (brandScores[brandName] || 0) + score;
+        console.log(`🏢 [VISION] Brand match: "${pattern}" -> ${brandName} (score: +${score})`);
+      }
+    }
+  };
+  
+  // Score brands from different sources with different priorities
+  for (const [brandName, patterns] of Object.entries(EXPANDED_BRAND_PATTERNS)) {
+    scoreBrand(brandName, patterns, ocrText, 3);        // OCR text (tags) - highest priority
+    scoreBrand(brandName, patterns, webEntityText, 2);  // Web entities - medium priority  
+    scoreBrand(brandName, patterns, labelText, 1);      // Labels - lowest priority
+  }
+  
+  // Find the brand with the highest score
+  let bestBrand = null;
+  let bestScore = 0;
+  
+  for (const [brandName, score] of Object.entries(brandScores)) {
+    if (score > bestScore) {
+      bestScore = score;
+      bestBrand = brandName;
+    }
+  }
+  
+  if (bestBrand && bestScore >= 2) { // Require minimum confidence
+    const formattedBrand = bestBrand.split(' ').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+    console.log('🏢 [VISION] Best brand detected:', formattedBrand, 'with score:', bestScore);
+    return formattedBrand;
+  }
+  
+  console.log('🏢 [VISION] No confident brand match found');
+  return null;
+}
+
+function extractSize(textAnnotations) {
+  console.log('📏 [VISION] Starting size extraction...');
+  
+  if (!textAnnotations || textAnnotations.length === 0) {
+    console.log('📏 [VISION] No text annotations available for size detection');
+    return null;
+  }
+  
+  // Combine all OCR text
+  const allText = textAnnotations.map(t => t.description).join(' ');
+  console.log('📏 [VISION] OCR text for size detection:', allText);
+  
+  const foundSizes = [];
+  
+  // Check each size pattern category
+  for (const [category, patterns] of Object.entries(SIZE_PATTERNS)) {
+    for (const pattern of patterns) {
+      const matches = allText.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          const cleanMatch = match.trim();
+          if (cleanMatch && !foundSizes.includes(cleanMatch)) {
+            foundSizes.push(cleanMatch);
+            console.log(`📏 [VISION] Size found (${category}):`, cleanMatch);
+          }
+        });
+      }
+    }
+  }
+  
+  // Return the most likely size (prioritize clothing sizes)
+  if (foundSizes.length > 0) {
+    // Prioritize standard clothing sizes
+    const clothingSizes = foundSizes.filter(size => 
+      /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d+|One Size|OS)$/i.test(size)
+    );
+    
+    const finalSize = clothingSizes.length > 0 ? clothingSizes[0] : foundSizes[0];
+    console.log('📏 [VISION] Final size selected:', finalSize);
+    return finalSize;
+  }
+  
+  console.log('📏 [VISION] No size detected');
+  return null;
+}
+
+function extractColor(labels, textAnnotations) {
+  console.log('🎨 [VISION] Starting color extraction...');
+  
   const allText = [
     ...labels.map(l => l.description.toLowerCase()),
-    ...webEntities.map(e => e.description.toLowerCase()),
     ...textAnnotations.map(t => t.description.toLowerCase())
   ].join(' ');
   
-  console.log('🔍 [VISION] All text for brand detection:', allText);
+  console.log('🎨 [VISION] Text for color detection:', allText.substring(0, 200) + '...');
   
-  // Check web entities first (most reliable)
-  for (const entity of webEntities) {
-    const description = entity.description.toLowerCase();
-    for (const [brandName, patterns] of Object.entries(BRAND_PATTERNS)) {
-      for (const pattern of patterns) {
-        if (description.includes(pattern)) {
-          console.log('🏢 [VISION] Brand found in web entities:', brandName);
-          return brandName.charAt(0).toUpperCase() + brandName.slice(1);
-        }
-      }
+  const foundColors = [];
+  
+  for (const color of COLOR_PATTERNS) {
+    if (allText.includes(color.toLowerCase())) {
+      foundColors.push(color);
+      console.log('🎨 [VISION] Color detected:', color);
     }
   }
   
-  // Check text annotations
-  for (const text of textAnnotations) {
-    const description = text.description.toLowerCase();
-    for (const [brandName, patterns] of Object.entries(BRAND_PATTERNS)) {
-      for (const pattern of patterns) {
-        if (description.includes(pattern)) {
-          console.log('🏢 [VISION] Brand found in text:', brandName);
-          return brandName.charAt(0).toUpperCase() + brandName.slice(1);
-        }
-      }
-    }
+  // Return the first detected color, or null if none found
+  if (foundColors.length > 0) {
+    const finalColor = foundColors[0].charAt(0).toUpperCase() + foundColors[0].slice(1);
+    console.log('🎨 [VISION] Final color selected:', finalColor);
+    return finalColor;
   }
   
-  // Check labels as fallback
-  for (const label of labels) {
-    const description = label.description.toLowerCase();
-    for (const [brandName, patterns] of Object.entries(BRAND_PATTERNS)) {
-      for (const pattern of patterns) {
-        if (description.includes(pattern)) {
-          console.log('🏢 [VISION] Brand found in labels:', brandName);
-          return brandName.charAt(0).toUpperCase() + brandName.slice(1);
-        }
-      }
-    }
-  }
-  
-  console.log('🏢 [VISION] No brand detected');
+  console.log('🎨 [VISION] No color detected');
   return null;
 }
 
@@ -383,31 +685,52 @@ function determineCondition(labels, textAnnotations) {
 }
 
 function generateTitleAndDescription(labels, webEntities, brand, category) {
+function generateTitleAndDescription(labels, webEntities, brand, category, color) {
   const topLabels = labels.slice(0, 8).map(l => l.description.toLowerCase());
   const entityDescriptions = webEntities.slice(0, 5).map(e => e.description.toLowerCase());
   
   console.log('📝 [VISION] Top labels for title generation:', topLabels);
   console.log('📝 [VISION] Entity descriptions:', entityDescriptions);
   
-  // Prioritize clothing-specific terms for title generation
+  // Enhanced clothing-specific terms for title generation
   const clothingTerms = [
-    'leather jacket', 'jacket', 'blazer', 'coat', 'sweater', 'hoodie', 'cardigan',
-    'shirt', 'blouse', 'dress', 'pants', 'jeans', 'skirt', 'shorts', 'vest'
+    'leather jacket', 'denim jacket', 'bomber jacket', 'blazer', 'sport coat', 'suit jacket',
+    'jacket', 'coat', 'trench coat', 'pea coat', 'overcoat', 'windbreaker',
+    'sweater', 'pullover', 'cardigan', 'hoodie', 'sweatshirt',
+    'shirt', 'dress shirt', 'polo shirt', 't-shirt', 'tank top', 'blouse', 'tunic',
+    'dress', 'maxi dress', 'midi dress', 'mini dress', 'cocktail dress', 'evening gown',
+    'pants', 'trousers', 'jeans', 'chinos', 'khakis', 'leggings', 'joggers',
+    'skirt', 'mini skirt', 'maxi skirt', 'pencil skirt', 'a-line skirt',
+    'shorts', 'bermuda shorts', 'cargo shorts', 'denim shorts',
+    'vest', 'waistcoat', 'gilet'
   ];
   
   const accessoryTerms = [
-    'bag', 'purse', 'wallet', 'belt', 'hat', 'scarf', 'sunglasses', 'watch'
+    'handbag', 'purse', 'tote bag', 'crossbody bag', 'clutch', 'backpack', 'messenger bag',
+    'wallet', 'coin purse', 'card holder',
+    'belt', 'leather belt', 'chain belt',
+    'hat', 'cap', 'beanie', 'fedora', 'baseball cap',
+    'scarf', 'shawl', 'wrap', 'pashmina',
+    'sunglasses', 'eyeglasses', 'reading glasses',
+    'watch', 'smartwatch', 'wristwatch',
+    'jewelry', 'necklace', 'bracelet', 'earrings', 'ring'
   ];
   
   const shoeTerms = [
-    'shoes', 'boots', 'sneakers', 'sandals', 'heels', 'flats', 'loafers'
+    'sneakers', 'running shoes', 'athletic shoes', 'basketball shoes',
+    'boots', 'ankle boots', 'knee boots', 'combat boots', 'hiking boots', 'rain boots',
+    'dress shoes', 'oxford shoes', 'loafers', 'boat shoes', 'moccasins',
+    'heels', 'high heels', 'stilettos', 'pumps', 'wedges',
+    'flats', 'ballet flats', 'slip-ons',
+    'sandals', 'flip-flops', 'slides', 'espadrilles',
+    'clogs', 'mules'
   ];
   
   // Find the most specific item type
   let itemType = '';
   let foundTerms = [];
   
-  // Check for clothing terms first
+  // Enhanced category-specific detection
   if (category === 'clothing') {
     for (const term of clothingTerms) {
       if (topLabels.some(label => label.includes(term)) || 
@@ -416,15 +739,27 @@ function generateTitleAndDescription(labels, webEntities, brand, category) {
       }
     }
     
-    // Prioritize more specific terms
+    // Prioritize more specific terms with better hierarchy
     if (foundTerms.includes('leather jacket')) {
       itemType = 'Leather Jacket';
+    } else if (foundTerms.includes('denim jacket')) {
+      itemType = 'Denim Jacket';
+    } else if (foundTerms.includes('bomber jacket')) {
+      itemType = 'Bomber Jacket';
     } else if (foundTerms.includes('jacket')) {
       itemType = 'Jacket';
     } else if (foundTerms.includes('blazer')) {
       itemType = 'Blazer';
+    } else if (foundTerms.includes('sport coat')) {
+      itemType = 'Sport Coat';
     } else if (foundTerms.includes('coat')) {
       itemType = 'Coat';
+    } else if (foundTerms.includes('dress shirt')) {
+      itemType = 'Dress Shirt';
+    } else if (foundTerms.includes('polo shirt')) {
+      itemType = 'Polo Shirt';
+    } else if (foundTerms.includes('t-shirt')) {
+      itemType = 'T-Shirt';
     } else if (foundTerms.length > 0) {
       itemType = foundTerms[0].split(' ').map(word => 
         word.charAt(0).toUpperCase() + word.slice(1)
@@ -434,7 +769,9 @@ function generateTitleAndDescription(labels, webEntities, brand, category) {
     for (const term of accessoryTerms) {
       if (topLabels.some(label => label.includes(term)) || 
           entityDescriptions.some(entity => entity.includes(term))) {
-        itemType = term.charAt(0).toUpperCase() + term.slice(1);
+        itemType = term.split(' ').map(word => 
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ');
         break;
       }
     }
@@ -442,7 +779,9 @@ function generateTitleAndDescription(labels, webEntities, brand, category) {
     for (const term of shoeTerms) {
       if (topLabels.some(label => label.includes(term)) || 
           entityDescriptions.some(entity => entity.includes(term))) {
-        itemType = term.charAt(0).toUpperCase() + term.slice(1);
+        itemType = term.split(' ').map(word => 
+          word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ');
         break;
       }
     }
@@ -466,12 +805,23 @@ function generateTitleAndDescription(labels, webEntities, brand, category) {
   if (brand) {
     title = `${brand} `;
   }
+  if (color && !itemType.toLowerCase().includes(color.toLowerCase())) {
+    title += `${color} `;
+  }
   title += itemType;
   
   // Generate description
-  const keyFeatures = [...new Set([...foundTerms, ...topLabels.slice(0, 4), ...entityDescriptions.slice(0, 3)])].slice(0, 6);
+  const keyFeatures = [...new Set([
+    ...foundTerms, 
+    ...topLabels.slice(0, 4), 
+    ...entityDescriptions.slice(0, 3)
+  ])].slice(0, 6);
   
-  const description = `${title} in good condition. Features include: ${keyFeatures.join(', ')}. Perfect for collectors or everyday use.`;
+  let description = `${title} in good condition.`;
+  if (keyFeatures.length > 0) {
+    description += ` Features include: ${keyFeatures.join(', ')}.`;
+  }
+  description += ` Perfect for collectors or everyday use.`;
   
   console.log('📝 [VISION] Generated title:', title);
   console.log('📝 [VISION] Key features:', keyFeatures);
