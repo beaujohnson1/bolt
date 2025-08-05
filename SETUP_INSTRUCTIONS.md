@@ -19,7 +19,7 @@
 2. Create an account and get API access
 3. Generate an API key from the API keys section
 4. In Netlify, add environment variable:
-   - `OPENAI_API_KEY`: Your OpenAI API key
+   - `VITE_OPENAI_API_KEY`: Your OpenAI API key
 
 **Note**: These AI services are essential for:
 - Photo analysis and automatic item detection
