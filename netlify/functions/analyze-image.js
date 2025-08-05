@@ -1,10 +1,24 @@
 const { ImageAnnotatorClient } = require('@google-cloud/vision');
 
+const { ImageAnnotatorClient } = require('@google-cloud/vision');
+
+// Parse the JSON content from the environment variable
+let googleCredentials;
+try {
+  googleCredentials = JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+} catch (e) {
+  console.error('Error parsing GOOGLE_APPLICATION_CREDENTIALS:', e);
+  // In a production scenario, you might want more robust error handling here,
+  // such as throwing an error that prevents the function from proceeding.
+  // For now, we'll proceed, but the client initialization might fail.
+}
+
 // Initialize Google Vision client
 const vision = new ImageAnnotatorClient({
-  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+  credentials: googleCredentials, // Use the parsed credentials object
   projectId: process.env.GOOGLE_CLOUD_PROJECT_ID
 });
+
 
 // Category mapping from Google Vision labels to our categories
 const CATEGORY_MAPPING = {
