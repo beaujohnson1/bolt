@@ -6,7 +6,7 @@ import { withTimeout, withRetry } from '../utils/promiseUtils';
 // Timeout constants
 const PROFILE_FETCH_TIMEOUT = 60000; // 60 seconds
 const PROFILE_CREATE_TIMEOUT = 60000; // 60 seconds
-const SESSION_TIMEOUT = 30000; // 30 seconds
+const SESSION_TIMEOUT = 60000; // 60 seconds
 
 interface AuthContextType {
   user: AppUser | null;
@@ -155,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('🔍 [AUTH] Getting initial session...');
         const { data: { session }, error } = await withTimeout(
           supabase.auth.getSession(),
-          SESSION_TIMEOUT,
+          3, // maxRetries
           'Session fetch timed out'
         );
         
@@ -192,10 +192,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('📱 [AUTH] Initial session found for user:', session.user.email);
           setAuthUser(session.user);
           console.log('🔄 [AUTH] Fetching user profile for initial session...');
-          const profile = await withTimeout(
-            fetchUserProfile(session.user),
-            PROFILE_FETCH_TIMEOUT,
-            'User profile fetch timed out during initial session'
+          const profile = await withRetry(
+            () => withTimeout(
+              fetchUserProfile(session.user),
+              PROFILE_FETCH_TIMEOUT,
+              'User profile fetch timed out during auth state change'
+            ),
+            3, // maxRetries
+            2000 // baseDelay
+              'User profile fetch timed out during initial session'
+            ),
+            3, // maxRetries
+            2000 // baseDelay
           );
           console.log('📊 [AUTH] Profile fetch result for initial session:', profile ? 'success' : 'failed');
           console.log('📊 [AUTH] Initial profile data:', {
