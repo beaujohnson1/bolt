@@ -18,6 +18,10 @@ const ConnectionTest = () => {
     status: 'idle',
     message: 'Click Test to check eBay trending items API'
   });
+  const [trendingTest, setTrendingTest] = useState({
+    status: 'idle',
+    message: 'Click Test to check eBay trending items API'
+  });
 
   useEffect(() => {
     runTests();
@@ -181,6 +185,32 @@ const ConnectionTest = () => {
     try {
       const ebayService = new EbayApiService();
       const trendingItems = await ebayService.getTrendingItems('Electronics');
+      
+      if (trendingItems && trendingItems.length > 0) {
+        setTrendingTest({
+          status: 'success',
+          message: `Successfully fetched ${trendingItems.length} trending items`
+        });
+      } else {
+        setTrendingTest({
+          status: 'warning',
+          message: 'API call successful but no trending items returned'
+        });
+      }
+    } catch (error) {
+      setTrendingTest({
+        status: 'error',
+        message: `Trending items test failed: ${error.message}`
+      });
+    }
+  };
+
+  const testTrendingItems = async () => {
+    setTrendingTest({ status: 'testing', message: 'Testing eBay trending items API...' });
+    
+    try {
+      const ebayService = new EbayApiService();
+      const trendingItems = await ebayService.getTrendingItems(['11450'], 3); // Test with clothing category
       
       if (trendingItems && trendingItems.length > 0) {
         setTrendingTest({
