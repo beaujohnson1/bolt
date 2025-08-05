@@ -67,9 +67,18 @@ exports.handler = async (event, context) => {
   }
 
   try {
+    console.log('🔍 [VISION] Starting image analysis...');
+    console.log('🔧 [VISION] Environment check:', {
+      hasGoogleCreds: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
+      hasProjectId: !!process.env.GOOGLE_CLOUD_PROJECT_ID,
+      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
+      credsLength: process.env.GOOGLE_APPLICATION_CREDENTIALS ? process.env.GOOGLE_APPLICATION_CREDENTIALS.length : 0
+    });
+
     const { imageData, imageUrl } = JSON.parse(event.body);
     
     if (!imageData && !imageUrl) {
+      console.log('❌ [VISION] No image data or URL provided');
       return {
         statusCode: 400,
         headers,
@@ -77,12 +86,18 @@ exports.handler = async (event, context) => {
       };
     }
 
-    console.log('Analyzing image with Google Vision API...');
+    console.log('📸 [VISION] Image data received:', {
+      hasImageData: !!imageData,
+      hasImageUrl: !!imageUrl,
+      imageDataLength: imageData ? imageData.length : 0
+    });
 
     // Prepare image for Vision API
     const image = imageData 
       ? { content: imageData.replace(/^data:image\/[a-z]+;base64,/, '') }
       : { source: { imageUri: imageUrl } };
+
+    console.log('🔄 [VISION] Calling Google Vision API...');
 
     // Call Google Vision API with multiple features
     const [result] = await vision.annotateImage({
@@ -95,7 +110,13 @@ exports.handler = async (event, context) => {
       ]
     });
 
-    console.log('Vision API response received');
+    console.log('✅ [VISION] Vision API response received successfully');
+    console.log('📊 [VISION] Response summary:', {
+      labelsCount: result.labelAnnotations?.length || 0,
+      webEntitiesCount: result.webDetection?.webEntities?.length || 0,
+      textAnnotationsCount: result.textAnnotations?.length || 0,
+      objectsCount: result.localizedObjectAnnotations?.length || 0
+    });
 
     // Extract data from Vision API response
     const labels = result.labelAnnotations || [];
@@ -105,12 +126,15 @@ exports.handler = async (event, context) => {
 
     // Determine category
     const category = determineCategory(labels, objects);
+    console.log('🏷️ [VISION] Determined category:', category);
     
     // Extract brand information
     const brand = extractBrand(labels, webDetection.webEntities || [], textAnnotations);
+    console.log('🏢 [VISION] Extracted brand:', brand);
     
     // Determine condition (basic heuristic)
     const condition = determineCondition(labels, textAnnotations);
+    console.log('📋 [VISION] Determined condition:', condition);
     
     // Generate title and description
     const { title, description, keyFeatures } = generateTitleAndDescription(
@@ -119,12 +143,15 @@ exports.handler = async (event, context) => {
       brand, 
       category
     );
+    console.log('📝 [VISION] Generated content:', { title, keyFeatures });
     
     // Estimate pricing based on category and detected features
     const { suggestedPrice, priceRange } = estimatePrice(category, brand, condition, labels);
+    console.log('💰 [VISION] Price estimation:', { suggestedPrice, priceRange });
 
     // Calculate overall confidence
     const confidence = calculateConfidence(labels, webDetection.webEntities || []);
+    console.log('🎯 [VISION] Confidence score:', confidence);
 
     const analysisResult = {
       category,
@@ -152,6 +179,7 @@ exports.handler = async (event, context) => {
       priceRange
     };
 
+    console.log('🎉 [VISION] Analysis completed successfully');
     return {
       statusCode: 200,
       headers,
@@ -162,7 +190,28 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Vision API error:', error);
+    console.error('❌ [VISION] Critical error occurred:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      status: error.status,
+      statusCode: error.statusCode,
+      stack: error.stack
+    });
+    
+    // Check for specific Google Cloud errors
+    if (error.message?.includes('credentials')) {
+      console.error('🔑 [VISION] Credentials error - check GOOGLE_APPLICATION_CREDENTIALS');
+    }
+    if (error.message?.includes('project')) {
+      console.error('📁 [VISION] Project error - check GOOGLE_CLOUD_PROJECT_ID');
+    }
+    if (error.message?.includes('Vision API')) {
+      console.error('👁️ [VISION] Vision API not enabled or quota exceeded');
+    }
+    if (error.message?.includes('permission')) {
+      console.error('🚫 [VISION] Permission denied - check service account permissions');
+    }
     
     return {
       statusCode: 500,
@@ -170,7 +219,9 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         success: false,
         error: 'Failed to analyze image',
-        details: error.message
+        details: error.message,
+        errorType: error.name,
+        errorCode: error.code || error.status || error.statusCode
       })
     };
   }
