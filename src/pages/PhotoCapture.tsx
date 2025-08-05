@@ -3,6 +3,7 @@ import { Camera, Upload, ArrowLeft, Zap } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { KeywordOptimizationService } from '../services/KeywordOptimizationService';
 
 const PhotoCapture = () => {
   const { user, authUser, updateUser } = useAuth();
@@ -197,6 +198,38 @@ const PhotoCapture = () => {
         throw itemError;
       }
       console.log('✅ [CLIENT] Item created successfully:', itemData.id);
+
+      // Step 4.5: Generate keyword suggestions using the new system
+      console.log('🔍 [CLIENT] Generating keyword suggestions...');
+      try {
+        const keywordService = new KeywordOptimizationService(supabase);
+        const keywordSuggestions = await keywordService.getKeywordSuggestions(
+          publicUrls[0], // Primary image URL
+          analysis.brand || 'Unknown',
+          analysis.category || 'other',
+          itemData.id, // Item ID for linking
+          analysis.suggestedTitle // Style/title as detected style
+        );
+        
+        console.log('✅ [CLIENT] Keyword suggestions generated:', keywordSuggestions);
+        
+        // Update the item with AI suggested keywords
+        const { error: updateError } = await supabase
+          .from('items')
+          .update({ 
+            ai_suggested_keywords: keywordSuggestions.keywords 
+          })
+          .eq('id', itemData.id);
+          
+        if (updateError) {
+          console.error('❌ [CLIENT] Error updating item with keywords:', updateError);
+        } else {
+          console.log('✅ [CLIENT] Item updated with keyword suggestions');
+        }
+      } catch (keywordError) {
+        console.error('❌ [CLIENT] Error generating keyword suggestions:', keywordError);
+        // Don't fail the entire process if keywords fail
+      }
 
       // Step 4: Create a listing for this item
       console.log('📝 [CLIENT] Creating listing for item...');

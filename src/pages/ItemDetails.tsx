@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Edit3, DollarSign, Tag, Package, Star } from 'lucide-react';
 import { supabase, type Item } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { KeywordOptimizationService } from '../services/KeywordOptimizationService';
 
 const ItemDetails = () => {
   const { itemId } = useParams();
@@ -11,6 +12,9 @@ const ItemDetails = () => {
   const [item, setItem] = useState<Item | null>(null);
   const [editedItem, setEditedItem] = useState<Item | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([]);
+  const [userKeywords, setUserKeywords] = useState<string[]>([]);
+  const [keywordsLoading, setKeywordsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,7 +24,7 @@ const ItemDetails = () => {
       try {
         const { data, error } = await supabase
           .from('items')
-          .select('*')
+          .select('*, ai_suggested_keywords')
           .eq('id', itemId)
           .eq('user_id', authUser.id)
           .single();
@@ -29,6 +33,12 @@ const ItemDetails = () => {
 
         setItem(data);
         setEditedItem(data);
+        
+        // Load suggested keywords
+        if (data.ai_suggested_keywords) {
+          setSuggestedKeywords(data.ai_suggested_keywords);
+          setUserKeywords([...data.ai_suggested_keywords]); // Start with AI suggestions
+        }
       } catch (error) {
         console.error('Error fetching item:', error);
         alert('Failed to load item details.');
@@ -45,6 +55,7 @@ const ItemDetails = () => {
     if (!editedItem || !itemId || !authUser) return;
 
     try {
+      // Save item details
       const { error } = await supabase
         .from('items')
         .update({
@@ -62,12 +73,45 @@ const ItemDetails = () => {
 
       if (error) throw error;
 
+      // Save user-approved keywords for learning
+      if (userKeywords.length > 0) {
+        try {
+          const keywordService = new KeywordOptimizationService(supabase);
+          await keywordService.updateUserApprovedKeywords(itemId, userKeywords);
+          console.log('✅ [ITEM-DETAILS] User-approved keywords saved for learning');
+        } catch (keywordError) {
+          console.error('❌ [ITEM-DETAILS] Error saving keywords for learning:', keywordError);
+          // Don't fail the entire save if keyword learning fails
+        }
+      }
+
       setItem(editedItem);
       setIsEditing(false);
       alert('Item updated successfully!');
     } catch (error) {
       console.error('Error updating item:', error);
       alert('Failed to update item. Please try again.');
+    }
+  };
+
+  const addKeyword = (keyword: string) => {
+    if (!userKeywords.includes(keyword.toLowerCase())) {
+      setUserKeywords([...userKeywords, keyword.toLowerCase()]);
+    }
+  };
+
+  const removeKeyword = (keyword: string) => {
+    setUserKeywords(userKeywords.filter(k => k !== keyword));
+  };
+
+  const handleKeywordInputKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const input = e.target as HTMLInputElement;
+      const keyword = input.value.trim().toLowerCase();
+      if (keyword && !userKeywords.includes(keyword)) {
+        setUserKeywords([...userKeywords, keyword]);
+        input.value = '';
+      }
     }
   };
 
@@ -367,6 +411,67 @@ const ItemDetails = () => {
               ) : (
                 <p className="text-gray-700 leading-relaxed">{item.description}</p>
               )}
+            </div>
+
+            {/* Keyword Suggestions Section */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                SEO Keywords for eBay Listing
+              </h3>
+              
+              {/* AI Suggested Keywords */}
+              {suggestedKeywords.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">AI Suggested Keywords:</p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {suggestedKeywords.map((keyword, index) => (
+                      <button
+                        key={index}
+                        onClick={() => addKeyword(keyword)}
+                        className="px-3 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-full text-sm text-blue-700 transition-colors"
+                        disabled={userKeywords.includes(keyword)}
+                      >
+                        {userKeywords.includes(keyword) ? '✓ ' : '+ '}{keyword}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* User Selected Keywords */}
+              <div className="mb-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">Selected Keywords:</p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {userKeywords.map((keyword, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 bg-green-100 border border-green-200 rounded-full text-sm text-green-700 flex items-center space-x-1"
+                    >
+                      <span>{keyword}</span>
+                      <button
+                        onClick={() => removeKeyword(keyword)}
+                        className="ml-1 text-green-600 hover:text-green-800"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Add Custom Keywords */}
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Add Custom Keywords:</p>
+                <input
+                  type="text"
+                  placeholder="Type keyword and press Enter"
+                  onKeyPress={handleKeywordInputKeyPress}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  These keywords help your listing appear in eBay searches and improve the AI's learning.
+                </p>
+              </div>
             </div>
 
             {/* Actions */}

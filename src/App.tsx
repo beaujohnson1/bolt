@@ -9,6 +9,7 @@ import PhotoCapture from './pages/PhotoCapture';
 import ItemDetails from './pages/ItemDetails';
 import ListingPreview from './pages/ListingPreview';
 import ConnectionTestPage from './pages/ConnectionTestPage';
+import AutoPromotionDashboard from './components/AutoPromotionDashboard';
 
 function App() {
   return (
@@ -18,6 +19,18 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/test-connection" element={<ConnectionTestPage />} />
+          <Route
+            path="/admin/keywords"
+            element={
+              <ProtectedRoute>
+                <div className="min-h-screen bg-gray-50 py-8">
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <AutoPromotionDashboard />
+                  </div>
+                </div>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/app"
             element={
