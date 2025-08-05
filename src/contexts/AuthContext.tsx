@@ -4,9 +4,9 @@ import { supabase, type User as AppUser } from '../lib/supabase';
 import { withTimeout, withRetry } from '../utils/promiseUtils';
 
 // Timeout constants
-const PROFILE_FETCH_TIMEOUT = 60000; // 60 seconds
-const PROFILE_CREATE_TIMEOUT = 60000; // 60 seconds
-const SESSION_TIMEOUT = 60000; // 60 seconds
+const PROFILE_FETCH_TIMEOUT = 90000; // 90 seconds
+const PROFILE_CREATE_TIMEOUT = 90000; // 90 seconds
+const SESSION_TIMEOUT = 90000; // 90 seconds
 
 interface AuthContextType {
   user: AppUser | null;
