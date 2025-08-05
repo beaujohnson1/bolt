@@ -92,6 +92,7 @@ const PhotoCapture = () => {
         url: '/.netlify/functions/analyze-image',
         method: 'POST',
         primaryImageUrl: publicUrls[0],
+        totalImages: publicUrls.length,
         timestamp: new Date().toISOString()
       });
       
@@ -101,7 +102,8 @@ const PhotoCapture = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageUrl: publicUrls[0] // Use the first uploaded image URL
+          imageUrl: publicUrls[0], // Use the first uploaded image URL for analysis
+          allImageUrls: publicUrls // Pass all image URLs for reference
         }),
       });
       
@@ -180,7 +182,8 @@ const PhotoCapture = () => {
               detected_category: analysis.category,
               detected_brand: analysis.brand,
               detected_condition: analysis.condition,
-              key_features: analysis.keyFeatures
+             key_features: analysis.keyFeatures,
+             total_images: publicUrls.length
             },
             status: 'draft'
           }
@@ -205,7 +208,7 @@ const PhotoCapture = () => {
             title: itemData.title,
             description: itemData.description || '',
             price: itemData.suggested_price,
-            images: publicUrls,
+           images: publicUrls, // All uploaded images
             platforms: ['ebay'],
             status: 'active',
             listed_at: new Date().toISOString()
@@ -279,7 +282,7 @@ const PhotoCapture = () => {
                   Add Your Photos
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Upload multiple photos of your item from different angles
+                 Upload multiple photos of your item from different angles. The first photo will be used for AI analysis.
                 </p>
                 
                 <div className="space-y-4">
@@ -292,7 +295,7 @@ const PhotoCapture = () => {
                   </button>
                   
                   <div className="text-sm text-gray-500">
-                    Supports JPG, PNG up to 10MB each. Select multiple files.
+                   Supports JPG, PNG up to 10MB each. Upload 2-8 photos for best results.
                   </div>
                 </div>
               </div>
