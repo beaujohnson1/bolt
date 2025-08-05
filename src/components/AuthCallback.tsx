@@ -2,10 +2,33 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
+// Maximum time to wait for authentication to complete
+const AUTH_TIMEOUT = 30000; // 30 seconds
+
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const { user, authUser, loading } = useAuth();
   const [urlProcessed, setUrlProcessed] = React.useState(false);
+  const [timeoutReached, setTimeoutReached] = React.useState(false);
+  const [authStartTime] = React.useState(Date.now());
+
+  // Set up timeout to prevent infinite loading
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ [AUTH-CALLBACK] Authentication timeout reached');
+      setTimeoutReached(true);
+    }, AUTH_TIMEOUT);
+
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // Monitor authentication progress and redirect on timeout
+  useEffect(() => {
+    if (timeoutReached && loading) {
+      console.log('🚨 [AUTH-CALLBACK] Timeout reached while still loading, redirecting to home');
+      navigate('/', { replace: true });
+    }
+  }, [timeoutReached, loading, navigate]);
 
   useEffect(() => {
     // Process URL hash only once
@@ -36,30 +59,62 @@ const AuthCallback: React.FC = () => {
   
   // Monitor authentication state and navigate when ready
   useEffect(() => {
+    const elapsedTime = Date.now() - authStartTime;
+    
     if (!loading && user && authUser) {
-      console.log('✅ AuthCallback: User authenticated and profile loaded, navigating to dashboard');
+      console.log(`✅ AuthCallback: User authenticated and profile loaded in ${elapsedTime}ms, navigating to dashboard`);
       navigate('/app');
     } else if (!loading && !user && !authUser) {
-      console.log('❌ AuthCallback: No user found after loading, redirecting to home');
+      console.log(`❌ AuthCallback: No user found after loading (${elapsedTime}ms), redirecting to home`);
+      navigate('/');
+    } else if (elapsedTime > AUTH_TIMEOUT) {
+      console.log(`⏰ AuthCallback: Authentication taking too long (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     }
   }, [user, authUser, loading, navigate]);
   
   // Show loading while authentication is being processed
-  if (!loading && (!user || !authUser)) {
+  if (timeoutReached || (!loading && (!user || !authUser))) {
     return null;
   }
+
+  const elapsedTime = Date.now() - authStartTime;
+  const remainingTime = Math.max(0, AUTH_TIMEOUT - elapsedTime);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <div className="relative mb-6">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          {remainingTime > 0 && (
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs text-gray-500">
+              {Math.ceil(remainingTime / 1000)}s remaining
+            </div>
+          )}
+        </div>
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           Setting up your account...
         </h2>
         <p className="text-gray-600">
           Please wait while we set up your account.
         </p>
+        
+        {elapsedTime > 10000 && (
+          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800 text-sm">
+              This is taking longer than usual. If it doesn't complete soon, 
+              you'll be redirected to try again.
+            </p>
+          </div>
+        )}
+        
+        {timeoutReached && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800 text-sm">
+              Authentication timed out. Redirecting you back to try again...
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

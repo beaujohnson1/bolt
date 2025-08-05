@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase, type User as AppUser } from '../lib/supabase';
+import { withTimeout, withRetry } from '../utils/promiseUtils';
+
+// Timeout constants
+const PROFILE_FETCH_TIMEOUT = 15000; // 15 seconds
+const PROFILE_CREATE_TIMEOUT = 20000; // 20 seconds
+const SESSION_TIMEOUT = 10000; // 10 seconds
 
 interface AuthContextType {
   user: AppUser | null;
@@ -37,11 +43,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('⏰ [AUTH] User created at:', supabaseUser.created_at);
       
       console.log('🔍 [AUTH] Attempting to fetch existing user profile from database...');
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', supabaseUser.id)
-        .single();
+      const { data, error } = await withTimeout(
+        supabase
+          .from('users')
+          .select('*')
+          .eq('id', supabaseUser.id)
+          .single(),
+        PROFILE_FETCH_TIMEOUT,
+        'Database query timed out while fetching user profile'
+      );
 
       console.log('📊 [AUTH] Database query result:', { data, error });
 
@@ -79,13 +89,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           console.log('📤 [AUTH] Attempting to upsert user with data:', JSON.stringify(newUserData, null, 2));
 
-          const { data: newUser, error: upsertError } = await supabase
-            .from('users')
-            .upsert([newUserData], {
-              onConflict: 'id'
-            })
-            .select()
-            .single();
+          const { data: newUser, error: upsertError } = await withTimeout(
+            supabase
+              .from('users')
+              .upsert([newUserData], {
+                onConflict: 'id'
+              })
+              .select()
+              .single(),
+            PROFILE_CREATE_TIMEOUT,
+            'Database operation timed out while creating user profile'
+          );
 
           console.log('📥 [AUTH] Upsert result:', { newUser, upsertError });
 
@@ -140,15 +154,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', authUser.id)
-        .select()
-        .single();
+      const { data, error } = await withTimeout(
+        supabase
+          .from('users')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', authUser.id)
+          .select()
+          .single(),
+        PROFILE_FETCH_TIMEOUT,
+        'User profile update timed out'
+      );
 
       if (error) throw error;
 
@@ -167,7 +185,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const getInitialSession = async () => {
       try {
         console.log('🔍 [AUTH] Getting initial session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await withTimeout(
+          supabase.auth.getSession(),
+          SESSION_TIMEOUT,
+          'Session fetch timed out'
+        );
         
         console.log('📊 [AUTH] Initial session result:', { session: session ? 'exists' : 'null', error });
         
@@ -175,7 +197,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('❌ [AUTH] Error getting initial session:', error);
           if (error.message.includes('session_not_found') || error.message.includes('JWT')) {
             console.log('🔄 [AUTH] Attempting to refresh session...');
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            const { data: refreshData, error: refreshError } = await withTimeout(
+              supabase.auth.refreshSession(),
+              SESSION_TIMEOUT,
+              'Session refresh timed out'
+            );
             
             if (refreshError) {
               console.error('❌ [AUTH] Session refresh failed:', refreshError);
@@ -204,7 +230,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('📱 [AUTH] Initial session found for user:', session.user.email);
           setAuthUser(session.user);
           console.log('🔄 [AUTH] Fetching user profile for initial session...');
-          const profile = await fetchUserProfile(session.user);
+          const profile = await withTimeout(
+            fetchUserProfile(session.user),
+            PROFILE_FETCH_TIMEOUT,
+            'User profile fetch timed out during initial session'
+          );
           console.log('📊 [AUTH] Profile fetch result for initial session:', profile ? 'success' : 'failed');
           console.log('📊 [AUTH] Initial profile data:', {
             listings_used: profile?.listings_used,
@@ -217,6 +247,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error('❌ [AUTH] Unexpected error getting initial session:', error);
+        // Set loading to false even on error to prevent infinite loading
+        setLoading(false);
       }
     };
 
@@ -237,7 +269,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('✅ [AUTH] Session exists, setting authUser and fetching profile...');
           setAuthUser(session.user);
           console.log('🔄 [AUTH] Fetching user profile for auth state change...');
-          const profile = await fetchUserProfile(session.user);
+          const profile = await withTimeout(
+            fetchUserProfile(session.user),
+            PROFILE_FETCH_TIMEOUT,
+            'User profile fetch timed out during auth state change'
+          );
           console.log('📊 [AUTH] Profile fetch result for auth state change:', profile ? 'success' : 'failed');
           console.log('📊 [AUTH] Auth state change profile data:', {
             listings_used: profile?.listings_used,
