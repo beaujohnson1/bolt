@@ -27,7 +27,6 @@ const ConnectionTest = () => {
       runTests();
       setTestsInitialized(true);
     }
-  }, [user, authUser, testsInitialized]);
 
   const runTests = async () => {
     console.log('🔄 [CONNECTION-TEST] Starting connection tests...');
