@@ -116,6 +116,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       console.log('✅ [AUTH] User profile fetched successfully from database:', data);
+      
+      // Force listing limit to 999 for testing/development
+      data.listings_limit = 999;
+      console.log('🔧 [AUTH] Forced listing limit to 999 for session');
+      
       return data;
     } catch (error) {
       console.error('❌ [AUTH] Unexpected error in fetchUserProfile:', error);
@@ -152,43 +157,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('❌ [AUTH] Error updating user profile:', error);
       throw error;
-    }
-  };
-
-  // Function to fix existing user's listing limit
-  const fixUserListingLimit = async () => {
-    if (!authUser) return;
-    
-    try {
-      console.log('🔧 [AUTH] Fixing user listing limit...');
-      console.log('🔧 [AUTH] Current user before fix:', {
-        listings_used: user?.listings_used,
-        listings_limit: user?.listings_limit,
-        user_id: authUser.id
-      });
-      
-      const { data, error } = await supabase
-        .from('users')
-        .update({
-          listings_limit: 999,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', authUser.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      console.log('✅ [AUTH] Database update result:', data);
-      setUser(data);
-      console.log('✅ [AUTH] User state updated in context:', {
-        listings_used: data.listings_used,
-        listings_limit: data.listings_limit,
-        user_id: data.id
-      });
-      console.log('✅ [AUTH] User listing limit fixed:', data.listings_limit);
-    } catch (error) {
-      console.error('❌ [AUTH] Error fixing user listing limit:', error);
     }
   };
 
@@ -244,11 +212,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             user_id: profile?.id
           });
           setUser(profile);
-          // Fix listing limit for existing users
-          if (profile && profile.listings_limit < 999) {
-            console.log('🔧 [AUTH] Profile needs listing limit fix, calling fixUserListingLimit...');
-            await fixUserListingLimit();
-          }
         } else {
           console.log('ℹ️ [AUTH] No initial session found');
         }
@@ -282,11 +245,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             user_id: profile?.id
           });
           setUser(profile);
-          // Fix listing limit for existing users
-          if (profile && profile.listings_limit < 999) {
-            console.log('🔧 [AUTH] Profile needs listing limit fix, calling fixUserListingLimit...');
-            await fixUserListingLimit();
-          }
         } else {
           console.log('❌ [AUTH] No session, clearing user state...');
           setUser(null);
@@ -395,8 +353,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signInWithGoogle,
     signOut,
-    updateUser,
-    fixUserListingLimit
+    updateUser
   };
 
   return (
