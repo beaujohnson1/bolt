@@ -12,6 +12,67 @@ export const convertToBase64 = (file: File): Promise<string> => {
   });
 };
 
+// Priority 1: Image compression - Resize images to 800px max width
+export const resizeImage = (file: File, maxWidth: number = 800): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      // Calculate new dimensions
+      const { width, height } = img;
+      let newWidth = width;
+      let newHeight = height;
+      
+      if (width > maxWidth) {
+        newWidth = maxWidth;
+        newHeight = (height * maxWidth) / width;
+      }
+      
+      // Set canvas dimensions
+      canvas.width = newWidth;
+      canvas.height = newHeight;
+      
+      // Draw resized image
+      ctx?.drawImage(img, 0, 0, newWidth, newHeight);
+      
+      // Convert to blob and create new file
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const resizedFile = new File([blob], file.name, {
+            type: file.type,
+            lastModified: Date.now()
+          });
+          console.log(`📏 [IMAGE-UTILS] Resized ${file.name}: ${width}x${height} → ${newWidth}x${newHeight}`);
+          resolve(resizedFile);
+        } else {
+          reject(new Error('Failed to resize image'));
+        }
+      }, file.type, 0.9); // 90% quality
+    };
+    
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+// Priority 4: Results caching - Calculate image hash for duplicate detection
+export const calculateImageHash = async (file: File): Promise<string> => {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    console.log(`🔐 [IMAGE-UTILS] Calculated hash for ${file.name}: ${hashHex.substring(0, 16)}...`);
+    return hashHex;
+  } catch (error) {
+    console.error('❌ [IMAGE-UTILS] Error calculating image hash:', error);
+    // Fallback to timestamp-based hash
+    return `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+};
+
 // Helper function to fetch image from URL and convert to base64
 export const fetchImageAsBase64 = async (imageUrl: string): Promise<string> => {
   try {

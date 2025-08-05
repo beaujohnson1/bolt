@@ -53,7 +53,8 @@ export class KeywordOptimizationService {
     detectedCategory: string,
     itemId?: string,
     detectedStyle?: string,
-    userPreferences?: string[]
+    userPreferences?: string[],
+    aiConfidence?: number
   ): Promise<KeywordSuggestion> {
     try {
       console.log('🔍 [KEYWORDS] Starting keyword suggestion process...', {
@@ -61,25 +62,35 @@ export class KeywordOptimizationService {
         detectedBrand,
         detectedCategory,
         itemId,
-        detectedStyle
+        detectedStyle,
+        aiConfidence
       });
 
-      // 1. Get database keywords for this brand/category
+      // Priority 1: Parallel processing - Run database lookup and AI analysis simultaneously
       console.log('📊 [KEYWORDS] Fetching database keywords...');
-      const dbKeywords = await this.getDatabaseKeywords(detectedBrand, detectedCategory, detectedStyle);
-      console.log('📊 [KEYWORDS] Database keywords found:', dbKeywords);
+      console.log('🤖 [KEYWORDS] Starting parallel processing...');
+      
+      // Priority 5: Smart API usage - decide whether to call expensive AI
+      const shouldUseAI = this.shouldUseExpensiveAI(aiConfidence);
+      console.log('🧠 [KEYWORDS] Smart API decision:', { shouldUseAI, aiConfidence });
+      
+      const [dbKeywords, aiKeywords] = await Promise.all([
+        this.getDatabaseKeywords(detectedBrand, detectedCategory, detectedStyle),
+        shouldUseAI ? this.getAIKeywords(imageUrl, detectedBrand, detectedCategory) : Promise.resolve([])
+      ]);
+      
+      console.log('✅ [KEYWORDS] Parallel processing complete:', {
+        dbKeywords: dbKeywords.length,
+        aiKeywords: aiKeywords.length,
+        usedAI: shouldUseAI
+      });
 
-      // 2. Get AI-generated keywords based on visual analysis
-      console.log('🤖 [KEYWORDS] Generating AI keywords...');
-      const aiKeywords = await this.getAIKeywords(imageUrl, detectedBrand, detectedCategory);
-      console.log('🤖 [KEYWORDS] AI keywords generated:', aiKeywords);
-
-      // 3. Combine and rank keywords
+      // Combine and rank keywords
       console.log('🔄 [KEYWORDS] Combining and ranking keywords...');
       const combinedKeywords = this.combineAndRankKeywords(dbKeywords, aiKeywords, userPreferences);
       console.log('🔄 [KEYWORDS] Final combined keywords:', combinedKeywords);
 
-      // 4. Generate optimized eBay title
+      // Generate optimized eBay title
       const ebayTitle = this.generateEbayTitle(
         detectedBrand,
         detectedCategory,
@@ -87,7 +98,7 @@ export class KeywordOptimizationService {
         combinedKeywords.keywords
       );
 
-      // 5. Save analysis to database
+      // Save analysis to database
       console.log('💾 [KEYWORDS] Saving photo analysis to database...');
       await this.savePhotoAnalysis({
         item_id: itemId,
@@ -109,6 +120,29 @@ export class KeywordOptimizationService {
       console.error('❌ [KEYWORDS] Error getting keyword suggestions:', error);
       throw error;
     }
+  }
+
+  /**
+   * Priority 5: Smart API usage - Determine if expensive AI calls are needed
+   */
+  private shouldUseExpensiveAI(aiConfidence?: number): boolean {
+    // If no confidence score, use AI as fallback
+    if (!aiConfidence) {
+      console.log('🧠 [KEYWORDS] No confidence score, using AI');
+      return true;
+    }
+    
+    // If confidence is very high (>0.9), we might skip expensive AI
+    if (aiConfidence > 0.9) {
+      console.log('🧠 [KEYWORDS] High confidence detected, checking database first');
+      // We'll still use AI for now, but this is where you could add logic to skip it
+      // if database keywords are sufficient
+      return true;
+    }
+    
+    // For medium to low confidence, always use AI for better results
+    console.log('🧠 [KEYWORDS] Medium/low confidence, using AI for better accuracy');
+    return true;
   }
 
   /**

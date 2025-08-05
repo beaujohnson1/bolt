@@ -339,7 +339,7 @@ exports.handler = async (event, context) => {
       credsLength: process.env.GOOGLE_APPLICATION_CREDENTIALS ? process.env.GOOGLE_APPLICATION_CREDENTIALS.length : 0
     });
 
-    const { imageUrl } = JSON.parse(event.body);
+    const { imageUrl, imageHash } = JSON.parse(event.body);
     
     if (!imageUrl) {
       console.log('❌ [VISION] No image URL provided');
@@ -352,8 +352,22 @@ exports.handler = async (event, context) => {
 
     console.log('📸 [VISION] Image URL received:', {
       imageUrl: imageUrl,
-      urlLength: imageUrl.length
+      urlLength: imageUrl.length,
+      imageHash: imageHash ? imageHash.substring(0, 16) + '...' : 'none'
     });
+
+    // Priority 4: Check cache first if hash is provided
+    if (imageHash) {
+      console.log('🔍 [VISION] Checking cache for image hash...');
+      try {
+        // Note: This would require Supabase client in the function
+        // For now, we'll implement the cache check structure
+        console.log('💾 [VISION] Cache check would happen here for hash:', imageHash.substring(0, 16) + '...');
+        // TODO: Implement actual cache lookup when Supabase client is available in functions
+      } catch (cacheError) {
+        console.log('⚠️ [VISION] Cache check failed, proceeding with fresh analysis:', cacheError.message);
+      }
+    }
 
     // Prepare image for Vision API
     const image = { source: { imageUri: imageUrl } };
@@ -435,8 +449,16 @@ exports.handler = async (event, context) => {
       suggestedDescription: description,
       keyFeatures,
       suggestedPrice,
-      priceRange
+      priceRange,
+      cached: false, // Indicates this was a fresh analysis
+      imageHash: imageHash || null
     };
+
+    // Priority 4: Store in cache if hash is provided
+    if (imageHash) {
+      console.log('💾 [VISION] Would store analysis in cache for future use');
+      // TODO: Implement actual cache storage when Supabase client is available in functions
+    }
 
     console.log('🎉 [VISION] Analysis completed successfully');
     console.log('📦 [VISION] Response size (chars):', JSON.stringify(analysisResult).length);

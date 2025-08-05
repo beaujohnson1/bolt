@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { KeywordOptimizationService } from '../services/KeywordOptimizationService';
+import { resizeImage, calculateImageHash } from '../utils/imageUtils';
 
 const PhotoCapture = () => {
   const { user, authUser, updateUser } = useAuth();
@@ -12,24 +13,57 @@ const PhotoCapture = () => {
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length > 0) {
-      setSelectedFiles(files);
+      // Priority 1: Resize images before processing
+      const processImages = async () => {
+        console.log('📏 [PHOTO] Starting image resize process...');
+        setProcessingStatus('Optimizing images...');
+        
+        try {
+          // Resize all images to 800px max width
+          const resizePromises = files.map(file => resizeImage(file, 800));
+          const resizedFiles = await Promise.all(resizePromises);
+          
+          console.log('✅ [PHOTO] All images resized successfully');
+          setSelectedFiles(resizedFiles);
+          
+          // Create preview URLs for resized images
+          const imagePromises = resizedFiles.map(file => {
+            return new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.readAsDataURL(file);
+            });
+          });
+          
+          const imageUrls = await Promise.all(imagePromises);
+          setSelectedImages(imageUrls);
+          setProcessingStatus('');
+        } catch (error) {
+          console.error('❌ [PHOTO] Error resizing images:', error);
+          // Fallback to original files if resize fails
+          setSelectedFiles(files);
+          
+          const imagePromises = files.map(file => {
+            return new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.readAsDataURL(file);
+            });
+          });
+          
+          Promise.all(imagePromises).then(imageUrls => {
+            setSelectedImages(imageUrls);
+          });
+          setProcessingStatus('');
+        }
+      };
       
-      // Read all files and convert to data URLs for preview
-      const imagePromises = files.map(file => {
-        return new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target?.result as string);
-          reader.readAsDataURL(file);
-        });
-      });
-      
-      Promise.all(imagePromises).then(imageUrls => {
-        setSelectedImages(imageUrls);
-      });
+      processImages();
     }
   };
 
@@ -56,11 +90,17 @@ const PhotoCapture = () => {
     }
 
     setIsProcessing(true);
+    setProcessingStatus('Starting image processing...');
 
     try {
+      // Priority 4: Calculate image hash for caching
+      console.log('🔐 [PHOTO] Calculating image hash for caching...');
+      setProcessingStatus('Checking for cached results...');
+      const primaryImageHash = await calculateImageHash(selectedFiles[0]);
 
       // Step 1: Upload all images to Supabase Storage first
       console.log('📤 [CLIENT] Starting image uploads to Supabase...');
+      setProcessingStatus(`Uploading ${selectedFiles.length} optimized images...`);
       const uploadPromises = selectedFiles.map(async (file, index) => {
         const fileExt = file.name.split('.').pop();
         const fileName = `${authUser.id}/${Date.now()}_${index}.${fileExt}`;
@@ -89,11 +129,13 @@ const PhotoCapture = () => {
 
       // Step 2: Analyze the first image using its public URL
       console.log('🔄 [CLIENT] Starting AI analysis using image URL...');
+      setProcessingStatus('Analyzing item with AI...');
       console.log('📊 [CLIENT] Analysis request details:', {
         url: '/.netlify/functions/analyze-image',
         method: 'POST',
         primaryImageUrl: publicUrls[0],
         totalImages: publicUrls.length,
+        imageHash: primaryImageHash,
         timestamp: new Date().toISOString()
       });
       
@@ -104,8 +146,9 @@ const PhotoCapture = () => {
         },
         body: JSON.stringify({
           imageUrl: publicUrls[0], // Use the first uploaded image URL for analysis
-          allImageUrls: publicUrls // Pass all image URLs for multi-image analysis
-        }),
+          allImageUrls: publicUrls, // Pass all image URLs for multi-image analysis
+          imageHash: primaryImageHash // For caching
+        });
       });
       
       console.log('📥 [CLIENT] Analysis response received:', {
@@ -160,8 +203,10 @@ const PhotoCapture = () => {
         condition: analysis.condition,
         keyFeaturesCount: analysis.keyFeatures?.length || 0
       });
+      
       // Step 3: Create item in database with analysis results
       console.log('💾 [CLIENT] Creating item in database...');
+      setProcessingStatus('Saving item details...');
       const { data: itemData, error: itemError } = await supabase
         .from('items')
         .insert([
@@ -201,14 +246,19 @@ const PhotoCapture = () => {
 
       // Step 4.5: Generate keyword suggestions using the new system
       console.log('🔍 [CLIENT] Generating keyword suggestions...');
+      setProcessingStatus('Generating SEO keywords...');
       try {
         const keywordService = new KeywordOptimizationService(supabase);
+        
+        // Priority 5: Smart API usage - pass confidence for optimization decisions
         const keywordSuggestions = await keywordService.getKeywordSuggestions(
           publicUrls[0], // Primary image URL
           analysis.brand || 'Unknown',
           analysis.category || 'other',
           itemData.id, // Item ID for linking
-          analysis.suggestedTitle // Style/title as detected style
+          analysis.suggestedTitle, // Style/title as detected style
+          undefined, // User preferences (none yet)
+          analysis.confidence // Pass AI confidence for smart API usage
         );
         
         console.log('✅ [CLIENT] Keyword suggestions generated:', keywordSuggestions);
@@ -233,6 +283,7 @@ const PhotoCapture = () => {
 
       // Step 4: Create a listing for this item
       console.log('📝 [CLIENT] Creating listing for item...');
+      setProcessingStatus('Creating listing...');
       const { data: listingData, error: listingError } = await supabase
         .from('listings')
         .insert([
@@ -259,11 +310,13 @@ const PhotoCapture = () => {
 
       // Step 5: Update user's listing count
       console.log('🔄 [CLIENT] Updating user listing count...');
+      setProcessingStatus('Finalizing...');
       await updateUser({ listings_used: user.listings_used + 1 });
       console.log('✅ [CLIENT] User listing count updated');
 
       // Step 6: Navigate to item details
       console.log('🎯 [CLIENT] Navigating to item details page...');
+      setProcessingStatus('Complete!');
       navigate(`/details/${itemData.id}`);
     } catch (error) {
       console.error('❌ [CLIENT] Critical error in handleProcessImage:', {
@@ -276,6 +329,7 @@ const PhotoCapture = () => {
     } finally {
       console.log('🏁 [CLIENT] Processing complete, setting loading to false');
       setIsProcessing(false);
+      setProcessingStatus('');
     }
   };
 
@@ -399,10 +453,10 @@ const PhotoCapture = () => {
             {isProcessing && (
               <div className="mt-6 text-center">
                 <div className="text-sm text-gray-600">
-                  Our AI is analyzing your item and uploading {selectedImages.length} photos...
+                  {processingStatus || `Our AI is analyzing your item and uploading ${selectedImages.length} photos...`}
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
-                  This may take a few seconds depending on the number of photos
+                  {processingStatus ? 'Please wait...' : 'This may take a few seconds depending on the number of photos'}
                 </div>
               </div>
             )}
@@ -417,7 +471,7 @@ const PhotoCapture = () => {
             <li>• Take photos from multiple angles (front, back, sides, details)</li>
             <li>• Show the entire item in the first photo (used for AI analysis)</li>
             <li>• Include any brand labels or tags if visible</li>
-            <li>• Upload 5-10 photos for best eBay listing results</li>
+            <li>• Images are automatically optimized for faster processing</li>
           </ul>
         </div>
       </main>
