@@ -545,7 +545,7 @@ export class KeywordOptimizationService {
       }
       )
     }
-   * Use existing OpenAI service for GPT-4 Vision analysis
+   // Use existing OpenAI service for GPT-4 Vision analysis
       
   }
   private async callGPT4Vision(imageUrl: string, prompt: string): Promise<string> {
