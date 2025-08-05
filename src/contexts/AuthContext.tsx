@@ -4,8 +4,8 @@ import { supabase, type User as AppUser } from '../lib/supabase';
 import { withTimeout, withRetry } from '../utils/promiseUtils';
 
 // Timeout constants
-const PROFILE_FETCH_TIMEOUT = 45000; // 45 seconds
-const PROFILE_CREATE_TIMEOUT = 45000; // 45 seconds
+const PROFILE_FETCH_TIMEOUT = 60000; // 60 seconds
+const PROFILE_CREATE_TIMEOUT = 60000; // 60 seconds
 const SESSION_TIMEOUT = 30000; // 30 seconds
 
 interface AuthContextType {
@@ -42,100 +42,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('🔐 [AUTH] User role:', supabaseUser.role);
       console.log('⏰ [AUTH] User created at:', supabaseUser.created_at);
       
-      console.log('🔍 [AUTH] Attempting to fetch existing user profile from database...');
-      const { data, error } = await withTimeout(
+      // Extract name from user metadata or email
+      const userName = 
+        supabaseUser.user_metadata?.full_name || 
+        supabaseUser.user_metadata?.name || 
+        supabaseUser.email?.split('@')[0] || 
+        'User';
+
+      console.log('📝 [AUTH] Preparing user profile data with name:', userName);
+      console.log('🆔 [AUTH] User ID:', supabaseUser.id);
+      console.log('📧 [AUTH] User email:', supabaseUser.email);
+      console.log('🖼️ [AUTH] Avatar URL:', supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture);
+
+      const userData = {
+        id: supabaseUser.id,
+        email: supabaseUser.email || '',
+        name: userName,
+        avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
+        subscription_plan: 'free',
+        subscription_status: 'active',
+        listings_used: 0,
+        listings_limit: 999,
+        monthly_revenue: 0,
+        total_sales: 0,
+        notification_preferences: { email: true, push: true },
+        timezone: 'America/New_York',
+        is_active: true,
+        updated_at: new Date().toISOString()
+      };
+
+      console.log('📤 [AUTH] Directly upserting user profile (bypassing select)...');
+      console.log('📊 [AUTH] User data to upsert:', JSON.stringify(userData, null, 2));
+
+      const { data: upsertedUser, error: upsertError } = await withTimeout(
         supabase
           .from('users')
-          .select('*')
-          .eq('id', supabaseUser.id)
+          .upsert([userData], {
+            onConflict: 'id'
+          })
+          .select()
           .single(),
-        PROFILE_FETCH_TIMEOUT,
-        'Database query timed out while fetching user profile'
+        PROFILE_CREATE_TIMEOUT,
+        'Database upsert operation timed out while creating/updating user profile'
       );
 
-      console.log('📊 [AUTH] Database query result:', { data, error });
+      console.log('📥 [AUTH] Upsert result:', { upsertedUser, upsertError });
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          console.log('👤 [AUTH] User profile not found (PGRST116), creating new profile...');
-          
-          // Extract name from user metadata or email
-          const userName = 
-            supabaseUser.user_metadata?.full_name || 
-            supabaseUser.user_metadata?.name || 
-            supabaseUser.email?.split('@')[0] || 
-            'User';
-
-          console.log('📝 [AUTH] Creating user profile with name:', userName);
-          console.log('🆔 [AUTH] User ID:', supabaseUser.id);
-          console.log('📧 [AUTH] User email:', supabaseUser.email);
-          console.log('🖼️ [AUTH] Avatar URL:', supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture);
-
-          const newUserData = {
-            id: supabaseUser.id,
-            email: supabaseUser.email || '',
-            name: userName,
-            avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
-            subscription_plan: 'free',
-            subscription_status: 'active',
-            listings_used: 0,
-            listings_limit: 999,
-            monthly_revenue: 0,
-            total_sales: 0,
-            notification_preferences: { email: true, push: true },
-            timezone: 'America/New_York',
-            is_active: true
-          };
-
-          console.log('📤 [AUTH] Attempting to upsert user with data:', JSON.stringify(newUserData, null, 2));
-
-          const { data: newUser, error: upsertError } = await withTimeout(
-            supabase
-              .from('users')
-              .upsert([newUserData], {
-                onConflict: 'id'
-              })
-              .select()
-              .single(),
-            PROFILE_CREATE_TIMEOUT,
-            'Database operation timed out while creating user profile'
-          );
-
-          console.log('📥 [AUTH] Upsert result:', { newUser, upsertError });
-
-          if (upsertError) {
-            console.error('❌ [AUTH] Error upserting user profile:', upsertError);
-            console.error('❌ [AUTH] Error details:', {
-              code: upsertError.code,
-              message: upsertError.message,
-              details: upsertError.details,
-              hint: upsertError.hint
-            });
-            console.error('❌ [AUTH] Data that failed to insert:', JSON.stringify(newUserData, null, 2));
-            return null;
-          }
-
-          console.log('✅ [AUTH] User profile upserted successfully:', newUser);
-          return newUser;
-        } else {
-          console.error('❌ [AUTH] Error fetching user profile (not PGRST116):', error);
-          console.error('❌ [AUTH] Fetch error details:', {
-            code: error.code,
-            message: error.message,
-            details: error.details,
-            hint: error.hint
-          });
-          return null;
-        }
+      if (upsertError) {
+        console.error('❌ [AUTH] Error upserting user profile:', upsertError);
+        console.error('❌ [AUTH] Error details:', {
+          code: upsertError.code,
+          message: upsertError.message,
+          details: upsertError.details,
+          hint: upsertError.hint
+        });
+        console.error('❌ [AUTH] Data that failed to upsert:', JSON.stringify(userData, null, 2));
+        return null;
       }
 
-      console.log('✅ [AUTH] User profile fetched successfully from database:', data);
+      console.log('✅ [AUTH] User profile upserted successfully:', upsertedUser);
+      console.log('🔧 [AUTH] Profile data includes listing limit:', upsertedUser.listings_limit);
       
-      // Force listing limit to 999 for testing/development
-      data.listings_limit = 999;
-      console.log('🔧 [AUTH] Forced listing limit to 999 for session');
-      
-      return data;
+      return upsertedUser;
     } catch (error) {
       console.error('❌ [AUTH] Unexpected error in fetchUserProfile:', error);
       console.error('❌ [AUTH] Stack trace:', error instanceof Error ? error.stack : 'No stack trace available');

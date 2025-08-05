@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 // Maximum time to wait for authentication to complete
-const AUTH_TIMEOUT = 30000; // 30 seconds
+const AUTH_TIMEOUT = 60000; // 60 seconds
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
