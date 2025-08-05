@@ -69,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             subscription_plan: 'free',
             subscription_status: 'active',
             listings_used: 0,
-            listings_limit: 5,
+            listings_limit: 999,
             monthly_revenue: 0,
             total_sales: 0,
             notification_preferences: { email: true, push: true },

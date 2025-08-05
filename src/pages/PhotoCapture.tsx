@@ -8,24 +8,32 @@ const PhotoCapture = () => {
   const { user, authUser, updateUser } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setSelectedImage(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      setSelectedFiles(files);
+      
+      // Read all files and convert to data URLs for preview
+      const imagePromises = files.map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+      });
+      
+      Promise.all(imagePromises).then(imageUrls => {
+        setSelectedImages(imageUrls);
+      });
     }
   };
 
   const handleProcessImage = async () => {
-    if (!selectedImage || !selectedFile || !user || !authUser) return;
+    if (selectedImages.length === 0 || selectedFiles.length === 0 || !user || !authUser) return;
 
     // Check if user has reached their limit
     if (user.listings_used >= user.listings_limit && user.subscription_plan === 'free') {
@@ -36,11 +44,11 @@ const PhotoCapture = () => {
     setIsProcessing(true);
 
     try {
-      // Convert image to base64 for API
+      // Convert first image to base64 for AI analysis (we only analyze the first image)
       const reader = new FileReader();
       const imageDataPromise = new Promise((resolve) => {
         reader.onload = (e) => resolve(e.target?.result);
-        reader.readAsDataURL(selectedFile);
+        reader.readAsDataURL(selectedFiles[0]);
       });
       
       const imageData = await imageDataPromise;
@@ -71,20 +79,26 @@ const PhotoCapture = () => {
       const analysis = analysisResult.analysis;
       console.log('AI analysis completed:', analysis);
 
-      // Upload image to Supabase Storage
-      const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${authUser.id}/${Date.now()}.${fileExt}`;
+      // Upload all images to Supabase Storage
+      const uploadPromises = selectedFiles.map(async (file, index) => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${authUser.id}/${Date.now()}_${index}.${fileExt}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('item-images')
+          .upload(fileName, file);
+
+        if (uploadError) throw uploadError;
+
+        // Get public URL for the uploaded image
+        const { data: { publicUrl } } = supabase.storage
+          .from('item-images')
+          .getPublicUrl(fileName);
+          
+        return publicUrl;
+      });
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('item-images')
-        .upload(fileName, selectedFile);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL for the uploaded image
-      const { data: { publicUrl } } = supabase.storage
-        .from('item-images')
-        .getPublicUrl(fileName);
+      const publicUrls = await Promise.all(uploadPromises);
 
       // Create item in database
       const { data: itemData, error: itemError } = await supabase
@@ -101,8 +115,8 @@ const PhotoCapture = () => {
             suggested_price: analysis.suggestedPrice,
             price_range_min: analysis.priceRange.min,
             price_range_max: analysis.priceRange.max,
-            images: [publicUrl],
-            primary_image_url: publicUrl,
+            images: publicUrls,
+            primary_image_url: publicUrls[0],
             ai_confidence: analysis.confidence,
             ai_analysis: {
               detected_category: analysis.category,
@@ -131,7 +145,7 @@ const PhotoCapture = () => {
             title: itemData.title,
             description: itemData.description || '',
             price: itemData.suggested_price,
-            images: [publicUrl],
+            images: publicUrls,
             platforms: ['ebay'],
             status: 'active',
             listed_at: new Date().toISOString()
@@ -183,16 +197,16 @@ const PhotoCapture = () => {
           </p>
         </div>
 
-        {!selectedImage ? (
+        {selectedImages.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm border p-8">
             <div className="text-center">
               <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 hover:border-blue-400 transition-colors">
                 <Camera className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Add Your Photo
+                  Add Your Photos
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Take a clear photo of your item or upload from your device
+                  Upload multiple photos of your item from different angles
                 </p>
                 
                 <div className="space-y-4">
@@ -201,11 +215,11 @@ const PhotoCapture = () => {
                     className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
                   >
                     <Upload className="w-4 h-4" />
-                    <span>Upload Photo</span>
+                    <span>Upload Photos</span>
                   </button>
                   
                   <div className="text-sm text-gray-500">
-                    Supports JPG, PNG up to 10MB
+                    Supports JPG, PNG up to 10MB each. Select multiple files.
                   </div>
                 </div>
               </div>
@@ -215,26 +229,42 @@ const PhotoCapture = () => {
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              multiple
               onChange={handleImageSelect}
               className="hidden"
             />
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-sm border p-8">
-            <div className="text-center mb-6">
-              <img
-                src={selectedImage}
-                alt="Selected item"
-                className="max-w-full h-64 object-contain mx-auto rounded-lg"
-              />
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
+                Selected Photos ({selectedImages.length})
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {selectedImages.map((image, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={image}
+                      alt={`Selected item ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg border"
+                    />
+                    <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
+                      {index === 0 ? 'Primary' : `${index + 1}`}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="flex justify-center space-x-4">
               <button
-                onClick={() => setSelectedImage(null)}
+                onClick={() => {
+                  setSelectedImages([]);
+                  setSelectedFiles([]);
+                }}
                 className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
               >
-                Choose Different Photo
+                Choose Different Photos
               </button>
               
               <button
@@ -245,12 +275,12 @@ const PhotoCapture = () => {
                 {isProcessing ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Processing...</span>
+                    <span>Processing {selectedImages.length} photos...</span>
                   </>
                 ) : (
                   <>
                     <Zap className="w-4 h-4" />
-                    <span>Analyze Item</span>
+                    <span>Analyze Item ({selectedImages.length} photos)</span>
                   </>
                 )}
               </button>
@@ -259,10 +289,10 @@ const PhotoCapture = () => {
             {isProcessing && (
               <div className="mt-6 text-center">
                 <div className="text-sm text-gray-600">
-                  Our AI is analyzing your item...
+                  Our AI is analyzing your item and uploading {selectedImages.length} photos...
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
-                  This usually takes 2-3 seconds
+                  This may take a few seconds depending on the number of photos
                 </div>
               </div>
             )}
@@ -271,12 +301,13 @@ const PhotoCapture = () => {
 
         {/* Tips */}
         <div className="mt-8 bg-blue-50 rounded-xl p-6">
-          <h3 className="font-semibold text-gray-900 mb-3">📸 Photo Tips for Best Results</h3>
+          <h3 className="font-semibold text-gray-900 mb-3">📸 Multi-Photo Tips for Best Results</h3>
           <ul className="text-sm text-gray-600 space-y-2">
             <li>• Use good lighting - natural light works best</li>
-            <li>• Show the entire item in the frame</li>
+            <li>• Take photos from multiple angles (front, back, sides, details)</li>
+            <li>• Show the entire item in the first photo (used for AI analysis)</li>
             <li>• Include any brand labels or tags if visible</li>
-            <li>• Take photos from multiple angles if needed</li>
+            <li>• Upload 5-10 photos for best eBay listing results</li>
           </ul>
         </div>
       </main>
