@@ -148,7 +148,7 @@ const PhotoCapture = () => {
           imageUrl: publicUrls[0], // Use the first uploaded image URL for analysis
           allImageUrls: publicUrls, // Pass all image URLs for multi-image analysis
           imageHash: primaryImageHash // For caching
-        });
+        })
       });
       
       console.log('📥 [CLIENT] Analysis response received:', {
