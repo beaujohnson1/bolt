@@ -69,6 +69,14 @@ const PhotoCapture = () => {
       console.log('Sending image to AI analysis...');
       
       // Call our Netlify function for AI analysis
+      console.log('🔄 [CLIENT] Making fetch request to analyze-image function...');
+      console.log('📊 [CLIENT] Request details:', {
+        url: '/.netlify/functions/analyze-image',
+        method: 'POST',
+        imageDataLength: imageData ? imageData.toString().length : 0,
+        timestamp: new Date().toISOString()
+      });
+      
       const analysisResponse = await fetch('/.netlify/functions/analyze-image', {
         method: 'POST',
         headers: {
@@ -79,41 +87,91 @@ const PhotoCapture = () => {
         }),
       });
       
+      console.log('📥 [CLIENT] Fetch response received:', {
+        status: analysisResponse.status,
+        statusText: analysisResponse.statusText,
+        ok: analysisResponse.ok,
+        headers: Object.fromEntries(analysisResponse.headers.entries()),
+        url: analysisResponse.url,
+        type: analysisResponse.type,
+        redirected: analysisResponse.redirected
+      });
+      
       if (!analysisResponse.ok) {
-        throw new Error(`Analysis failed: ${analysisResponse.status}`);
+        console.error('❌ [CLIENT] Analysis response not OK:', {
+          status: analysisResponse.status,
+          statusText: analysisResponse.statusText
+        });
+        
+        // Try to get response body for more details
+        let errorBody = '';
+        try {
+          errorBody = await analysisResponse.text();
+          console.error('❌ [CLIENT] Error response body:', errorBody);
+        } catch (bodyError) {
+          console.error('❌ [CLIENT] Could not read error response body:', bodyError);
+        }
+        
+        throw new Error(`Analysis failed: ${analysisResponse.status} ${analysisResponse.statusText}. Body: ${errorBody}`);
       }
       
+      console.log('🔄 [CLIENT] Parsing JSON response...');
       const analysisResult = await analysisResponse.json();
+      console.log('✅ [CLIENT] JSON parsed successfully:', {
+        success: analysisResult.success,
+        hasAnalysis: !!analysisResult.analysis,
+        analysisKeys: analysisResult.analysis ? Object.keys(analysisResult.analysis) : [],
+        responseSize: JSON.stringify(analysisResult).length
+      });
       
       if (!analysisResult.success) {
+        console.error('❌ [CLIENT] Analysis result indicates failure:', analysisResult);
         throw new Error(analysisResult.error || 'Analysis failed');
       }
       
       const analysis = analysisResult.analysis;
-      console.log('AI analysis completed:', analysis);
+      console.log('🎉 [CLIENT] AI analysis completed successfully:', {
+        category: analysis.category,
+        confidence: analysis.confidence,
+        suggestedTitle: analysis.suggestedTitle,
+        suggestedPrice: analysis.suggestedPrice,
+        brand: analysis.brand,
+        condition: analysis.condition,
+        labelsCount: analysis.labels?.length || 0,
+        webEntitiesCount: analysis.webEntities?.length || 0,
+        textAnnotationsCount: analysis.textAnnotations?.length || 0
+      });
 
       // Upload all images to Supabase Storage
+      console.log('📤 [CLIENT] Starting image uploads to Supabase...');
       const uploadPromises = selectedFiles.map(async (file, index) => {
         const fileExt = file.name.split('.').pop();
         const fileName = `${authUser.id}/${Date.now()}_${index}.${fileExt}`;
         
+        console.log(`📤 [CLIENT] Uploading image ${index + 1}/${selectedFiles.length}: ${fileName}`);
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('item-images')
           .upload(fileName, file);
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error(`❌ [CLIENT] Upload error for image ${index + 1}:`, uploadError);
+          throw uploadError;
+        }
 
         // Get public URL for the uploaded image
         const { data: { publicUrl } } = supabase.storage
           .from('item-images')
           .getPublicUrl(fileName);
           
+        console.log(`✅ [CLIENT] Image ${index + 1} uploaded successfully: ${publicUrl}`);
         return publicUrl;
       });
       
       const publicUrls = await Promise.all(uploadPromises);
+      console.log('✅ [CLIENT] All images uploaded successfully:', publicUrls);
 
       // Create item in database
+      console.log('💾 [CLIENT] Creating item in database...');
       const { data: itemData, error: itemError } = await supabase
         .from('items')
         .insert([
@@ -146,9 +204,14 @@ const PhotoCapture = () => {
         .select()
         .single();
 
-      if (itemError) throw itemError;
+      if (itemError) {
+        console.error('❌ [CLIENT] Error creating item:', itemError);
+        throw itemError;
+      }
+      console.log('✅ [CLIENT] Item created successfully:', itemData.id);
 
       // Create a listing for this item
+      console.log('📝 [CLIENT] Creating listing for item...');
       const { data: listingData, error: listingError } = await supabase
         .from('listings')
         .insert([
@@ -167,17 +230,30 @@ const PhotoCapture = () => {
         .select()
         .single();
 
-      if (listingError) throw listingError;
+      if (listingError) {
+        console.error('❌ [CLIENT] Error creating listing:', listingError);
+        throw listingError;
+      }
+      console.log('✅ [CLIENT] Listing created successfully:', listingData.id);
 
       // Update user's listing count
+      console.log('🔄 [CLIENT] Updating user listing count...');
       await updateUser({ listings_used: user.listings_used + 1 });
+      console.log('✅ [CLIENT] User listing count updated');
 
       // Navigate to item details
+      console.log('🎯 [CLIENT] Navigating to item details page...');
       navigate(`/details/${itemData.id}`);
     } catch (error) {
-      console.error('Error processing image:', error);
+      console.error('❌ [CLIENT] Critical error in handleProcessImage:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
       alert(`Failed to process image: ${error.message}. Please try again.`);
     } finally {
+      console.log('🏁 [CLIENT] Processing complete, setting loading to false');
       setIsProcessing(false);
     }
   };
