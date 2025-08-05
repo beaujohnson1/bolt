@@ -332,7 +332,7 @@ exports.handler = async (event, context) => {
       credsLength: process.env.GOOGLE_APPLICATION_CREDENTIALS ? process.env.GOOGLE_APPLICATION_CREDENTIALS.length : 0
     });
 
-    const { imageUrl } = JSON.parse(event.body);
+    const { imageUrl, allImageUrls } = JSON.parse(event.body);
     
     if (!imageUrl) {
       console.log('❌ [VISION] No image URL provided');
@@ -343,47 +343,87 @@ exports.handler = async (event, context) => {
       };
     }
 
-    console.log('📸 [VISION] Image URL received:', {
-      imageUrl: imageUrl,
-      urlLength: imageUrl.length
+    console.log('📸 [VISION] Image URLs received:', {
+      primaryImageUrl: imageUrl,
+      totalImages: allImageUrls ? allImageUrls.length : 1,
+      allUrls: allImageUrls || [imageUrl]
     });
 
-    // Prepare image for Vision API
-    const image = { source: { imageUri: imageUrl } };
+    // Process all images if provided, otherwise just the primary image
+    const imagesToProcess = allImageUrls || [imageUrl];
+    console.log('🔄 [VISION] Processing', imagesToProcess.length, 'images...');
 
-    console.log('🔄 [VISION] Calling Google Vision API...');
+    // Aggregate results from all images
+    let allLabels = [];
+    let allWebEntities = [];
+    let allTextAnnotations = [];
+    let allObjects = [];
 
-    // Call Google Vision API with multiple features
-    const [result] = await vision.annotateImage({
-      image,
-      features: [
-        { type: 'LABEL_DETECTION', maxResults: 20 },
-        { type: 'WEB_DETECTION', maxResults: 10 },
-        { type: 'TEXT_DETECTION', maxResults: 10 },
-        { type: 'OBJECT_LOCALIZATION', maxResults: 10 }
-      ]
+    // Process each image
+    for (let i = 0; i < imagesToProcess.length; i++) {
+      const currentImageUrl = imagesToProcess[i];
+      console.log(`🔄 [VISION] Analyzing image ${i + 1}/${imagesToProcess.length}: ${currentImageUrl.substring(0, 50)}...`);
+      
+      const image = { source: { imageUri: currentImageUrl } };
+      
+      try {
+        const [result] = await vision.annotateImage({
+          image,
+          features: [
+            { type: 'LABEL_DETECTION', maxResults: 20 },
+            { type: 'WEB_DETECTION', maxResults: 10 },
+            { type: 'TEXT_DETECTION', maxResults: 10 },
+            { type: 'OBJECT_LOCALIZATION', maxResults: 10 }
+          ]
+        });
+        
+        // Aggregate results from this image
+        if (result.labelAnnotations) {
+          allLabels.push(...result.labelAnnotations);
+        }
+        if (result.webDetection && result.webDetection.webEntities) {
+          allWebEntities.push(...result.webDetection.webEntities);
+        }
+        if (result.textAnnotations) {
+          allTextAnnotations.push(...result.textAnnotations);
+        }
+        if (result.localizedObjectAnnotations) {
+          allObjects.push(...result.localizedObjectAnnotations);
+        }
+        
+        console.log(`✅ [VISION] Image ${i + 1} processed:`, {
+          labels: result.labelAnnotations?.length || 0,
+          webEntities: result.webDetection?.webEntities?.length || 0,
+          textAnnotations: result.textAnnotations?.length || 0,
+          objects: result.localizedObjectAnnotations?.length || 0
+        });
+        
+      } catch (imageError) {
+        console.error(`❌ [VISION] Error processing image ${i + 1}:`, imageError);
+        // Continue with other images even if one fails
+      }
+    }
+
+    console.log('✅ [VISION] All images processed successfully');
+    console.log('📊 [VISION] Aggregated results:', {
+      totalLabels: allLabels.length,
+      totalWebEntities: allWebEntities.length,
+      totalTextAnnotations: allTextAnnotations.length,
+      totalObjects: allObjects.length
     });
 
-    console.log('✅ [VISION] Vision API response received successfully');
-    console.log('📊 [VISION] Response summary:', {
-      labelsCount: result.labelAnnotations?.length || 0,
-      webEntitiesCount: result.webDetection?.webEntities?.length || 0,
-      textAnnotationsCount: result.textAnnotations?.length || 0,
-      objectsCount: result.localizedObjectAnnotations?.length || 0
-    });
-
-    // Extract data from Vision API response
-    const labels = result.labelAnnotations || [];
-    const webDetection = result.webDetection || {};
-    const textAnnotations = result.textAnnotations || [];
-    const objects = result.localizedObjectAnnotations || [];
+    // Remove duplicates and sort by confidence
+    const labels = removeDuplicateLabels(allLabels);
+    const webEntities = removeDuplicateWebEntities(allWebEntities);
+    const textAnnotations = removeDuplicateTextAnnotations(allTextAnnotations);
+    const objects = removeDuplicateObjects(allObjects);
 
     // Determine category
     const category = determineCategory(labels, objects);
     console.log('🏷️ [VISION] Determined category:', category);
     
     // Extract brand information
-    const brand = extractBrand(labels, webDetection.webEntities || [], textAnnotations);
+    const brand = extractBrand(labels, webEntities, textAnnotations);
     console.log('🏢 [VISION] Extracted brand:', brand);
     
     // Extract size information
@@ -401,7 +441,7 @@ exports.handler = async (event, context) => {
     // Generate title and description
     const { title, description, keyFeatures } = generateTitleAndDescription(
       labels, 
-      webDetection.webEntities || [], 
+      webEntities, 
       brand, 
       category,
       color
@@ -413,7 +453,7 @@ exports.handler = async (event, context) => {
     console.log('💰 [VISION] Price estimation:', { suggestedPrice, priceRange });
 
     // Calculate overall confidence
-    const confidence = calculateConfidence(labels, webDetection.webEntities || []);
+    const confidence = calculateConfidence(labels, webEntities);
     console.log('🎯 [VISION] Confidence score:', confidence);
 
     const analysisResult = {
@@ -480,6 +520,56 @@ exports.handler = async (event, context) => {
 };
 
 // Helper functions
+
+// Remove duplicate labels and sort by confidence
+function removeDuplicateLabels(labels) {
+  const seen = new Map();
+  labels.forEach(label => {
+    const key = label.description.toLowerCase();
+    if (!seen.has(key) || seen.get(key).score < label.score) {
+      seen.set(key, label);
+    }
+  });
+  return Array.from(seen.values()).sort((a, b) => b.score - a.score);
+}
+
+// Remove duplicate web entities
+function removeDuplicateWebEntities(entities) {
+  const seen = new Map();
+  entities.forEach(entity => {
+    const key = entity.description.toLowerCase();
+    if (!seen.has(key) || seen.get(key).score < entity.score) {
+      seen.set(key, entity);
+    }
+  });
+  return Array.from(seen.values()).sort((a, b) => b.score - a.score);
+}
+
+// Remove duplicate text annotations
+function removeDuplicateTextAnnotations(annotations) {
+  const seen = new Set();
+  return annotations.filter(annotation => {
+    const key = annotation.description.toLowerCase().trim();
+    if (seen.has(key) || key.length < 2) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+// Remove duplicate objects
+function removeDuplicateObjects(objects) {
+  const seen = new Map();
+  objects.forEach(obj => {
+    const key = obj.name.toLowerCase();
+    if (!seen.has(key) || seen.get(key).score < obj.score) {
+      seen.set(key, obj);
+    }
+  });
+  return Array.from(seen.values()).sort((a, b) => b.score - a.score);
+}
+
 function determineCategory(labels, objects) {
   // Get all descriptions and convert to lowercase
   let allDescriptions = [
@@ -647,18 +737,54 @@ function extractColor(labels, textAnnotations) {
   
   console.log('🎨 [VISION] Text for color detection:', allText.substring(0, 200) + '...');
   
-  const foundColors = [];
+  // Create a scoring system for colors
+  const colorScores = {};
   
-  for (const color of COLOR_PATTERNS) {
-    if (allText.includes(color.toLowerCase())) {
-      foundColors.push(color);
-      console.log('🎨 [VISION] Color detected:', color);
+  // Prioritized color patterns (more specific colors get higher priority)
+  const prioritizedColors = [
+    // High priority - specific colors
+    { colors: ['black', 'white'], priority: 10 },
+    { colors: ['navy', 'burgundy', 'maroon', 'forest', 'olive'], priority: 9 },
+    { colors: ['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink'], priority: 8 },
+    { colors: ['brown', 'tan', 'beige', 'cream', 'ivory'], priority: 7 },
+    { colors: ['teal', 'turquoise', 'aqua', 'cyan', 'lime', 'mint'], priority: 6 },
+    { colors: ['gold', 'silver', 'bronze', 'copper', 'metallic'], priority: 5 },
+    { colors: ['coral', 'peach', 'salmon', 'rose', 'lavender', 'plum'], priority: 4 },
+    // Lower priority - vague colors
+    { colors: ['gray', 'grey'], priority: 2 },
+    { colors: ['multicolor', 'multi-color', 'rainbow'], priority: 1 }
+  ];
+  
+  // Score colors based on priority and frequency
+  for (const group of prioritizedColors) {
+    for (const color of group.colors) {
+      if (allText.includes(color.toLowerCase())) {
+        // Count occurrences for additional scoring
+        const occurrences = (allText.match(new RegExp(color.toLowerCase(), 'g')) || []).length;
+        const score = group.priority * occurrences;
+        
+        if (!colorScores[color] || colorScores[color] < score) {
+          colorScores[color] = score;
+        }
+        
+        console.log('🎨 [VISION] Color detected:', color, 'with score:', score);
+      }
     }
   }
   
-  // Return the first detected color, or null if none found
-  if (foundColors.length > 0) {
-    const finalColor = foundColors[0].charAt(0).toUpperCase() + foundColors[0].slice(1);
+  // Find the color with the highest score
+  let bestColor = null;
+  let bestScore = 0;
+  
+  for (const [color, score] of Object.entries(colorScores)) {
+    if (score > bestScore) {
+      bestScore = score;
+      bestColor = color;
+    }
+  }
+  
+  if (bestColor && bestScore > 0) {
+    const finalColor = bestColor.charAt(0).toUpperCase() + bestColor.slice(1);
     console.log('🎨 [VISION] Final color selected:', finalColor);
     return finalColor;
   }

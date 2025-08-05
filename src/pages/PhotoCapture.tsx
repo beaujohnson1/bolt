@@ -103,7 +103,7 @@ const PhotoCapture = () => {
         },
         body: JSON.stringify({
           imageUrl: publicUrls[0], // Use the first uploaded image URL for analysis
-          allImageUrls: publicUrls // Pass all image URLs for reference
+          allImageUrls: publicUrls // Pass all image URLs for multi-image analysis
         }),
       });
       
@@ -171,7 +171,6 @@ const PhotoCapture = () => {
             category: analysis.category,
             condition: analysis.condition || 'good',
             brand: analysis.brand,
-            size: null, // Will be manually entered by user if needed
             size: analysis.size,
             color: analysis.color,
             suggested_price: analysis.suggestedPrice,
