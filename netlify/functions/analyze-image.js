@@ -75,27 +75,24 @@ exports.handler = async (event, context) => {
       credsLength: process.env.GOOGLE_APPLICATION_CREDENTIALS ? process.env.GOOGLE_APPLICATION_CREDENTIALS.length : 0
     });
 
-    const { imageData, imageUrl } = JSON.parse(event.body);
+    const { imageUrl } = JSON.parse(event.body);
     
-    if (!imageData && !imageUrl) {
-      console.log('❌ [VISION] No image data or URL provided');
+    if (!imageUrl) {
+      console.log('❌ [VISION] No image URL provided');
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Image data or URL required' })
+        body: JSON.stringify({ error: 'Image URL required' })
       };
     }
 
-    console.log('📸 [VISION] Image data received:', {
-      hasImageData: !!imageData,
-      hasImageUrl: !!imageUrl,
-      imageDataLength: imageData ? imageData.length : 0
+    console.log('📸 [VISION] Image URL received:', {
+      imageUrl: imageUrl,
+      urlLength: imageUrl.length
     });
 
     // Prepare image for Vision API
-    const image = imageData 
-      ? { content: imageData.replace(/^data:image\/[a-z]+;base64,/, '') }
-      : { source: { imageUri: imageUrl } };
+    const image = { source: { imageUri: imageUrl } };
 
     console.log('🔄 [VISION] Calling Google Vision API...');
 

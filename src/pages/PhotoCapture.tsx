@@ -57,92 +57,8 @@ const PhotoCapture = () => {
     setIsProcessing(true);
 
     try {
-      // Convert first image to base64 for AI analysis (we only analyze the first image)
-      const reader = new FileReader();
-      const imageDataPromise = new Promise((resolve) => {
-        reader.onload = (e) => resolve(e.target?.result);
-        reader.readAsDataURL(selectedFiles[0]);
-      });
-      
-      const imageData = await imageDataPromise;
-      
-      console.log('Sending image to AI analysis...');
-      
-      // Call our Netlify function for AI analysis
-      console.log('🔄 [CLIENT] Making fetch request to analyze-image function...');
-      console.log('📊 [CLIENT] Request details:', {
-        url: '/.netlify/functions/analyze-image',
-        method: 'POST',
-        imageDataLength: imageData ? imageData.toString().length : 0,
-        timestamp: new Date().toISOString()
-      });
-      
-      const analysisResponse = await fetch('/.netlify/functions/analyze-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          imageData: imageData
-        }),
-      });
-      
-      console.log('📥 [CLIENT] Fetch response received:', {
-        status: analysisResponse.status,
-        statusText: analysisResponse.statusText,
-        ok: analysisResponse.ok,
-        headers: Object.fromEntries(analysisResponse.headers.entries()),
-        url: analysisResponse.url,
-        type: analysisResponse.type,
-        redirected: analysisResponse.redirected
-      });
-      
-      if (!analysisResponse.ok) {
-        console.error('❌ [CLIENT] Analysis response not OK:', {
-          status: analysisResponse.status,
-          statusText: analysisResponse.statusText
-        });
-        
-        // Try to get response body for more details
-        let errorBody = '';
-        try {
-          errorBody = await analysisResponse.text();
-          console.error('❌ [CLIENT] Error response body:', errorBody);
-        } catch (bodyError) {
-          console.error('❌ [CLIENT] Could not read error response body:', bodyError);
-        }
-        
-        throw new Error(`Analysis failed: ${analysisResponse.status} ${analysisResponse.statusText}. Body: ${errorBody}`);
-      }
-      
-      console.log('🔄 [CLIENT] Parsing JSON response...');
-      const analysisResult = await analysisResponse.json();
-      console.log('✅ [CLIENT] JSON parsed successfully:', {
-        success: analysisResult.success,
-        hasAnalysis: !!analysisResult.analysis,
-        analysisKeys: analysisResult.analysis ? Object.keys(analysisResult.analysis) : [],
-        responseSize: JSON.stringify(analysisResult).length
-      });
-      
-      if (!analysisResult.success) {
-        console.error('❌ [CLIENT] Analysis result indicates failure:', analysisResult);
-        throw new Error(analysisResult.error || 'Analysis failed');
-      }
-      
-      const analysis = analysisResult.analysis;
-      console.log('🎉 [CLIENT] AI analysis completed successfully:', {
-        category: analysis.category,
-        confidence: analysis.confidence,
-        suggestedTitle: analysis.suggestedTitle,
-        suggestedPrice: analysis.suggestedPrice,
-        brand: analysis.brand,
-        condition: analysis.condition,
-        labelsCount: analysis.labels?.length || 0,
-        webEntitiesCount: analysis.webEntities?.length || 0,
-        textAnnotationsCount: analysis.textAnnotations?.length || 0
-      });
 
-      // Upload all images to Supabase Storage
+      // Step 1: Upload all images to Supabase Storage first
       console.log('📤 [CLIENT] Starting image uploads to Supabase...');
       const uploadPromises = selectedFiles.map(async (file, index) => {
         const fileExt = file.name.split('.').pop();
@@ -170,7 +86,78 @@ const PhotoCapture = () => {
       const publicUrls = await Promise.all(uploadPromises);
       console.log('✅ [CLIENT] All images uploaded successfully:', publicUrls);
 
-      // Create item in database
+      // Step 2: Analyze the first image using its public URL
+      console.log('🔄 [CLIENT] Starting AI analysis using image URL...');
+      console.log('📊 [CLIENT] Analysis request details:', {
+        url: '/.netlify/functions/analyze-image',
+        method: 'POST',
+        primaryImageUrl: publicUrls[0],
+        timestamp: new Date().toISOString()
+      });
+      
+      const analysisResponse = await fetch('/.netlify/functions/analyze-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageUrl: publicUrls[0] // Use the first uploaded image URL
+        }),
+      });
+      
+      console.log('📥 [CLIENT] Analysis response received:', {
+        status: analysisResponse.status,
+        statusText: analysisResponse.statusText,
+        ok: analysisResponse.ok,
+        headers: Object.fromEntries(analysisResponse.headers.entries()),
+        url: analysisResponse.url,
+        type: analysisResponse.type,
+        redirected: analysisResponse.redirected
+      });
+      
+      if (!analysisResponse.ok) {
+        console.error('❌ [CLIENT] Analysis response not OK:', {
+          status: analysisResponse.status,
+          statusText: analysisResponse.statusText
+        });
+        
+        // Try to get response body for more details
+        let errorBody = '';
+        try {
+          errorBody = await analysisResponse.text();
+          console.error('❌ [CLIENT] Error response body:', errorBody);
+        } catch (bodyError) {
+          console.error('❌ [CLIENT] Could not read error response body:', bodyError);
+        }
+        
+        throw new Error(`Analysis failed: ${analysisResponse.status} ${analysisResponse.statusText}. Body: ${errorBody}`);
+      }
+      
+      console.log('🔄 [CLIENT] Parsing analysis JSON response...');
+      const analysisResult = await analysisResponse.json();
+      console.log('✅ [CLIENT] Analysis JSON parsed successfully:', {
+        success: analysisResult.success,
+        hasAnalysis: !!analysisResult.analysis,
+        analysisKeys: analysisResult.analysis ? Object.keys(analysisResult.analysis) : [],
+        responseSize: JSON.stringify(analysisResult).length
+      });
+      
+      if (!analysisResult.success) {
+        console.error('❌ [CLIENT] Analysis result indicates failure:', analysisResult);
+        throw new Error(analysisResult.error || 'Analysis failed');
+      }
+      
+      const analysis = analysisResult.analysis;
+      console.log('🎉 [CLIENT] AI analysis completed successfully:', {
+        category: analysis.category,
+        confidence: analysis.confidence,
+        suggestedTitle: analysis.suggestedTitle,
+        suggestedPrice: analysis.suggestedPrice,
+        brand: analysis.brand,
+        condition: analysis.condition,
+        keyFeaturesCount: analysis.keyFeatures?.length || 0
+      });
+      // Step 3: Create item in database with analysis results
       console.log('💾 [CLIENT] Creating item in database...');
       const { data: itemData, error: itemError } = await supabase
         .from('items')
@@ -193,10 +180,7 @@ const PhotoCapture = () => {
               detected_category: analysis.category,
               detected_brand: analysis.brand,
               detected_condition: analysis.condition,
-              key_features: analysis.keyFeatures,
-              labels: analysis.labels,
-              web_entities: analysis.webEntities,
-              text_annotations: analysis.textAnnotations
+              key_features: analysis.keyFeatures
             },
             status: 'draft'
           }
@@ -210,7 +194,7 @@ const PhotoCapture = () => {
       }
       console.log('✅ [CLIENT] Item created successfully:', itemData.id);
 
-      // Create a listing for this item
+      // Step 4: Create a listing for this item
       console.log('📝 [CLIENT] Creating listing for item...');
       const { data: listingData, error: listingError } = await supabase
         .from('listings')
@@ -236,12 +220,12 @@ const PhotoCapture = () => {
       }
       console.log('✅ [CLIENT] Listing created successfully:', listingData.id);
 
-      // Update user's listing count
+      // Step 5: Update user's listing count
       console.log('🔄 [CLIENT] Updating user listing count...');
       await updateUser({ listings_used: user.listings_used + 1 });
       console.log('✅ [CLIENT] User listing count updated');
 
-      // Navigate to item details
+      // Step 6: Navigate to item details
       console.log('🎯 [CLIENT] Navigating to item details page...');
       navigate(`/details/${itemData.id}`);
     } catch (error) {
