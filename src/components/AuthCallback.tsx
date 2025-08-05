@@ -61,6 +61,14 @@ const AuthCallback: React.FC = () => {
   useEffect(() => {
     const elapsedTime = Date.now() - authStartTime;
     
+    console.log('🔍 [AUTH-CALLBACK] Monitoring auth state:', {
+      loading,
+      hasUser: !!user,
+      hasAuthUser: !!authUser,
+      elapsedTime: `${elapsedTime}ms`,
+      timeoutReached
+    });
+    
     if (!loading && user && authUser) {
       console.log(`✅ AuthCallback: User authenticated and profile loaded in ${elapsedTime}ms, navigating to dashboard`);
       navigate('/app');
@@ -71,7 +79,7 @@ const AuthCallback: React.FC = () => {
       console.log(`⏰ AuthCallback: Authentication taking too long (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     }
-  }, [user, authUser, loading, navigate]);
+  }, [user, authUser, loading, navigate, authStartTime]);
   
   // Show loading while authentication is being processed
   if (timeoutReached || (!loading && (!user || !authUser))) {
