@@ -652,10 +652,12 @@ const AppDashboard = () => {
                         return (
                           <div
                             key={listing.id}
-                            onClick={() => navigate(`/details/${listing.item_id}`)}
-                            className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
+                           className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
                           >
-                            <div className="flex items-center space-x-4">
+                            <div 
+                              className="flex items-center space-x-4 flex-1 cursor-pointer"
+                              onClick={() => navigate(`/details/${listing.item_id}`)}
+                            >
                               {listing.items?.primary_image_url ? (
                                 <img
                                   src={listing.items.primary_image_url}
@@ -672,7 +674,7 @@ const AppDashboard = () => {
                                 <p className="text-gray-600 text-sm">Listed {timeAgo}</p>
                               </div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-right mr-4">
                               <p className="font-bold text-gray-900">${listing.price}</p>
                               <div className="flex items-center space-x-4 text-sm text-gray-600">
                                 <span className="flex items-center">
@@ -685,9 +687,21 @@ const AppDashboard = () => {
                                 </span>
                               </div>
                             </div>
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                              Active
-                            </span>
+                            <div className="flex items-center space-x-2">
+                              <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                Active
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteListing(listing.id, listing.item_id);
+                                }}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete listing"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
