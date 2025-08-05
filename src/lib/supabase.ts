@@ -32,6 +32,7 @@ export interface Item {
   category: string;
   condition: string;
   brand?: string;
+  model_number?: string;
   size?: string;
   color?: string;
   suggested_price: number;

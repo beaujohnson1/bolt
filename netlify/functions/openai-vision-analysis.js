@@ -60,6 +60,7 @@ Be extremely thorough in reading ALL text, even if partially obscured. Return ON
 {
   "brand": "exact brand name if visible",
   "item_type": "specific clothing type (e.g., 'hoodie', 'leggings', 'jacket')",
+  "model_number": "any model or style number visible on the item or tags",
   "size": "size from tag if visible",
   "color": "primary color description",
   "condition": "estimated condition (New, Like New, Good, Fair)",

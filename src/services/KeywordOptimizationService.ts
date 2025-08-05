@@ -360,12 +360,23 @@ export class KeywordOptimizationService {
   generateEbayTitle(
     brand: string,
     category: string,
+    modelNumber: string,
     size: string,
     keywords: string[],
     maxLength: number = 80
   ): string {
-    // Start with essential info
-    let title = `${brand} ${category}`;
+    // Start with essential info - prioritize model number for searchability
+    let title = brand;
+    
+    // Add model number right after brand for maximum search impact
+    if (modelNumber) {
+      title += ` ${modelNumber}`;
+    }
+    
+    // Add category if it's not already implied by model number
+    if (!modelNumber || !modelNumber.toLowerCase().includes(category.toLowerCase())) {
+      title += ` ${category}`;
+    }
     
     if (size) {
       title += ` Size ${size}`;

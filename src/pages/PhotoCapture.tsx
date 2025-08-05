@@ -200,9 +200,31 @@ const PhotoCapture = () => {
         suggestedTitle: analysis.suggestedTitle,
         suggestedPrice: analysis.suggestedPrice,
         brand: analysis.brand,
+        modelNumber: analysis.model_number,
         condition: analysis.condition,
         keyFeaturesCount: analysis.keyFeatures?.length || 0
       });
+      
+      // Step 2.5: Enhance title with model number if available
+      let finalTitle = analysis.suggestedTitle;
+      if (analysis.model_number && analysis.brand) {
+        // For sneakers and electronics, model numbers are crucial for searchability
+        const modelImportantCategories = ['shoes', 'electronics', 'accessories'];
+        if (modelImportantCategories.includes(analysis.category)) {
+          // Insert model number after brand name in title
+          const brandName = analysis.brand;
+          if (finalTitle.includes(brandName) && !finalTitle.includes(analysis.model_number)) {
+            finalTitle = finalTitle.replace(
+              brandName, 
+              `${brandName} ${analysis.model_number}`
+            );
+          } else if (!finalTitle.includes(analysis.model_number)) {
+            // If brand not in title or model not already included, add model number
+            finalTitle = `${brandName} ${analysis.model_number} ${finalTitle.replace(brandName, '').trim()}`.trim();
+          }
+          console.log('🏷️ [CLIENT] Enhanced title with model number:', finalTitle);
+        }
+      }
       
       // Step 3: Create item in database with analysis results
       console.log('💾 [CLIENT] Creating item in database...');
@@ -212,11 +234,12 @@ const PhotoCapture = () => {
         .insert([
           {
             user_id: authUser.id,
-            title: analysis.suggestedTitle,
+            title: finalTitle,
             description: analysis.suggestedDescription,
             category: analysis.category,
             condition: analysis.condition || 'good',
             brand: analysis.brand,
+            model_number: analysis.model_number,
             size: analysis.size,
             color: analysis.color,
             suggested_price: analysis.suggestedPrice,
