@@ -14,6 +14,13 @@ exports.handler = async (event, context) => {
   }
 
   try {
+    console.log('📥 [EBAY-PROXY] Received request:', {
+      method: event.httpMethod,
+      hasBody: !!event.body,
+      bodyLength: event.body ? event.body.length : 0,
+      headers: event.headers
+    });
+    
     const { 
       url, 
       method = 'GET', 
@@ -21,14 +28,25 @@ exports.handler = async (event, context) => {
       body: requestBody 
     } = JSON.parse(event.body || '{}');
 
+    console.log('🔍 [EBAY-PROXY] Parsed request data:', {
+      url,
+      method,
+      hasRequestHeaders: !!requestHeaders,
+      requestHeadersCount: Object.keys(requestHeaders).length,
+      hasRequestBody: !!requestBody,
+      requestBodyType: typeof requestBody,
+      requestBodyLength: requestBody ? (typeof requestBody === 'string' ? requestBody.length : JSON.stringify(requestBody).length) : 0
+    });
+    
     if (!url) {
+      console.error('❌ [EBAY-PROXY] No URL provided in request');
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ 
           error: 'URL is required',
-          received: event.body ? 'body present' : 'no body',
-          parsed: event.body ? JSON.parse(event.body) : null
+          received_body: event.body ? event.body.substring(0, 200) : 'no body',
+          parsed_data: { url, method, hasRequestHeaders: !!requestHeaders, hasRequestBody: !!requestBody }
         })
       };
     }
@@ -38,8 +56,7 @@ exports.handler = async (event, context) => {
       method,
       hasBody: !!requestBody,
       headerCount: Object.keys(requestHeaders).length,
-      bodyType: typeof requestBody,
-      bodyContent: requestBody ? (typeof requestBody === 'string' ? requestBody.substring(0, 100) : JSON.stringify(requestBody).substring(0, 100)) : 'none'
+      bodyType: typeof requestBody
     });
 
     // Forward the request to eBay API
@@ -50,7 +67,8 @@ exports.handler = async (event, context) => {
         // Remove any browser-specific headers that might cause issues
         'User-Agent': 'EasyFlip-Proxy/1.0'
       },
-      body: requestBody ? (typeof requestBody === 'string' ? requestBody : JSON.stringify(requestBody)) : undefined
+      body: (method === 'GET' || method === 'HEAD') ? undefined : 
+            requestBody ? (typeof requestBody === 'string' ? requestBody : JSON.stringify(requestBody)) : undefined
     });
 
     console.log('📥 [EBAY-PROXY] eBay API response:', {
@@ -62,7 +80,10 @@ exports.handler = async (event, context) => {
 
     // Get response data
     const responseText = await response.text();
-    console.log('📄 [EBAY-PROXY] Response text length:', responseText.length);
+    console.log('📄 [EBAY-PROXY] Response details:', {
+      textLength: responseText.length,
+      firstChars: responseText.substring(0, 100)
+    });
     
     let responseData;
     
@@ -72,7 +93,7 @@ exports.handler = async (event, context) => {
     } catch (parseError) {
       // If it's not JSON, return as text
       responseData = responseText;
-      console.log('⚠️ [EBAY-PROXY] Response is not JSON, returning as text');
+      console.log('⚠️ [EBAY-PROXY] Response is not JSON, returning as text:', parseError.message);
     }
 
     // Return the response with CORS headers
@@ -87,6 +108,11 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('❌ [EBAY-PROXY] Proxy error:', error);
+    console.error('❌ [EBAY-PROXY] Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
     
     return {
       statusCode: 500,
@@ -94,8 +120,7 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         error: 'Proxy request failed',
         message: error.message,
-        stack: error.stack,
-        originalBody: event.body
+        originalBody: event.body ? event.body.substring(0, 200) : 'no body'
       })
     };
   }

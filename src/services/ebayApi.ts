@@ -633,6 +633,15 @@ class EbayApiService {
     body?: string
   ): Promise<{ status: number; data: any }> {
     try {
+      console.log('🔄 [EBAY] Calling proxy with:', {
+        url,
+        method,
+        headers,
+        hasBody: !!body,
+        bodyType: typeof body,
+        bodyLength: body ? body.length : 0
+      });
+      
       const response = await fetch('/.netlify/functions/ebay-proxy', {
         method: 'POST',
         headers: {
@@ -642,15 +651,22 @@ class EbayApiService {
           url,
           method,
           headers,
-          body
+          body: method === 'GET' || method === 'HEAD' ? undefined : body
         })
       });
 
+      console.log('📥 [EBAY] Proxy response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
       const data = await response.json();
+      console.log('📊 [EBAY] Proxy response data:', data);
       
       return {
         status: response.status,
-        data: response.ok ? data : data
+        data
       };
     } catch (error) {
       console.error('❌ [EBAY] Proxy call failed:', error);
