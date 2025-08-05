@@ -18,7 +18,6 @@ const ItemDetails = () => {
       if (!itemId || !authUser) return;
 
       try {
-            color: editedItem.color,
         const { data, error } = await supabase
           .from('items')
           .select('*')
