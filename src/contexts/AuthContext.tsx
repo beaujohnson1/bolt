@@ -207,7 +207,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               console.error('❌ [AUTH] Session refresh failed:', refreshError);
               setUser(null);
               setAuthUser(null);
-              setLoading(false);
               return;
             }
             
@@ -216,13 +215,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setAuthUser(refreshData.session.user);
               const profile = await fetchUserProfile(refreshData.session.user);
               setUser(profile);
-              // Fix listing limit for existing users
-              if (profile && profile.listings_limit < 999) {
-                await fixUserListingLimit();
-              }
             }
           }
-          setLoading(false);
           return;
         }
 
@@ -247,7 +241,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error('❌ [AUTH] Unexpected error getting initial session:', error);
-        // Set loading to false even on error to prevent infinite loading
+      } finally {
+        // Always set loading to false, regardless of success or failure
+        console.log('🏁 [AUTH] Initial session check complete, setting loading to false');
         setLoading(false);
       }
     };
@@ -265,30 +261,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           userId: session?.user?.id || 'no id'
         });
         
-        if (session) {
-          console.log('✅ [AUTH] Session exists, setting authUser and fetching profile...');
-          setAuthUser(session.user);
-          console.log('🔄 [AUTH] Fetching user profile for auth state change...');
-          const profile = await withTimeout(
-            fetchUserProfile(session.user),
-            PROFILE_FETCH_TIMEOUT,
-            'User profile fetch timed out during auth state change'
-          );
-          console.log('📊 [AUTH] Profile fetch result for auth state change:', profile ? 'success' : 'failed');
-          console.log('📊 [AUTH] Auth state change profile data:', {
-            listings_used: profile?.listings_used,
-            listings_limit: profile?.listings_limit,
-            user_id: profile?.id
-          });
-          setUser(profile);
-        } else {
-          console.log('❌ [AUTH] No session, clearing user state...');
-          setUser(null);
-          setAuthUser(null);
+        try {
+          if (session) {
+            console.log('✅ [AUTH] Session exists, setting authUser and fetching profile...');
+            setAuthUser(session.user);
+            console.log('🔄 [AUTH] Fetching user profile for auth state change...');
+            const profile = await withTimeout(
+              fetchUserProfile(session.user),
+              PROFILE_FETCH_TIMEOUT,
+              'User profile fetch timed out during auth state change'
+            );
+            console.log('📊 [AUTH] Profile fetch result for auth state change:', profile ? 'success' : 'failed');
+            console.log('📊 [AUTH] Auth state change profile data:', {
+              listings_used: profile?.listings_used,
+              listings_limit: profile?.listings_limit,
+              user_id: profile?.id
+            });
+            setUser(profile);
+          } else {
+            console.log('❌ [AUTH] No session, clearing user state...');
+            setUser(null);
+            setAuthUser(null);
+          }
+        } catch (error) {
+          console.error('❌ [AUTH] Error in auth state change handler:', error);
+          // Don't clear user state on timeout - they might still be valid
+          if (!error.message.includes('timed out')) {
+            setUser(null);
+            setAuthUser(null);
+          }
+        } finally {
+          console.log('🏁 [AUTH] Auth state change processing complete, setting loading to false');
+          setLoading(false);
         }
-        
-        console.log('🏁 [AUTH] Auth state change processing complete, setting loading to false');
-        setLoading(false);
       }
     );
 

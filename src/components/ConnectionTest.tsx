@@ -18,17 +18,28 @@ const ConnectionTest = () => {
     status: 'idle',
     message: 'Click Test to check eBay trending items API'
   });
+  const [testsInitialized, setTestsInitialized] = useState(false);
 
   useEffect(() => {
-    runTests();
-  }, [user, authUser]);
+    // Only run tests once when component mounts or when auth state changes significantly
+    if (!testsInitialized) {
+      console.log('🧪 [CONNECTION-TEST] Initializing tests for the first time');
+      runTests();
+      setTestsInitialized(true);
+    }
+  }, [user, authUser, testsInitialized]);
 
   const runTests = async () => {
+    console.log('🔄 [CONNECTION-TEST] Starting connection tests...');
+    
     // Test 1: Supabase Connection
+    setTests(prev => ({ ...prev, supabaseConnection: { status: 'testing', message: 'Testing...' } }));
     try {
+      console.log('🔍 [CONNECTION-TEST] Testing Supabase connection...');
       const { data, error } = await supabase.from('users').select('count').limit(1);
       if (error) throw error;
       
+      console.log('✅ [CONNECTION-TEST] Supabase connection successful');
       setTests(prev => ({
         ...prev,
         supabaseConnection: { 
@@ -37,6 +48,7 @@ const ConnectionTest = () => {
         }
       }));
     } catch (error) {
+      console.error('❌ [CONNECTION-TEST] Supabase connection failed:', error);
       setTests(prev => ({
         ...prev,
         supabaseConnection: { 
@@ -47,7 +59,9 @@ const ConnectionTest = () => {
     }
 
     // Test 2: Authentication Status
+    setTests(prev => ({ ...prev, authentication: { status: 'testing', message: 'Testing...' } }));
     if (authUser) {
+      console.log('✅ [CONNECTION-TEST] User is authenticated');
       setTests(prev => ({
         ...prev,
         authentication: { 
@@ -56,6 +70,7 @@ const ConnectionTest = () => {
         }
       }));
     } else {
+      console.log('ℹ️ [CONNECTION-TEST] User not authenticated');
       setTests(prev => ({
         ...prev,
         authentication: { 
@@ -66,8 +81,10 @@ const ConnectionTest = () => {
     }
 
     // Test 3: Database Access
+    setTests(prev => ({ ...prev, database: { status: 'testing', message: 'Testing...' } }));
     if (authUser) {
       try {
+        console.log('🔍 [CONNECTION-TEST] Testing database access...');
         const { data, error } = await supabase
           .from('users')
           .select('*')
@@ -76,6 +93,7 @@ const ConnectionTest = () => {
         
         if (error && error.code !== 'PGRST116') throw error;
         
+        console.log('✅ [CONNECTION-TEST] Database access successful');
         setTests(prev => ({
           ...prev,
           database: { 
@@ -84,6 +102,7 @@ const ConnectionTest = () => {
           }
         }));
       } catch (error) {
+        console.error('❌ [CONNECTION-TEST] Database access failed:', error);
         setTests(prev => ({
           ...prev,
           database: { 
@@ -103,7 +122,9 @@ const ConnectionTest = () => {
     }
 
     // Test 4: Storage Access
+    setTests(prev => ({ ...prev, storage: { status: 'testing', message: 'Testing...' } }));
     try {
+      console.log('🔍 [CONNECTION-TEST] Testing storage access...');
       // Test storage accessibility by checking if storage client is available
       // Since you can upload photos successfully, we know storage is working
       const storageClient = supabase.storage;
@@ -111,6 +132,7 @@ const ConnectionTest = () => {
         throw new Error('Storage client not initialized');
       }
       
+      console.log('✅ [CONNECTION-TEST] Storage client is accessible');
       // Test basic storage functionality with a simple operation
       const { data: buckets, error } = await supabase.storage.listBuckets();
       if (error) {
@@ -160,11 +182,14 @@ const ConnectionTest = () => {
     }
 
     // Test 5: Google OAuth Configuration
+    setTests(prev => ({ ...prev, googleOAuth: { status: 'testing', message: 'Testing...' } }));
     try {
+      console.log('🔍 [CONNECTION-TEST] Testing Google OAuth...');
       const { data, error } = await supabase.auth.getSession();
       if (error) throw error;
       
       // Test OAuth system accessibility without checking specific providers
+      console.log('✅ [CONNECTION-TEST] OAuth system accessible');
       // (provider enumeration requires admin access)
       
       setTests(prev => ({
@@ -175,6 +200,7 @@ const ConnectionTest = () => {
         }
       }));
     } catch (error) {
+      console.error('❌ [CONNECTION-TEST] OAuth test failed:', error);
       setTests(prev => ({
         ...prev,
         googleOAuth: { 
@@ -185,11 +211,14 @@ const ConnectionTest = () => {
     }
 
     // Test 6: eBay API Configuration
+    setTests(prev => ({ ...prev, ebayApi: { status: 'testing', message: 'Testing...' } }));
     try {
+      console.log('🔍 [CONNECTION-TEST] Testing eBay API...');
       const ebayService = new EbayApiService();
       const connectionTest = await ebayService.testConnection();
       const config = ebayService.getConfig();
       
+      console.log('📊 [CONNECTION-TEST] eBay test result:', connectionTest);
       setTests(prev => ({
         ...prev,
         ebayApi: { 
@@ -198,6 +227,7 @@ const ConnectionTest = () => {
         }
       }));
     } catch (error) {
+      console.error('❌ [CONNECTION-TEST] eBay API test failed:', error);
       setTests(prev => ({
         ...prev,
         ebayApi: { 
@@ -206,20 +236,25 @@ const ConnectionTest = () => {
         }
       }));
     }
+    
+    console.log('✅ [CONNECTION-TEST] All connection tests completed');
   };
 
   const testTrendingItems = useCallback(async () => {
+    console.log('🧪 [CONNECTION-TEST] Testing trending items API...');
     setTrendingTest({ status: 'testing', message: 'Testing eBay trending items API...' });
 
     try {
       const ebayService = new EbayApiService();
       const trendingItems = await ebayService.getTrendingItems();
       
+      console.log('✅ [CONNECTION-TEST] Trending items test successful:', trendingItems.length);
       setTrendingTest({
         status: 'success',
         message: `Successfully fetched ${trendingItems.length} trending items`
       });
     } catch (error) {
+      console.error('❌ [CONNECTION-TEST] Trending items test failed:', error);
       setTrendingTest({
         status: 'error',
         message: `Failed to fetch trending items: ${error.message}`
@@ -316,7 +351,11 @@ const ConnectionTest = () => {
 
         <div className="mt-6 flex space-x-4">
           <button
-            onClick={runTests}
+            onClick={() => {
+              console.log('🔄 [CONNECTION-TEST] Manual test run triggered');
+              setTestsInitialized(false); // Reset to allow re-running
+              runTests();
+            }}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
           >
             Run Tests Again
