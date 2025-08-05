@@ -12,6 +12,7 @@
   "dependencies": {
     "@google-cloud/vision": "^5.3.3",
     "@supabase/supabase-js": "^2.53.0",
+    "axios": "^1.6.0",
     "lucide-react": "^0.344.0",
     "openai": "^5.11.0",
     "react": "^18.3.1",
