@@ -639,6 +639,7 @@ function extractSize(textAnnotations) {
     );
     
     const finalSize = alphanumericSizes.length > 0 ? alphanumericSizes[0] : 
+                     clothingSizes.length > 0 ? clothingSizes[0] : foundSizes[0];
     console.log('📏 [VISION] Final size selected:', finalSize);
     return finalSize;
   }
@@ -779,7 +780,6 @@ function generateTitleAndDescription(labels, webEntities, brand, category, color
         itemType = 'Pants';
       }
     } else if (foundTerms.includes('leather jacket')) {
-    if (foundTerms.includes('leather jacket')) {
       itemType = 'Leather Jacket';
     } else if (foundTerms.includes('denim jacket')) {
       itemType = 'Denim Jacket';
@@ -934,50 +934,6 @@ function extractSizeFromText(text) {
     }
   }
   return null;
-}
-@@ .. @@
-    } else if (topLabels.length > 0) {
-      itemType = topLabels[0].charAt(0).toUpperCase() + topLabels[0].slice(1);
-    } else {
-      itemType = category.replace('_', ' ').split(' ').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1)
-      ).join(' ');
-    }
-  }
-  
-  // Generate title
-  let title = '';
-  if (brand) {
-    title = `${brand} `;
-  }
-  if (color && !itemType.toLowerCase().includes(color.toLowerCase())) {
-    title += `${color} `;
-  }
-  title += itemType;
-  
-  // Generate description
-  const keyFeatures = [...new Set([
-    ...foundTerms, 
-    ...topLabels.slice(0, 4), 
-    ...entityDescriptions.slice(0, 3)
-  ])].slice(0, 6);
-  
-  let description = `${title} in good condition.`;
-  if (keyFeatures.length > 0) {
-    description += ` Features include: ${keyFeatures.join(', ')}.`;
-  }
-  description += ` Perfect for collectors or everyday use.`;
-  
-  console.log('📝 [VISION] Generated title:', title);
-  console.log('📝 [VISION] Key features:', keyFeatures);
-  
-  return {
-    title: title.trim(),
-    description,
-    keyFeatures: keyFeatures.map(feature => 
-      feature.charAt(0).toUpperCase() + feature.slice(1)
-    )
-  };
 }
 
 function estimatePrice(category, brand, condition, labels) {
