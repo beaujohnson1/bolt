@@ -273,6 +273,104 @@ const AppDashboard = () => {
     fetchDashboardData();
   }, [authUser, timeRange]);
 
+  // Delete listing functionality
+  const handleDeleteListing = async (listingId: string, itemId: string) => {
+    console.log('🗑️ [DASHBOARD] Starting delete process for listing:', listingId, 'item:', itemId);
+    
+    if (!authUser || !user) {
+      console.error('❌ [DASHBOARD] No authenticated user found');
+      alert('You must be signed in to delete listings');
+      return;
+    }
+
+    // Show confirmation dialog
+    const confirmed = window.confirm('Are you sure you want to delete this listing? This action cannot be undone.');
+    if (!confirmed) {
+      console.log('ℹ️ [DASHBOARD] Delete cancelled by user');
+      return;
+    }
+
+    try {
+      console.log('🔄 [DASHBOARD] Deleting listing from database...');
+      
+      // Delete the listing first
+      const { error: listingError } = await supabase
+        .from('listings')
+        .delete()
+        .eq('id', listingId)
+        .eq('user_id', authUser.id); // Ensure user can only delete their own listings
+
+      if (listingError) {
+        console.error('❌ [DASHBOARD] Error deleting listing:', {
+          error: listingError,
+          code: listingError.code,
+          message: listingError.message,
+          details: listingError.details,
+          hint: listingError.hint
+        });
+        throw new Error(`Failed to delete listing: ${listingError.message}`);
+      }
+
+      console.log('✅ [DASHBOARD] Listing deleted successfully');
+
+      // Delete the associated item
+      console.log('🔄 [DASHBOARD] Deleting item from database...');
+      const { error: itemError } = await supabase
+        .from('items')
+        .delete()
+        .eq('id', itemId)
+        .eq('user_id', authUser.id); // Ensure user can only delete their own items
+
+      if (itemError) {
+        console.error('❌ [DASHBOARD] Error deleting item:', {
+          error: itemError,
+          code: itemError.code,
+          message: itemError.message,
+          details: itemError.details,
+          hint: itemError.hint
+        });
+        throw new Error(`Failed to delete item: ${itemError.message}`);
+      }
+
+      console.log('✅ [DASHBOARD] Item deleted successfully');
+
+      // Update local state to remove the deleted listing
+      setAllListings(prevListings => 
+        prevListings.filter(listing => listing.id !== listingId)
+      );
+
+      // Update dashboard stats
+      setDashboardStats(prevStats => ({
+        ...prevStats,
+        activeListings: Math.max(0, prevStats.activeListings - 1)
+      }));
+
+      // Decrease user's listing count
+      if (user.listings_used > 0) {
+        console.log('🔄 [DASHBOARD] Updating user listing count...');
+        await updateUser({ 
+          listings_used: Math.max(0, user.listings_used - 1) 
+        });
+        console.log('✅ [DASHBOARD] User listing count updated');
+      }
+
+      console.log('🎉 [DASHBOARD] Delete process completed successfully');
+      alert('Listing deleted successfully!');
+
+    } catch (error) {
+      console.error('❌ [DASHBOARD] Critical error during delete process:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        listingId,
+        itemId,
+        userId: authUser.id
+      });
+      
+      alert(`Failed to delete listing: ${error.message}. Please try again or contact support if the problem persists.`);
+    }
+  };
+
   useEffect(() => {
     setChatMessages([
       {
