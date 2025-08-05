@@ -684,7 +684,6 @@ function determineCondition(labels, textAnnotations) {
   return 'good'; // Default condition
 }
 
-function generateTitleAndDescription(labels, webEntities, brand, category) {
 function generateTitleAndDescription(labels, webEntities, brand, category, color) {
   const topLabels = labels.slice(0, 8).map(l => l.description.toLowerCase());
   const entityDescriptions = webEntities.slice(0, 5).map(e => e.description.toLowerCase());
