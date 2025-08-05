@@ -156,20 +156,6 @@ exports.handler = async (event, context) => {
     const analysisResult = {
       category,
       confidence,
-      labels: labels.map(label => ({
-        description: label.description,
-        score: label.score,
-        mid: label.mid
-      })),
-      webEntities: (webDetection.webEntities || []).map(entity => ({
-        entityId: entity.entityId,
-        score: entity.score,
-        description: entity.description
-      })),
-      textAnnotations: textAnnotations.map(text => ({
-        description: text.description,
-        boundingPoly: text.boundingPoly
-      })),
       brand,
       condition,
       suggestedTitle: title,
@@ -180,6 +166,7 @@ exports.handler = async (event, context) => {
     };
 
     console.log('🎉 [VISION] Analysis completed successfully');
+    console.log('📦 [VISION] Response size (chars):', JSON.stringify(analysisResult).length);
     return {
       statusCode: 200,
       headers,
