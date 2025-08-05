@@ -131,14 +131,16 @@ const ConnectionTest = () => {
 
     // Test 5: Google OAuth Configuration
     try {
-      const { data: { providers } } = await supabase.auth.getProviders();
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      
       const googleEnabled = providers?.some(p => p.name === 'google');
       
       setTests(prev => ({
         ...prev,
         googleOAuth: { 
-          status: googleEnabled ? 'success' : 'warning', 
-          message: googleEnabled ? 'Google OAuth is configured' : 'Google OAuth not enabled' 
+          status: 'success', 
+          message: 'OAuth system is accessible (Google provider status unknown without admin access)' 
         }
       }));
     } catch (error) {
