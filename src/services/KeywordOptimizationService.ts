@@ -542,12 +542,26 @@ export class KeywordOptimizationService {
       const keywordCounts = allKeywords.reduce((acc, keyword) => {
         acc[keyword] = (acc[keyword] || 0) + 1;
         return acc;
-      }
-      )
-    }
-   // Use existing OpenAI service for GPT-4 Vision analysis
+      }, {});
       
+      const topKeywords = Object.entries(keywordCounts)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10)
+        .map(([keyword]) => keyword);
+      
+      return {
+        submissions,
+        needsMore,
+        readyForPromotion: submissions >= 15,
+        topKeywords
+      };
+    } catch (error) {
+      console.error('❌ [KEYWORDS] Error checking brand status:', error);
+      return { submissions: 0, needsMore: 15, readyForPromotion: false, topKeywords: [] };
+    }
   }
+
+  // Use existing OpenAI service for GPT-4 Vision analysis
   private async callGPT4Vision(imageUrl: string, prompt: string): Promise<string> {
     try {
       console.log('🤖 [KEYWORDS] Using existing OpenAI service for keyword analysis...');
