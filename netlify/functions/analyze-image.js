@@ -20,7 +20,7 @@ const vision = new ImageAnnotatorClient({
 
 // Category mapping from Google Vision labels to our categories
 const CATEGORY_MAPPING = {
-  'clothing': ['clothing', 'shirt', 'dress', 'pants', 'jacket', 'sweater', 'blouse', 'skirt', 'coat', 'leather jacket', 'blazer', 'cardigan', 'hoodie', 'vest'],
+  'clothing': ['clothing', 'shirt', 'dress', 'pants', 'trousers', 'jeans', 'jacket', 'sweater', 'blouse', 'skirt', 'coat', 'leather jacket', 'blazer', 'cardigan', 'hoodie', 'vest', 'slacks', 'chinos', 'khakis', 'leggings', 'joggers'],
   'shoes': ['shoe', 'boot', 'sneaker', 'sandal', 'heel', 'footwear'],
   'electronics': ['electronics', 'computer', 'phone', 'camera', 'television', 'laptop', 'tablet', 'headphones', 'speaker'],
   'home_garden': ['furniture', 'lamp', 'vase', 'plant', 'tool', 'kitchen', 'home', 'garden', 'appliance'],
@@ -243,6 +243,8 @@ const SIZE_PATTERNS = {
     /\b(Extra Small|Small|Medium|Large|Extra Large)\b/gi,
     // Numeric sizes
     /\b(0|2|4|6|8|10|12|14|16|18|20|22|24|26|28)\b/g,
+    // Alphanumeric sizes (like 8A, 1A found on clothing tags)
+    /\b(\d+[A-Z])\b/g,
     // Plus sizes
     /\b(1X|2X|3X|4X|5X)\b/gi,
     // International sizes
@@ -284,7 +286,7 @@ const SIZE_PATTERNS = {
 
 // Color detection patterns
 const COLOR_PATTERNS = [
-  'black', 'white', 'gray', 'grey', 'brown', 'tan', 'beige', 'cream', 'ivory',
+  'black', 'white', 'gray', 'grey', 'brown', 'tan', 'beige', 'cream', 'ivory', 'taupe', 'khaki', 'stone', 'charcoal',
   'red', 'pink', 'rose', 'burgundy', 'maroon', 'wine',
   'blue', 'navy', 'royal', 'teal', 'turquoise', 'aqua', 'cyan',
   'green', 'olive', 'forest', 'lime', 'mint', 'sage',
@@ -404,7 +406,8 @@ exports.handler = async (event, context) => {
       webDetection.webEntities || [], 
       brand, 
       category,
-      color
+      color,
+      textAnnotations
     );
     console.log('📝 [VISION] Generated content:', { title, keyFeatures });
     
@@ -504,9 +507,15 @@ function determineCategory(labels, objects) {
         if (description.includes(keyword)) {
           // Give higher scores for exact matches
           if (description === keyword) {
-            categoryScores[category] += 3;
+            // Give extra boost for pants-related keywords
+            const pantsKeywords = ['pants', 'trousers', 'jeans', 'slacks', 'chinos', 'khakis'];
+            const boost = pantsKeywords.includes(keyword) ? 5 : 3;
+            categoryScores[category] += boost;
           } else {
-            categoryScores[category] += 1;
+            // Give extra boost for pants-related partial matches
+            const pantsKeywords = ['pants', 'trousers', 'jeans', 'slacks', 'chinos', 'khakis'];
+            const boost = pantsKeywords.some(pk => description.includes(pk)) ? 2 : 1;
+            categoryScores[category] += boost;
           }
         }
       }
@@ -621,14 +630,15 @@ function extractSize(textAnnotations) {
     }
   }
   
-  // Return the most likely size (prioritize clothing sizes)
+  // Return the most likely size (prioritize alphanumeric then standard clothing sizes)
   if (foundSizes.length > 0) {
-    // Prioritize standard clothing sizes
+    // Prioritize alphanumeric sizes (like 8A, 1A) first, then standard clothing sizes
+    const alphanumericSizes = foundSizes.filter(size => /^\d+[A-Z]$/.test(size));
     const clothingSizes = foundSizes.filter(size => 
       /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d+|One Size|OS)$/i.test(size)
     );
     
-    const finalSize = clothingSizes.length > 0 ? clothingSizes[0] : foundSizes[0];
+    const finalSize = alphanumericSizes.length > 0 ? alphanumericSizes[0] : 
     console.log('📏 [VISION] Final size selected:', finalSize);
     return finalSize;
   }
@@ -684,12 +694,14 @@ function determineCondition(labels, textAnnotations) {
   return 'good'; // Default condition
 }
 
-function generateTitleAndDescription(labels, webEntities, brand, category, color) {
+function generateTitleAndDescription(labels, webEntities, brand, category, color, textAnnotations = []) {
   const topLabels = labels.slice(0, 8).map(l => l.description.toLowerCase());
   const entityDescriptions = webEntities.slice(0, 5).map(e => e.description.toLowerCase());
+  const ocrText = textAnnotations.map(t => t.description.toLowerCase()).join(' ');
   
   console.log('📝 [VISION] Top labels for title generation:', topLabels);
   console.log('📝 [VISION] Entity descriptions:', entityDescriptions);
+  console.log('📝 [VISION] OCR text for title generation:', ocrText.substring(0, 100) + '...');
   
   // Enhanced clothing-specific terms for title generation
   const clothingTerms = [
@@ -698,7 +710,8 @@ function generateTitleAndDescription(labels, webEntities, brand, category, color
     'sweater', 'pullover', 'cardigan', 'hoodie', 'sweatshirt',
     'shirt', 'dress shirt', 'polo shirt', 't-shirt', 'tank top', 'blouse', 'tunic',
     'dress', 'maxi dress', 'midi dress', 'mini dress', 'cocktail dress', 'evening gown',
-    'pants', 'trousers', 'jeans', 'chinos', 'khakis', 'leggings', 'joggers',
+    'dress pants', 'work pants', 'casual pants', 'straight leg pants', 'bootcut pants', 'wide leg pants', 'skinny pants', 'slim fit pants', 'relaxed fit pants',
+    'pants', 'trousers', 'jeans', 'chinos', 'khakis', 'leggings', 'joggers', 'slacks',
     'skirt', 'mini skirt', 'maxi skirt', 'pencil skirt', 'a-line skirt',
     'shorts', 'bermuda shorts', 'cargo shorts', 'denim shorts',
     'vest', 'waistcoat', 'gilet'
@@ -733,12 +746,39 @@ function generateTitleAndDescription(labels, webEntities, brand, category, color
   if (category === 'clothing') {
     for (const term of clothingTerms) {
       if (topLabels.some(label => label.includes(term)) || 
-          entityDescriptions.some(entity => entity.includes(term))) {
+          entityDescriptions.some(entity => entity.includes(term)) ||
+          ocrText.includes(term)) {
         foundTerms.push(term);
       }
     }
     
-    // Prioritize more specific terms with better hierarchy
+    // Prioritize more specific terms with better hierarchy, especially pants
+    if (foundTerms.some(term => term.includes('pants')) || foundTerms.includes('trousers') || foundTerms.includes('slacks')) {
+      // Determine pants style
+      if (foundTerms.includes('dress pants') || foundTerms.includes('work pants')) {
+        itemType = 'Dress Pants';
+      } else if (foundTerms.includes('straight leg pants')) {
+        itemType = 'Straight Leg Pants';
+      } else if (foundTerms.includes('bootcut pants')) {
+        itemType = 'Bootcut Pants';
+      } else if (foundTerms.includes('wide leg pants')) {
+        itemType = 'Wide Leg Pants';
+      } else if (foundTerms.includes('skinny pants')) {
+        itemType = 'Skinny Pants';
+      } else if (foundTerms.includes('slim fit pants')) {
+        itemType = 'Slim Fit Pants';
+      } else if (foundTerms.includes('relaxed fit pants')) {
+        itemType = 'Relaxed Fit Pants';
+      } else if (foundTerms.includes('casual pants')) {
+        itemType = 'Casual Pants';
+      } else if (foundTerms.includes('trousers')) {
+        itemType = 'Trousers';
+      } else if (foundTerms.includes('slacks')) {
+        itemType = 'Slacks';
+      } else {
+        itemType = 'Pants';
+      }
+    } else if (foundTerms.includes('leather jacket')) {
     if (foundTerms.includes('leather jacket')) {
       itemType = 'Leather Jacket';
     } else if (foundTerms.includes('denim jacket')) {
@@ -789,7 +829,113 @@ function generateTitleAndDescription(labels, webEntities, brand, category, color
   // Fallback to category name if no specific type found
   if (!itemType) {
     if (entityDescriptions.length > 0) {
-      itemType = entityDescriptions[0].charAt(0).toUpperCase() + entityDescriptions[0].slice(1);
+      // Filter out generic terms and brand-like terms that shouldn't be item types
+      const filteredEntities = entityDescriptions.filter(entity => 
+        !entity.includes('label') && 
+        !entity.includes('.com') && 
+        !entity.includes('brand') &&
+        entity.length > 2
+      );
+      if (filteredEntities.length > 0) {
+        itemType = filteredEntities[0].charAt(0).toUpperCase() + filteredEntities[0].slice(1);
+      }
+    }
+    
+    if (!itemType && topLabels.length > 0) {
+      // Filter out generic terms from labels too
+      const filteredLabels = topLabels.filter(label => 
+        !label.includes('label') && 
+        !label.includes('brand') &&
+        label.length > 2
+      );
+      if (filteredLabels.length > 0) {
+        itemType = filteredLabels[0].charAt(0).toUpperCase() + filteredLabels[0].slice(1);
+      }
+    }
+    
+    if (!itemType) {
+      itemType = category.replace('_', ' ').split(' ').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ');
+    }
+  }
+  
+  // Extract size from OCR for title inclusion
+  const detectedSize = extractSizeFromText(ocrText);
+  
+  // Generate title with better order: Brand + Size + Color + Item Type
+  let title = '';
+  if (brand && !brand.toLowerCase().includes('label')) {
+    title = `${brand} `;
+  }
+  if (detectedSize) {
+    title += `Size ${detectedSize} `;
+  }
+  if (color && !itemType.toLowerCase().includes(color.toLowerCase())) {
+    title += `${color} `;
+  }
+  title += itemType;
+  
+  // Clean up title - remove redundant words
+  title = title.replace(/\s+/g, ' ').trim();
+  
+  // Generate description
+  const keyFeatures = [...new Set([
+    ...foundTerms, 
+    ...topLabels.slice(0, 4), 
+    ...entityDescriptions.slice(0, 3)
+  ])].filter(feature => 
+    !feature.includes('label') && 
+    !feature.includes('.com') &&
+    feature.length > 2
+  ).slice(0, 6);
+  
+  let description = `${title} in good condition.`;
+  if (keyFeatures.length > 0) {
+    description += ` Features include: ${keyFeatures.join(', ')}.`;
+  }
+  description += ` Perfect for collectors or everyday use.`;
+  
+  console.log('📝 [VISION] Generated title:', title);
+  console.log('📝 [VISION] Key features:', keyFeatures);
+  
+  return {
+    title: title.trim(),
+    description,
+    keyFeatures: keyFeatures.map(feature => 
+      feature.charAt(0).toUpperCase() + feature.slice(1)
+    )
+  };
+}
+
+// Helper function to extract size from text
+function extractSizeFromText(text) {
+  const sizePatterns = [
+    /\b(\d+[A-Z])\b/g, // 8A, 1A
+    /\b(XXS|XS|S|M|L|XL|XXL|XXXL)\b/gi,
+    /\b(\d+)\b/g // Simple numbers
+  ];
+  
+  for (const pattern of sizePatterns) {
+    const matches = text.match(pattern);
+    if (matches && matches.length > 0) {
+      // Return first match that looks like a clothing size
+      const match = matches[0];
+      if (/^\d+[A-Z]$/.test(match) || /^(XXS|XS|S|M|L|XL|XXL|XXXL)$/i.test(match)) {
+        return match.toUpperCase();
+      }
+      // For simple numbers, only return if they're reasonable clothing sizes
+      if (/^\d+$/.test(match)) {
+        const num = parseInt(match);
+        if (num >= 0 && num <= 28) {
+          return match;
+        }
+      }
+    }
+  }
+  return null;
+}
+@@ .. @@
     } else if (topLabels.length > 0) {
       itemType = topLabels[0].charAt(0).toUpperCase() + topLabels[0].slice(1);
     } else {
