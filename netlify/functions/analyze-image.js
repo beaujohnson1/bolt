@@ -20,7 +20,7 @@ const vision = new ImageAnnotatorClient({
 
 // Category mapping from Google Vision labels to our categories
 const CATEGORY_MAPPING = {
-  'clothing': ['clothing', 'shirt', 'dress', 'pants', 'trousers', 'jeans', 'jacket', 'sweater', 'blouse', 'skirt', 'coat', 'leather jacket', 'blazer', 'cardigan', 'hoodie', 'vest', 'slacks', 'chinos', 'khakis', 'leggings', 'joggers'],
+  'clothing': ['clothing', 'shirt', 'dress', 'pants', 'trousers', 'jeans', 'jacket', 'sweater', 'blouse', 'skirt', 'coat', 'leather jacket', 'blazer', 'cardigan', 'hoodie', 'vest', 'slacks', 'chinos', 'khakis', 'leggings', 'joggers', 'straight fit', 'bootcut', 'slim fit', 'relaxed fit', 'wide leg', 'skinny', 'cargo pants', 'dress pants', 'work pants', 'casual pants'],
   'shoes': ['shoe', 'boot', 'sneaker', 'sandal', 'heel', 'footwear'],
   'electronics': ['electronics', 'computer', 'phone', 'camera', 'television', 'laptop', 'tablet', 'headphones', 'speaker'],
   'home_garden': ['furniture', 'lamp', 'vase', 'plant', 'tool', 'kitchen', 'home', 'garden', 'appliance'],
@@ -286,7 +286,7 @@ const SIZE_PATTERNS = {
 
 // Color detection patterns
 const COLOR_PATTERNS = [
-  'black', 'white', 'gray', 'grey', 'brown', 'tan', 'beige', 'cream', 'ivory', 'taupe', 'khaki', 'stone', 'charcoal',
+  'black', 'white', 'gray', 'grey', 'brown', 'tan', 'beige', 'cream', 'ivory', 'taupe', 'khaki', 'stone', 'charcoal', 'mocha', 'chocolate', 'camel', 'sand', 'mushroom', 'ash',
   'red', 'pink', 'rose', 'burgundy', 'maroon', 'wine',
   'blue', 'navy', 'royal', 'teal', 'turquoise', 'aqua', 'cyan',
   'green', 'olive', 'forest', 'lime', 'mint', 'sage',
@@ -507,14 +507,14 @@ function determineCategory(labels, objects) {
         if (description.includes(keyword)) {
           // Give higher scores for exact matches
           if (description === keyword) {
-            // Give extra boost for pants-related keywords
-            const pantsKeywords = ['pants', 'trousers', 'jeans', 'slacks', 'chinos', 'khakis'];
-            const boost = pantsKeywords.includes(keyword) ? 5 : 3;
+            // Give extra boost for clothing-related keywords, especially pants
+            const clothingKeywords = ['pants', 'trousers', 'jeans', 'slacks', 'chinos', 'khakis', 'leggings', 'joggers', 'clothing'];
+            const boost = clothingKeywords.includes(keyword) ? 8 : 3;
             categoryScores[category] += boost;
           } else {
-            // Give extra boost for pants-related partial matches
-            const pantsKeywords = ['pants', 'trousers', 'jeans', 'slacks', 'chinos', 'khakis'];
-            const boost = pantsKeywords.some(pk => description.includes(pk)) ? 2 : 1;
+            // Give extra boost for clothing-related partial matches
+            const clothingKeywords = ['pants', 'trousers', 'jeans', 'slacks', 'chinos', 'khakis', 'leggings', 'joggers', 'clothing'];
+            const boost = clothingKeywords.some(ck => description.includes(ck)) ? 4 : 1;
             categoryScores[category] += boost;
           }
         }
@@ -711,8 +711,8 @@ function generateTitleAndDescription(labels, webEntities, brand, category, color
     'sweater', 'pullover', 'cardigan', 'hoodie', 'sweatshirt',
     'shirt', 'dress shirt', 'polo shirt', 't-shirt', 'tank top', 'blouse', 'tunic',
     'dress', 'maxi dress', 'midi dress', 'mini dress', 'cocktail dress', 'evening gown',
-    'dress pants', 'work pants', 'casual pants', 'straight leg pants', 'bootcut pants', 'wide leg pants', 'skinny pants', 'slim fit pants', 'relaxed fit pants',
-    'pants', 'trousers', 'jeans', 'chinos', 'khakis', 'leggings', 'joggers', 'slacks',
+    'dress pants', 'work pants', 'casual pants', 'straight leg pants', 'bootcut pants', 'wide leg pants', 'skinny pants', 'slim fit pants', 'relaxed fit pants', 'straight fit pants', 'cargo pants',
+    'pants', 'trousers', 'jeans', 'chinos', 'khakis', 'leggings', 'joggers', 'slacks', 'straight fit', 'bootcut', 'slim fit', 'relaxed fit', 'wide leg', 'skinny',
     'skirt', 'mini skirt', 'maxi skirt', 'pencil skirt', 'a-line skirt',
     'shorts', 'bermuda shorts', 'cargo shorts', 'denim shorts',
     'vest', 'waistcoat', 'gilet'
