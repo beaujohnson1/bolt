@@ -131,7 +131,7 @@ const ConnectionTest = () => {
 
     // Test 5: Google OAuth Configuration
     try {
-      const { data: { providers } } = await supabase.auth.getOAuthProviders();
+      const { data: { providers } } = await supabase.auth.getProviders();
       const googleEnabled = providers?.some(p => p.name === 'google');
       
       setTests(prev => ({

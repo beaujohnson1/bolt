@@ -413,15 +413,17 @@ class EbayApiService {
     try {
       console.log('🧪 [EBAY] Testing eBay API connection...');
       
-      // Test with a simple API call that doesn't require authentication
-      const response = await fetch(`${this.config.baseUrl}/commerce/taxonomy/v1/category_tree/0`, {
-        headers: {
-          'Authorization': `Bearer ${this.config.clientId}`, // Using app token for public API
+      // Test with a simple API call through our proxy to avoid CORS
+      const response = await this._callProxy(
+        `${this.config.baseUrl}/commerce/taxonomy/v1/category_tree/0`,
+        'GET',
+        {
+          'Authorization': `Bearer ${this.config.clientId}`,
           'Content-Type': 'application/json'
         }
-      });
+      );
       
-      if (response.ok) {
+      if (response.status === 200) {
         console.log('✅ [EBAY] Connection test successful');
         return {
           success: true,
@@ -552,31 +554,29 @@ class EbayApiService {
 
       console.log('🔑 [EBAY] Requesting new application token...');
       
-      const tokenUrl = `${this.config.baseUrl}/identity/v1/oauth2/token`;
-      
-      const response = await fetch(tokenUrl, {
-        method: 'POST',
-        headers: {
+      // Use proxy to avoid CORS issues
+      const response = await this._callProxy(
+        `${this.config.baseUrl}/identity/v1/oauth2/token`,
+        'POST',
+        {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Authorization': `Basic ${btoa(`${this.config.clientId}:${this.config.certId}`)}`
         },
-        body: new URLSearchParams({
+        new URLSearchParams({
           grant_type: 'client_credentials',
           scope: 'https://api.ebay.com/oauth/api_scope'
-        })
-      });
+        }).toString()
+      );
 
-      if (!response.ok) {
-        const errorText = await response.text();
+      if (response.status !== 200) {
         console.error('❌ [EBAY] Application token request failed:', {
           status: response.status,
-          statusText: response.statusText,
-          error: errorText
+          error: response.data
         });
-        throw new Error(`eBay application token request failed: ${response.status} ${response.statusText}`);
+        throw new Error(`eBay application token request failed: ${response.status}`);
       }
 
-      const tokenData = await response.json();
+      const tokenData = response.data;
       const appToken = tokenData.access_token;
       const expiresIn = tokenData.expires_in || 7200; // Default 2 hours
       
@@ -609,6 +609,39 @@ class EbayApiService {
       { id: '281', name: 'Jewelry & Watches' },
       { id: '58058', name: 'Health & Beauty' }
     ];
+  }
+
+  // Private helper method to call eBay API through Netlify proxy
+  private async _callProxy(
+    url: string, 
+    method: string = 'GET', 
+    headers: Record<string, string> = {}, 
+    body?: string
+  ): Promise<{ status: number; data: any }> {
+    try {
+      const response = await fetch('/.netlify/functions/ebay-proxy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          url,
+          method,
+          headers,
+          body
+        })
+      });
+
+      const data = await response.json();
+      
+      return {
+        status: response.status,
+        data: response.ok ? data : data
+      };
+    } catch (error) {
+      console.error('❌ [EBAY] Proxy call failed:', error);
+      throw error;
+    }
   }
 
   // Helper methods
