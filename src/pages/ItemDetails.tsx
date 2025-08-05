@@ -18,6 +18,7 @@ const ItemDetails = () => {
       if (!itemId || !authUser) return;
 
       try {
+            color: editedItem.color,
         const { data, error } = await supabase
           .from('items')
           .select('*')
@@ -115,11 +116,63 @@ const ItemDetails = () => {
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Image */}
           <div className="bg-white rounded-xl shadow-sm border p-6">
-            <img
-              src={item.primary_image_url || item.images[0]}
-              alt={item.title}
-              className="w-full h-96 object-contain rounded-lg"
-            />
+            {/* Image Gallery */}
+            <div className="space-y-4">
+              {/* Main Image */}
+              <div className="relative">
+                <img
+                  src={item.primary_image_url || item.images[0]}
+                  alt={item.title}
+                  className="main-item-image w-full h-96 object-contain rounded-lg bg-gray-50"
+                />
+                {item.images.length > 1 && (
+                  <div className="image-counter absolute top-2 right-2 bg-black bg-opacity-60 text-white px-2 py-1 rounded text-sm">
+                    1 of {item.images.length}
+                  </div>
+                )}
+              </div>
+              
+              {/* Additional Images */}
+              {item.images.length > 1 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">All Photos ({item.images.length})</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    {item.images.map((imageUrl, index) => (
+                      <div key={index} className="relative">
+                        <img
+                          src={imageUrl}
+                          alt={`${item.title} - Photo ${index + 1}`}
+                          className="w-full h-24 object-cover rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => {
+                            // Update main image when thumbnail is clicked
+                            const mainImg = document.querySelector('.main-item-image') as HTMLImageElement;
+                            if (mainImg) {
+                              mainImg.src = imageUrl;
+                              // Update counter
+                              const counter = document.querySelector('.image-counter');
+                              if (counter) {
+                                counter.textContent = `${index + 1} of ${item.images.length}`;
+                              }
+                            }
+                          }}
+                        />
+                        <div className="absolute bottom-1 right-1 bg-blue-600 text-white text-xs px-1 rounded">
+                          {index + 1}
+                        </div>
+                        {index === 0 && (
+                          <div className="absolute top-1 left-1 bg-green-600 text-white text-xs px-1 rounded">
+                            Main
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Click any photo to view it larger. First photo was used for AI analysis.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Details */}
@@ -246,7 +299,7 @@ const ItemDetails = () => {
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 ) : (
-                  <span className="font-medium">{item.brand}</span>
+                  <span className="font-medium">{item.brand || 'Not detected'}</span>
                 )}
               </div>
 
@@ -262,9 +315,42 @@ const ItemDetails = () => {
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 ) : (
-                  <span className="font-medium">{item.size}</span>
+                  <span className="font-medium">{item.size || 'Not detected'}</span>
                 )}
               </div>
+            </div>
+
+            {/* Color */}
+            <div className="bg-white rounded-xl shadow-sm border p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Color
+              </label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editedItem?.color || ''}
+                  onChange={(e) => setEditedItem(prev => prev ? {...prev, color: e.target.value} : null)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              ) : (
+                <div className="flex items-center space-x-2">
+                  {item.color && (
+                    <div 
+                      className="w-4 h-4 rounded-full border border-gray-300"
+                      style={{ backgroundColor: item.color.toLowerCase() === 'black' ? '#000000' : 
+                                                item.color.toLowerCase() === 'white' ? '#ffffff' :
+                                                item.color.toLowerCase() === 'red' ? '#dc2626' :
+                                                item.color.toLowerCase() === 'blue' ? '#2563eb' :
+                                                item.color.toLowerCase() === 'green' ? '#16a34a' :
+                                                item.color.toLowerCase() === 'gray' || item.color.toLowerCase() === 'grey' ? '#6b7280' :
+                                                item.color.toLowerCase() === 'brown' ? '#92400e' :
+                                                item.color.toLowerCase() === 'navy' ? '#1e3a8a' :
+                                                '#9ca3af' }}
+                    ></div>
+                  )}
+                  <span className="font-medium">{item.color || 'Not detected'}</span>
+                </div>
+              )}
             </div>
 
             {/* Description */}
