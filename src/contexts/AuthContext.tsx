@@ -155,6 +155,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Function to fix existing user's listing limit
+  const fixUserListingLimit = async () => {
+    if (!authUser) return;
+    
+    try {
+      console.log('🔧 [AUTH] Fixing user listing limit...');
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          listings_limit: 999,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', authUser.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setUser(data);
+      console.log('✅ [AUTH] User listing limit fixed:', data.listings_limit);
+    } catch (error) {
+      console.error('❌ [AUTH] Error fixing user listing limit:', error);
+    }
+  };
+
   useEffect(() => {
     console.log('🔄 [AUTH] Auth effect triggered - setting up authentication listeners');
     
@@ -185,6 +210,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setAuthUser(refreshData.session.user);
               const profile = await fetchUserProfile(refreshData.session.user);
               setUser(profile);
+              // Fix listing limit for existing users
+              if (profile && profile.listings_limit < 999) {
+                await fixUserListingLimit();
+              }
             }
           }
           setLoading(false);
@@ -198,6 +227,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const profile = await fetchUserProfile(session.user);
           console.log('📊 [AUTH] Profile fetch result for initial session:', profile ? 'success' : 'failed');
           setUser(profile);
+          // Fix listing limit for existing users
+          if (profile && profile.listings_limit < 999) {
+            await fixUserListingLimit();
+          }
         } else {
           console.log('ℹ️ [AUTH] No initial session found');
         }
@@ -226,6 +259,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const profile = await fetchUserProfile(session.user);
           console.log('📊 [AUTH] Profile fetch result for auth state change:', profile ? 'success' : 'failed');
           setUser(profile);
+          // Fix listing limit for existing users
+          if (profile && profile.listings_limit < 999) {
+            await fixUserListingLimit();
+          }
         } else {
           console.log('❌ [AUTH] No session, clearing user state...');
           setUser(null);
@@ -334,7 +371,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signInWithGoogle,
     signOut,
-    updateUser
+    updateUser,
+    fixUserListingLimit
   };
 
   return (
