@@ -27,7 +27,7 @@ const ConnectionTest = () => {
       runTests();
       setTestsInitialized(true);
     }
-  }, [testsInitialized]);
+  }, [user, authUser]); // Only depend on auth state, not testsInitialized
 
   const runTests = async () => {
     console.log('🔄 [CONNECTION-TEST] Starting connection tests...');
