@@ -2,7 +2,7 @@
 // AI KEYWORD OPTIMIZATION SYSTEM - INTEGRATION CODE
 // =============================================
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { analyzeClothingItem, convertToBase64 } from './openaiService.js';
 
 // Types for the keyword system
@@ -542,35 +542,84 @@ export class KeywordOptimizationService {
       const keywordCounts = allKeywords.reduce((acc, keyword) => {
         acc[keyword] = (acc[keyword] || 0) + 1;
         return acc;
-      }, {} as Record<string, number>);
+   * Use existing OpenAI service for GPT-4 Vision analysis
       
-      const topKeywords = Object.entries(keywordCounts)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 8)
-        .map(([keyword]) => keyword);
-
-      return {
-        submissions,
-        needsMore,
-        readyForPromotion: submissions >= 15,
-        topKeywords
-      };
+  private async callGPT4Vision(imageUrl: string, prompt: string): Promise<string> {
+    try {
+      console.log('🤖 [KEYWORDS] Using existing OpenAI service for keyword analysis...');
+      
+      // Fetch the image and convert to base64
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const file = new File([blob], 'image.jpg', { type: blob.type });
+      const imageBase64 = await convertToBase64(file);
+      
+      console.log('🤖 [KEYWORDS] Image converted to base64, calling analyzeClothingItem...');
+      
+      // Use the existing OpenAI service
+      const result = await analyzeClothingItem(imageBase64);
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'OpenAI analysis failed');
+      }
+      
+      // Extract keywords from the analysis result
+      const keyFeatures = result.data.key_features || [];
+      const additionalKeywords = this.extractKeywordsFromAnalysis(result.data);
+      
+      // Combine and return as comma-separated string
+      const allKeywords = [...keyFeatures, ...additionalKeywords];
+      const keywordString = allKeywords.join(', ');
+      
+      console.log('🤖 [KEYWORDS] Keywords extracted from OpenAI analysis:', keywordString);
+      return keywordString;
     } catch (error) {
-      console.error('❌ [KEYWORDS] Error checking brand learning status:', error);
-      return { submissions: 0, needsMore: 15, readyForPromotion: false, topKeywords: [] };
+      console.error('❌ [KEYWORDS] Error in callGPT4Vision:', error);
+      throw error;
     }
   }
 
   /**
-   * Schedule weekly auto-promotion (call this from a cron job or similar)
+   * Extract additional keywords from OpenAI clothing analysis
    */
-  async scheduleWeeklyPromotion(): Promise<void> {
-    try {
-      await this.supabase.rpc('weekly_auto_promotion');
-      console.log('✅ [KEYWORDS] Weekly auto-promotion completed');
-    } catch (error) {
-      console.error('❌ [KEYWORDS] Error in weekly auto-promotion:', error);
+  private extractKeywordsFromAnalysis(analysis: any): string[] {
+    const keywords: string[] = [];
+    
+    // Add style-based keywords
+    if (analysis.item_type) {
+      keywords.push(analysis.item_type.toLowerCase());
     }
+    
+    // Add condition-based keywords
+    if (analysis.condition) {
+      const conditionKeywords = {
+        'New': ['new', 'unworn', 'tags'],
+        'Like New': ['like new', 'excellent', 'barely worn'],
+        'Good': ['good condition', 'gently used'],
+        'Fair': ['fair condition', 'some wear']
+      };
+      const conditionKeys = conditionKeywords[analysis.condition] || [];
+      keywords.push(...conditionKeys);
+    }
+    
+    // Add marketplace-specific keywords from the analysis
+    if (analysis.marketplace_title) {
+      // Extract descriptive words from the suggested title
+      const titleWords = analysis.marketplace_title
+        .toLowerCase()
+        .split(' ')
+        .filter(word => 
+          word.length > 3 && 
+          !['size', 'the', 'and', 'for', 'with'].includes(word)
+        );
+      keywords.push(...titleWords);
+    }
+    
+    return keywords.filter(k => k && k.length > 0);
   }
 }
 
