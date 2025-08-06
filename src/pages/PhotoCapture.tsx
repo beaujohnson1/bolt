@@ -108,11 +108,15 @@ const PhotoCapture = () => {
           const resizePromises = files.map(file => resizeImage(file, 800));
           const resizedFiles = await Promise.all(resizePromises);
           
-          console.log('✅ [PHOTO] All images resized successfully');
-          setSelectedFiles(resizedFiles);
+          // NEW: Enhance images for AI analysis
+          setProcessingStatus('Enhancing images for AI...');
+          const enhancedFiles = await processImagesWithEnhancement(resizedFiles); // Call the new function
+          
+          console.log('✅ [PHOTO] All images resized and enhanced successfully');
+          setSelectedFiles(enhancedFiles); // Use enhanced files for further processing
           
           // Create preview URLs for resized images
-          const imagePromises = resizedFiles.map(file => {
+          const imagePromises = enhancedFiles.map(file => { // Use enhanced files for preview
             return new Promise<string>((resolve) => {
               const reader = new FileReader();
               reader.onload = (e) => resolve(e.target?.result as string);
@@ -124,7 +128,7 @@ const PhotoCapture = () => {
           setSelectedImages(imageUrls);
           setProcessingStatus('');
         } catch (error) {
-          console.error('❌ [PHOTO] Error resizing images:', error);
+          console.error('❌ [PHOTO] Error resizing or enhancing images:', error);
           // Fallback to original files if resize fails
           setSelectedFiles(files);
           
