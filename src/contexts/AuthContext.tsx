@@ -12,6 +12,8 @@ interface AuthContextType {
   user: AppUser | null;
   authUser: User | null;
   loading: boolean;
+  redirectPath: string | null;
+  setRedirectPath: (path: string | null) => void;
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
@@ -33,6 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AppUser | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const authEffectInitialized = React.useRef(false);
 
   const fetchUserProfile = async (supabaseUser: User): Promise<AppUser | null> => {
