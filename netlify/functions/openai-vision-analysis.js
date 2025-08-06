@@ -1,16 +1,12 @@
-const OpenAI = require('openai');
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 exports.handler = async (event, context) => {
-  // Handle CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Content-Type': 'application/json'
   };
+
+  console.log('✅ OpenAI Vision function called');
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
@@ -25,104 +21,214 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { imageBase64, analysisType = 'clothing' } = JSON.parse(event.body);
+    console.log('🔍 Checking environment variables...');
     
-    if (!imageBase64) {
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('❌ OpenAI API key not found');
       return {
-        statusCode: 400,
+        statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'imageBase64 is required' })
+        body: JSON.stringify({ error: 'OpenAI API key not configured' })
       };
     }
 
-    console.log('🤖 [OPENAI-FUNCTION] Starting GPT-4 Vision analysis...');
-    
-    let prompt;
-    if (analysisType === 'tags') {
-      prompt = `You are analyzing a close-up photo of clothing tags/labels. Extract ALL visible text and identify:
-
-{
-  "brand": "brand name from tag",
-  "size": "size information",
-  "material_composition": "fabric content if visible",
-  "care_instructions": "washing instructions if visible",
-  "style_number": "any style/item numbers",
-  "country_of_origin": "made in location",
-  "all_visible_text": ["every", "piece", "of", "text", "you", "can", "read"],
-  "tag_type": "size tag, care label, brand tag, etc.",
-  "confidence_score": 0.95
-}
-
-Be extremely thorough in reading ALL text, even if partially obscured. Return ONLY the JSON object.`;
-    } else {
-      prompt = `You are an expert clothing reseller analyzing items for online marketplace listing. Analyze this clothing item photo and return a JSON response with the following information:
-
-{
-  "brand": "exact brand name if visible",
-  "item_type": "specific clothing type (e.g., 'hoodie', 'leggings', 'jacket')",
-  "model_number": "any model or style number visible on the item or tags",
-  "size": "size from tag if visible",
-  "color": "primary color description",
-  "condition": "estimated condition (New, Like New, Good, Fair)",
-  "key_features": ["list", "of", "notable", "features"],
-  "tags_text": "any text visible on tags or labels",
-  "confidence_score": 0.95,
-  "needs_human_review": false,
-  "marketplace_title": "suggested listing title",
-  "estimated_price_range": "$XX-$XX"
-}
-
-Focus especially on identifying these premium brands: Lululemon, Nike, North Face, Carhartt, Patagonia, Athleta, Under Armour, Adidas, Champion, Columbia, Gap, Old Navy, Banana Republic, J.Crew, American Eagle, Hollister, Abercrombie, Forever 21, H&M, Zara, Uniqlo.
-
-If you cannot clearly identify brand or size, set confidence_score below 0.7 and needs_human_review to true.
-
-Return ONLY the JSON object, no additional text.`;
+    // Parse request body
+    let requestBody;
+    try {
+      requestBody = JSON.parse(event.body || '{}');
+      console.log('📝 Request body parsed successfully');
+    } catch (parseError) {
+      console.error('❌ Failed to parse request body:', parseError);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid request body' })
+      };
     }
+
+    const { imageUrl, detectedBrand, detectedCategory, detectedStyle, detectedColor } = requestBody;
     
-    const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${imageBase64}`,
-                detail: "high"
-              }
-            }
-          ]
-        }
-      ],
-      max_tokens: analysisType === 'tags' ? 400 : 500,
-      temperature: 0.1
+    console.log('🖼️ Processing request:', {
+      hasImageUrl: !!imageUrl,
+      detectedBrand,
+      detectedCategory,
+      detectedStyle,
+      detectedColor
     });
 
-    console.log('✅ [OPENAI-FUNCTION] GPT-4 Vision response received');
-    const result = JSON.parse(response.choices[0].message.content);
-    console.log('📊 [OPENAI-FUNCTION] Parsed result:', result);
-    
+    if (!imageUrl) {
+      console.error('❌ No image URL provided');
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Image URL is required' })
+      };
+    }
+
+    // Build prompt
+    const prompt = `Analyze this clothing/item image and generate exactly 8-10 relevant keywords for online marketplace listings.
+
+Item Details:
+${detectedBrand ? `- Brand: ${detectedBrand}` : ''}
+${detectedCategory ? `- Category: ${detectedCategory}` : ''}
+${detectedStyle ? `- Style: ${detectedStyle}` : ''}
+${detectedColor ? `- Color: ${detectedColor}` : ''}
+
+Generate keywords focusing on:
+- Style and design features
+- Colors and patterns  
+- Material and fabric type
+- Condition descriptors
+- Popular search terms
+- Brand-specific terms
+
+Return EXACTLY this format - a simple JSON array:
+["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7", "keyword8"]
+
+No explanations, no extra text, just the JSON array.`;
+
+    console.log('🤖 Calling OpenAI API with current model...');
+
+    // Updated to use current OpenAI model
+    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: "gpt-4o", // ✅ Updated to current model
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: prompt
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageUrl,
+                  detail: "low" // Use low detail to save costs
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 200,
+        temperature: 0.3
+      })
+    });
+
+    console.log('📡 OpenAI Response Status:', openaiResponse.status);
+
+    if (!openaiResponse.ok) {
+      const errorText = await openaiResponse.text();
+      console.error('❌ OpenAI API Error:', {
+        status: openaiResponse.status,
+        statusText: openaiResponse.statusText,
+        error: errorText
+      });
+      
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'OpenAI API request failed',
+          status: openaiResponse.status,
+          details: errorText
+        })
+      };
+    }
+
+    const data = await openaiResponse.json();
+    console.log('✅ OpenAI response received');
+
+    if (!data.choices?.[0]?.message?.content) {
+      console.error('❌ Invalid OpenAI response structure:', data);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Invalid response from OpenAI' })
+      };
+    }
+
+    const content = data.choices[0].message.content.trim();
+    console.log('📝 Raw OpenAI content:', content);
+
+    // Parse keywords
+    let keywords = [];
+    try {
+      keywords = JSON.parse(content);
+      console.log('✅ Keywords parsed successfully:', keywords);
+    } catch (parseError) {
+      console.log('⚠️ JSON parsing failed, extracting keywords manually');
+      
+      // Extract keywords from text if JSON parsing fails
+      const matches = content.match(/\[([^\]]+)\]/);
+      if (matches) {
+        try {
+          keywords = JSON.parse(`[${matches[1]}]`);
+        } catch {
+          keywords = matches[1]
+            .split(',')
+            .map(k => k.trim().replace(/['"]/g, ''))
+            .filter(k => k.length > 0);
+        }
+      } else {
+        // Fallback: split by lines or commas
+        keywords = content
+          .split(/[,\n]/)
+          .map(k => k.trim().replace(/^[-•\d.]\s*/, '').replace(/['"]/g, ''))
+          .filter(k => k.length > 2);
+      }
+    }
+
+    // Ensure we have valid keywords
+    if (!Array.isArray(keywords) || keywords.length === 0) {
+      console.log('⚠️ No keywords extracted, using fallback');
+      keywords = [
+        detectedBrand || 'quality',
+        detectedCategory || 'item', 
+        detectedStyle || 'stylish',
+        detectedColor || 'classic',
+        'excellent condition',
+        'authentic',
+        'fast shipping',
+        'great deal'
+      ].filter(Boolean);
+    }
+
+    // Clean up keywords
+    keywords = keywords
+      .filter(k => typeof k === 'string' && k.trim().length > 0)
+      .map(k => k.trim().toLowerCase())
+      .slice(0, 10);
+
+    console.log('🎯 Final keywords:', keywords);
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
-        success: true,
-        data: result,
-        source: `openai-${analysisType}`,
-        usage: response.usage
+      body: JSON.stringify({ 
+        keywords,
+        source: 'openai_vision',
+        success: true 
       })
     };
+
   } catch (error) {
-    console.error('❌ [OPENAI-FUNCTION] Vision API Error:', error);
+    console.error('💥 Function error:', error);
+    console.error('Error stack:', error.stack);
+    
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({
-        success: false,
-        error: error.message,
-        source: 'openai-function'
+      body: JSON.stringify({ 
+        error: 'Internal server error',
+        message: error.message,
+        success: false
       })
     };
   }
