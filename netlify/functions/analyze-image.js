@@ -194,9 +194,6 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
         success: true,
         analysis: analysis
       })
-        success: true,
-        analysis: analysis
-      })
     };
 
   } catch (error) {
@@ -206,9 +203,6 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        success: true,
-        analysis: {
-          brand: 'Unknown',
         success: true,
         analysis: {
           brand: 'Unknown',
