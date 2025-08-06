@@ -85,7 +85,7 @@ exports.handler = async (event, context) => {
     }
 
     // Create simple, focused prompt
-    const prompt = `Analyze this clothing/fashion item image in detail. Provide:
+    const prompt = \`Analyze this clothing/fashion item image in detail. Provide:
 
 1. **Brand**: Identify any visible brand names or logos
 2. **Category**: What type of item is this? (jacket, shirt, pants, shoes, etc.)
@@ -119,7 +119,7 @@ Return a JSON object with these fields:
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Authorization': \`Bearer ${process.env.OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
