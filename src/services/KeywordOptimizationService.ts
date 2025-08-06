@@ -76,7 +76,7 @@ export class KeywordOptimizationService {
       
       const [dbKeywords, aiKeywords] = await Promise.all([
         this.getDatabaseKeywords(detectedBrand, detectedCategory, detectedStyle),
-        shouldUseAI ? this.getAIKeywords(imageUrl, detectedBrand, detectedCategory) : Promise.resolve([])
+        shouldUseAI ? this.getAIKeywords(imageUrl, detectedBrand, detectedCategory, detectedStyle) : Promise.resolve([])
       ]);
       
       console.log('✅ [KEYWORDS] Parallel processing complete:', {
@@ -95,6 +95,7 @@ export class KeywordOptimizationService {
         detectedBrand,
         detectedCategory,
         '', // Size will be added later
+        '', // Model number will be added later
         combinedKeywords.keywords
       );
 
@@ -181,42 +182,65 @@ export class KeywordOptimizationService {
    */
   private async getAIKeywords(
     imageUrl: string,
-    brand: string,
-    category: string
+    detectedBrand: string,
+    detectedCategory: string,
+    detectedStyle?: string,
+    detectedColor?: string
   ): Promise<string[]> {
     try {
-      console.log('🤖 [KEYWORDS] Starting AI keyword generation...');
+      console.log('[KEYWORDS] Calling OpenAI function...');
       
-      // Fetch the image and convert to base64 using utility function
-      const imageBase64 = await fetchImageAsBase64(imageUrl);
-      
-      console.log('🤖 [KEYWORDS] Image converted to base64, calling OpenAI...');
-      
-      // Call the existing OpenAI service
-      const result = await analyzeClothingItem(imageBase64);
-      
-      if (!result.success || !result.data) {
-        console.error('❌ [KEYWORDS] OpenAI analysis failed:', result.error);
-        return [];
+      const response = await fetch('/.netlify/functions/openai-vision-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          imageUrl, 
+          detectedBrand, 
+          detectedCategory, 
+          detectedStyle,
+          detectedColor
+        })
+      });
+
+      console.log('[KEYWORDS] OpenAI function response status:', response.status);
+
+      if (!response.ok) {
+        console.log('[KEYWORDS] OpenAI function failed, using fallback');
+        return this.generateFallbackKeywords(detectedBrand, detectedCategory, detectedStyle, detectedColor);
       }
+
+      const data = await response.json();
+      console.log('[KEYWORDS] OpenAI function result:', data);
+
+      if (data.success && Array.isArray(data.keywords) && data.keywords.length > 0) {
+        return data.keywords;
+      }
+
+      // If no keywords returned, use fallback
+      return this.generateFallbackKeywords(detectedBrand, detectedCategory, detectedStyle, detectedColor);
       
-      // Extract keywords from the analysis
-      const keyFeatures = result.data.key_features || [];
-      const additionalKeywords = this.extractKeywordsFromAnalysis(result.data, brand, category);
-      
-      // Combine and clean keywords
-      const allKeywords = [...keyFeatures, ...additionalKeywords];
-      const cleanedKeywords = allKeywords
-        .map(k => k.toLowerCase().trim())
-        .filter(k => k.length > 0 && k.length < 20) // Filter out empty or too long keywords
-        .slice(0, 12); // Limit to 12 keywords
-      
-      console.log('🤖 [KEYWORDS] AI keywords extracted:', cleanedKeywords);
-      return cleanedKeywords;
     } catch (error) {
-      console.error('❌ [KEYWORDS] AI keyword generation error:', error);
-      return [];
+      console.log('[KEYWORDS] OpenAI function error, using fallback:', error);
+      return this.generateFallbackKeywords(detectedBrand, detectedCategory, detectedStyle, detectedColor);
     }
+  }
+
+  /**
+   * Generate fallback keywords if AI fails or is not used.
+   */
+  private generateFallbackKeywords(brand?: string, category?: string, style?: string, color?: string): string[] {
+    const keywords = [];
+    
+    if (brand) keywords.push(brand, `authentic ${brand}`);
+    if (style) keywords.push(style);
+    if (category) keywords.push(category, `quality ${category}`);
+    if (color) keywords.push(color);
+    
+    // Add generic keywords
+    keywords.push('excellent condition', 'fast shipping', 'great deal', 'authentic');
+    
+    // Ensure unique keywords and limit to 8
+    return Array.from(new Set(keywords.filter(k => k && k.length > 0))).slice(0, 8);
   }
 
   /**
