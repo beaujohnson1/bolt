@@ -184,6 +184,21 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
     if (!analysis.keyFeatures) {
       analysis.keyFeatures = [];
     }
+    
+    // Ensure priceRange exists with proper structure
+    if (!analysis.priceRange || !analysis.priceRange.min || !analysis.priceRange.max) {
+      const basePrice = analysis.suggestedPrice || 25;
+      analysis.priceRange = {
+        min: Math.round(basePrice * 0.8),
+        max: Math.round(basePrice * 1.3)
+      };
+      console.log('⚠️ Fixed missing priceRange in validation:', analysis.priceRange);
+    }
+    
+    // Ensure keyFeatures exists
+    if (!analysis.keyFeatures) {
+      analysis.keyFeatures = [];
+    }
 
     console.log('🎯 Final analysis result:', analysis);
 
@@ -211,24 +226,14 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
           suggestedPrice: 25,
           priceRange: {
             min: 20,
-          }
-        }
-        success: true,
-        analysis: {
-          brand: 'Unknown',
-          category: 'clothing', 
-          suggestedTitle: 'Pre-owned Fashion Item',
-          suggestedPrice: 25,
-          priceRange: {
-            min: 20,
             max: 32
           },
           color: 'Various',
           material: 'Mixed Materials',
-          condition: 'good',
+          condition: 'Good',
           style: 'Classic',
           confidence: 0.2,
-          description: 'Quality pre-owned item.',
+          description: 'Quality pre-owned clothing item.',
           keyFeatures: [],
           error: 'Analysis failed, using fallback'
         }
