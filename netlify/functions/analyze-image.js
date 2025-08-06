@@ -6,7 +6,7 @@ exports.handler = async (event, context) => {
     'Content-Type': 'application/json'
   };
 
-  console.log('✅ OpenAI Vision function called');
+  console.log('🔍 Starting detailed AI analysis...');
 
   // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
@@ -22,12 +22,11 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    console.log('🔍 Checking environment variables...');
-    
+    // Check for OpenAI API key
     if (!process.env.OPENAI_API_KEY) {
       console.error('❌ OpenAI API key not found');
       
-      // Return fallback analysis instead of failing
+      // Return enhanced fallback analysis instead of failing
       return {
         statusCode: 200,
         headers,
@@ -96,45 +95,53 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Enhanced prompt for detailed analysis
-    const prompt = `You are a professional clothing appraiser and reseller. Analyze this clothing item image in extreme detail.
+    // ENHANCED PROMPT - This is the key improvement for better photo recognition
+    const prompt = `You are a professional clothing appraiser and reseller with expert knowledge of fashion brands and clothing details. 
 
-LOOK CAREFULLY AT THE IMAGE AND IDENTIFY:
+CAREFULLY EXAMINE THIS CLOTHING ITEM IMAGE and provide a detailed analysis:
 
-1. **BRAND IDENTIFICATION**: Look for ANY visible brand names, logos, labels, or tags. Even if partially visible or small, identify it.
+🔍 BRAND IDENTIFICATION (MOST IMPORTANT):
+- Look for ANY visible brand names, logos, labels, or tags
+- Check care labels, size tags, brand patches, embroidered logos
+- Even if partially visible, small, or at angles - identify the brand
+- Look in collars, cuffs, pockets, and inside views
+- If you see text on tags, read it carefully
 
-2. **SPECIFIC ITEM TYPE**: Don't just say "clothing" - be specific (leather jacket, denim jacket, sweater, dress shirt, etc.)
+🔍 SPECIFIC ITEM ANALYSIS:
+- What EXACTLY is this item? (leather jacket, wool coat, cotton shirt, etc.)
+- What material is it made from? (genuine leather, cotton, wool, polyester, etc.)
+- What style/type? (motorcycle jacket, blazer, bomber jacket, etc.)
 
-3. **MATERIAL & FABRIC**: Identify the actual material (leather, cotton, wool, polyester, denim, etc.)
+🔍 PHYSICAL DETAILS:
+- Primary and secondary colors
+- Any visible size information on tags
+- Condition assessment based on what you can see
+- Notable design features, hardware, patterns
 
-4. **COLOR DETAILS**: Primary color and any secondary colors or patterns
+🔍 MARKET ASSESSMENT:
+- Based on brand recognition and condition, estimate realistic resale value
+- Consider current market demand for this type of item
 
-5. **SIZE INFORMATION**: Look for any visible size tags, labels, or indicators
+IMPORTANT: Look at the ACTUAL image carefully. Don't make generic assumptions. If you can see a brand tag or label, read it and identify the brand.
 
-6. **CONDITION ASSESSMENT**: Based on what you can see - any wear, stains, damage, or excellent condition
-
-7. **STYLE & FEATURES**: Specific style elements (collar type, closure style, pockets, etc.)
-
-8. **ESTIMATED VALUE**: Based on brand, condition, and style
-
-Return a detailed JSON object:
+Return this exact JSON format:
 {
-  "brand": "Actual brand name if visible, or 'Unknown' only if truly no brand visible",
-  "category": "Specific item type (e.g., 'leather jacket', 'wool sweater')",
-  "suggestedTitle": "Detailed descriptive title for listing",
-  "suggestedPrice": realistic_price_number,
-  "color": "Primary color description",
-  "material": "Specific material type",
+  "brand": "ACTUAL brand name if visible on tags/labels, or 'Unknown' only if truly no brand visible",
+  "category": "Specific item type (e.g. 'leather jacket', 'wool sweater', 'cotton shirt')",
+  "suggestedTitle": "Detailed descriptive title for marketplace listing",
+  "suggestedPrice": realistic_price_number_based_on_brand_and_condition,
+  "color": "Primary color with details",
+  "material": "Specific material type from what you can observe",
   "condition": "Detailed condition assessment",
   "style": "Specific style description",
-  "size": "Size if visible on tags",
+  "size": "Size if visible on any tags or labels",
   "confidence": confidence_score_0_to_1,
   "keyFeatures": ["feature1", "feature2", "feature3"],
-  "description": "Detailed 2-3 sentence description for listing",
+  "description": "Professional 2-3 sentence description for resale listing",
   "priceRange": {"min": min_price, "max": max_price}
 }
 
-BE SPECIFIC AND DETAILED. Look at the actual image, not generic assumptions.`;
+CRITICAL: Actually examine the image for text, tags, and labels. This is for a resale business that depends on accurate brand identification.`;
 
     console.log('🤖 Calling OpenAI API with enhanced prompt...');
 
@@ -166,7 +173,7 @@ BE SPECIFIC AND DETAILED. Look at the actual image, not generic assumptions.`;
           }
         ],
         max_tokens: 600, // Increased for detailed response
-        temperature: 0.3 // Lower temperature for more consistent results
+        temperature: 0.2 // Lower temperature for more consistent results
       })
     });
 
