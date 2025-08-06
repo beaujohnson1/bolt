@@ -447,17 +447,3 @@ const ListingPreview = () => {
 };
 
 export default ListingPreview;
-                      selectedPlatforms.includes(platform.id)
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                    onClick={() => handlePlatformToggle(platform.id)}
-                  >
-                    <div className="flex items-start space-x-3">
-                      <div className="text-2xl">{platform.logo}</div>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <h3 className="font-semibold text-gray-900">
-                            {platform.name}
-                          </h3>
-                        </div>
