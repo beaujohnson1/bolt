@@ -451,7 +451,13 @@ exports.handler = async (event, context) => {
       suggestedPrice,
       priceRange,
       cached: false, // Indicates this was a fresh analysis
-      imageHash: imageHash || null
+      imageHash: imageHash || null,
+      data: {
+        model_number: null, // Will be enhanced in future versions
+        item_type: title.split(' ').pop(), // Extract item type from title
+        marketplace_title: title,
+        estimated_price_range: `$${Math.round(priceRange.min)}-$${Math.round(priceRange.max)}`
+      }
     };
 
     // Priority 4: Store in cache if hash is provided
