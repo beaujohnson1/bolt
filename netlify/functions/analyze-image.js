@@ -211,14 +211,22 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
           suggestedPrice: 25,
           priceRange: {
             min: 20,
+        success: true,
+        analysis: {
+          brand: 'Unknown',
+          category: 'clothing', 
+          suggestedTitle: 'Pre-owned Fashion Item',
+          suggestedPrice: 25,
+          priceRange: {
+            min: 20,
             max: 32
           },
           color: 'Various',
           material: 'Mixed Materials',
-          condition: 'Good',
+          condition: 'good',
           style: 'Classic',
           confidence: 0.2,
-          description: 'Quality pre-owned clothing item.',
+          description: 'Quality pre-owned item.',
           keyFeatures: [],
           error: 'Analysis failed, using fallback'
         }
