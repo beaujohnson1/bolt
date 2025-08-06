@@ -194,6 +194,34 @@ const PhotoCapture = () => {
       }
       
       const analysis = analysisResult.analysis;
+      
+      // DEBUG: Log the exact analysis structure to identify missing fields
+      console.log('🔍 [CLIENT] Raw analysis structure:', {
+        brand: analysis.brand,
+        category: analysis.category,
+        suggestedPrice: analysis.suggestedPrice,
+        hasPriceRange: !!analysis.priceRange,
+        priceRangeStructure: analysis.priceRange,
+        hasKeyFeatures: !!analysis.keyFeatures,
+        allKeys: Object.keys(analysis)
+      });
+      
+      // SAFETY: Ensure priceRange exists to prevent 'min' error
+      if (!analysis.priceRange || typeof analysis.priceRange !== 'object') {
+        const basePrice = analysis.suggestedPrice || 25;
+        analysis.priceRange = {
+          min: Math.round(basePrice * 0.8),
+          max: Math.round(basePrice * 1.3)
+        };
+        console.log('⚠️ [CLIENT] Fixed missing priceRange:', analysis.priceRange);
+      }
+      
+      // SAFETY: Ensure keyFeatures exists
+      if (!analysis.keyFeatures || !Array.isArray(analysis.keyFeatures)) {
+        analysis.keyFeatures = [];
+        console.log('⚠️ [CLIENT] Fixed missing keyFeatures');
+      }
+      
       console.log('🎉 [CLIENT] AI analysis completed successfully:', {
         category: analysis.category,
         confidence: analysis.confidence,
@@ -202,7 +230,8 @@ const PhotoCapture = () => {
         brand: analysis.brand,
         modelNumber: analysis.model_number,
         condition: analysis.condition,
-        keyFeaturesCount: analysis.keyFeatures?.length || 0
+        keyFeaturesCount: analysis.keyFeatures?.length || 0,
+        priceRange: analysis.priceRange
       });
       
       // Step 2.5: Enhance title with model number if available
@@ -243,8 +272,8 @@ const PhotoCapture = () => {
             size: analysis.size,
             color: analysis.color,
             suggested_price: analysis.suggestedPrice,
-            price_range_min: analysis.priceRange.min,
-            price_range_max: analysis.priceRange.max,
+            price_range_min: analysis.priceRange?.min || Math.round((analysis.suggestedPrice || 25) * 0.8),
+            price_range_max: analysis.priceRange?.max || Math.round((analysis.suggestedPrice || 25) * 1.3),
             images: publicUrls,
             primary_image_url: publicUrls[0],
             ai_confidence: analysis.confidence,
@@ -252,7 +281,7 @@ const PhotoCapture = () => {
               detected_category: analysis.category,
               detected_brand: analysis.brand,
               detected_condition: analysis.condition,
-              key_features: analysis.keyFeatures,
+              key_features: analysis.keyFeatures || [],
               total_images: publicUrls.length,
               model_number: analysis.data?.model_number
             },

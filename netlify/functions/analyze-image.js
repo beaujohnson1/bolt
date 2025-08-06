@@ -1,4 +1,8 @@
 exports.handler = async (event, context) => {
+  // DEBUG: Verify this updated function is being called
+  console.log('🚨 UPDATED ANALYZE-IMAGE FUNCTION CALLED - Version 2.0');
+  console.log('📅 Function timestamp:', new Date().toISOString());
+  
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -72,13 +76,18 @@ Return this EXACT JSON format:
   "category": "Specific item type like 'leather jacket' or 'wool sweater' - NOT just 'clothing'",
   "suggestedTitle": "Descriptive title using brand and specific item type",
   "suggestedPrice": realistic_price_based_on_brand_and_condition,
+  "priceRange": {
+    "min": price_minus_20_percent,
+    "max": price_plus_30_percent
+  },
   "color": "Primary color description", 
   "material": "Specific material type observed",
   "condition": "Condition assessment based on visible wear/damage",
   "style": "Style description",
   "size": "Size if visible on tags",
   "confidence": confidence_score_0_to_1,
-  "description": "Professional description for resale listing"
+  "description": "Professional description for resale listing",
+  "keyFeatures": ["list", "of", "key", "features", "detected"]
 }
 
 IMPORTANT: Actually examine the image carefully for text and brand information. This analysis is critical for accurate resale listings.`;
@@ -112,7 +121,7 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
           }
         ],
         max_tokens: 600,
-        temperature: 0.1
+        temperature: 0.1 // Very low temperature for precise reading
       })
     });
 
@@ -138,6 +147,17 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
     let analysis;
     try {
       analysis = JSON.parse(content);
+      
+      // Ensure priceRange exists to prevent 'min' error
+      if (!analysis.priceRange) {
+        const basePrice = analysis.suggestedPrice || 25;
+        analysis.priceRange = {
+          min: Math.round(basePrice * 0.8),
+          max: Math.round(basePrice * 1.3)
+        };
+        console.log('⚠️ Added missing priceRange to analysis:', analysis.priceRange);
+      }
+      
       console.log('✅ Analysis parsed successfully:', analysis);
     } catch (parseError) {
       console.error('❌ Failed to parse analysis JSON');
@@ -149,6 +169,21 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
     if (!analysis.category) analysis.category = 'clothing';
     if (!analysis.suggestedTitle) analysis.suggestedTitle = 'Pre-owned Item';
     if (!analysis.suggestedPrice) analysis.suggestedPrice = 25;
+    
+    // Ensure priceRange exists with proper structure
+    if (!analysis.priceRange || !analysis.priceRange.min || !analysis.priceRange.max) {
+      const basePrice = analysis.suggestedPrice || 25;
+      analysis.priceRange = {
+        min: Math.round(basePrice * 0.8),
+        max: Math.round(basePrice * 1.3)
+      };
+      console.log('⚠️ Fixed missing priceRange in validation:', analysis.priceRange);
+    }
+    
+    // Ensure keyFeatures exists
+    if (!analysis.keyFeatures) {
+      analysis.keyFeatures = [];
+    }
 
     console.log('🎯 Final analysis result:', analysis);
 
@@ -156,6 +191,9 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
       statusCode: 200,
       headers,
       body: JSON.stringify({
+        success: true,
+        analysis: analysis
+      })
         success: true,
         analysis: analysis
       })
@@ -171,15 +209,23 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
         success: true,
         analysis: {
           brand: 'Unknown',
-          category: 'clothing', 
+        success: true,
+        analysis: {
+          brand: 'Unknown',
+          category: 'clothing',
           suggestedTitle: 'Pre-owned Fashion Item',
           suggestedPrice: 25,
+          priceRange: {
+            min: 20,
+            max: 32
+          },
           color: 'Various',
           material: 'Mixed Materials',
           condition: 'Good',
           style: 'Classic',
           confidence: 0.2,
-          description: 'Quality pre-owned item.',
+          description: 'Quality pre-owned clothing item.',
+          keyFeatures: [],
           error: 'Analysis failed, using fallback'
         }
       })
