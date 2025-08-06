@@ -110,7 +110,7 @@ export const enhanceImageForAnalysis = (imageFile: File): Promise<Blob> => {
         ctx.imageSmoothingQuality = 'high';
         
         // Apply filters to enhance text visibility
-        ctx.filter = 'contrast(130%) brightness(110%) saturate(110%)'; // Adjust these values as needed
+        ctx.filter = 'contrast(115%) brightness(105%) saturate(105%)'; // More subtle enhancement for better visual quality
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       } else {
         reject(new Error('Failed to get 2D context for canvas.'));
