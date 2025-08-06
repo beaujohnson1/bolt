@@ -342,9 +342,15 @@ const PhotoCapture = () => {
       console.log('🔍 DEBUG - Item created with ID:', itemData.id);
       console.log('🔍 DEBUG - About to navigate to:', `/details/${itemData.id}`);
       console.log('🔍 DEBUG - Current location:', window.location.href);
+      console.log('🔍 DEBUG - Item created with ID:', itemData.id);
+      console.log('🔍 DEBUG - About to navigate to:', `/details/${itemData.id}`);
+      console.log('🔍 DEBUG - Current location:', window.location.href);
       console.log('🎯 [CLIENT] Navigating to item details page...');
       setProcessingStatus('Complete!');
       navigate(`/details/${itemData.id}`);
+      setTimeout(() => {
+        console.log('🔍 DEBUG - Final location after navigation:', window.location.href);
+      }, 1000);
       setTimeout(() => {
         console.log('🔍 DEBUG - Final location after navigation:', window.location.href);
       }, 1000);
