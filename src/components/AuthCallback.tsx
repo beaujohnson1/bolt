@@ -7,7 +7,7 @@ const AUTH_TIMEOUT = 120000; // 120 seconds
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
-  const { user, authUser, loading } = useAuth();
+  const { user, authUser, loading, redirectPath = null, setRedirectPath } = useAuth();
   const [urlProcessed, setUrlProcessed] = React.useState(false);
   const [timeoutReached, setTimeoutReached] = React.useState(false);
   const [authStartTime] = React.useState(Date.now());
