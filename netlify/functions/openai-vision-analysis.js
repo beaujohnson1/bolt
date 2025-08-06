@@ -43,11 +43,11 @@ exports.handler = async (event, context) => {
     try {
       requestBody = JSON.parse(event.body || '{}');
     } catch (parseError) {
-      console.error('❌ Invalid request body:', parseError);
+      console.error('❌ Failed to parse request body:', parseError);
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Invalid JSON in request body' })
+        body: JSON.stringify({ error: 'Invalid request body' })
       };
     }
 
@@ -80,16 +80,24 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Create simple, focused prompt
-    const prompt = `Look at this image and generate 8 keywords for selling it online. Focus on:
-- Brand: ${detectedBrand || 'unknown'}
-- Category: ${detectedCategory || 'item'}
-- Style: ${detectedStyle || 'classic'}
-- Color: ${detectedColor || 'various'}
+    console.log('🖼️ Analyzing image for keywords:', imageUrl);
 
-Return only a JSON array like: ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7", "keyword8"]`;
+    // Create specific prompt for keywords
+    const prompt = `Look at this clothing item and generate 8-10 specific selling keywords for eBay/marketplace listings.
 
-    console.log('🤖 Calling OpenAI API...');
+Focus on what you actually see in the image:
+- Specific brand name if visible
+- Exact item type (leather jacket, wool sweater, etc.)
+- Material type (leather, cotton, wool, etc.)
+- Color details
+- Style features
+- Condition indicators
+- Popular search terms buyers use
+
+Return ONLY a JSON array of keywords like:
+["black leather jacket", "genuine leather", "vintage style", "excellent condition", "designer jacket", "winter coat", "authentic leather", "quality craftsmanship"]`;
+
+    console.log('🤖 Calling OpenAI API with enhanced keyword prompt...');
 
     // Make OpenAI request with proper error handling
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -112,14 +120,14 @@ Return only a JSON array like: ["keyword1", "keyword2", "keyword3", "keyword4", 
                 type: "image_url",
                 image_url: {
                   url: imageUrl,
-                  detail: "low"
+                  detail: "high" // Use high detail for better analysis
                 }
               }
             ]
           }
         ],
-        max_tokens: 150,
-        temperature: 0.3
+        max_tokens: 200,
+        temperature: 0.4
       })
     });
 
@@ -133,16 +141,16 @@ Return only a JSON array like: ["keyword1", "keyword2", "keyword3", "keyword4", 
         error: errorText
       });
       
-      // Return fallback keywords instead of failing
+      // Smart fallback based on detected info
       const fallbackKeywords = [
-        detectedBrand || 'quality',
-        detectedCategory || 'item',
-        detectedStyle || 'stylish',
-        detectedColor || 'great',
+        detectedBrand && detectedBrand !== 'Unknown' ? detectedBrand.toLowerCase() : null,
+        detectedCategory || 'clothing',
         'excellent condition',
         'authentic',
+        'quality item',
         'fast shipping',
-        'great deal'
+        'great deal',
+        'pre-owned'
       ].filter(Boolean);
 
       return {
@@ -150,7 +158,7 @@ Return only a JSON array like: ["keyword1", "keyword2", "keyword3", "keyword4", 
         headers,
         body: JSON.stringify({ 
           keywords: fallbackKeywords,
-          source: 'fallback_api_error',
+          source: 'smart_fallback',
           success: true,
           note: `OpenAI API error: ${openaiResponse.status}`
         })
@@ -160,15 +168,22 @@ Return only a JSON array like: ["keyword1", "keyword2", "keyword3", "keyword4", 
     const data = await openaiResponse.json();
     console.log('✅ OpenAI response received');
 
-    if (!data.choices?.?.message?.content) {
+    if (!data.choices?.[0]?.message?.content) {
       console.error('❌ Invalid OpenAI response structure');
       
-      // Fallback keywords
+      // Smart fallback keywords
+      const fallbackKeywords = [
+        detectedBrand && detectedBrand !== 'Unknown' ? detectedBrand.toLowerCase() : null,
+        detectedCategory || 'clothing',
+        'excellent condition',
+        'authentic'
+      ].filter(Boolean);
+
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({ 
-          keywords: ['quality item', 'excellent condition', 'authentic', 'fast shipping'],
+          keywords: fallbackKeywords,
           source: 'fallback_invalid_response',
           success: true
         })
@@ -176,8 +191,8 @@ Return only a JSON array like: ["keyword1", "keyword2", "keyword3", "keyword4", 
     }
 
     // Parse keywords from response
-    const content = data.choices.message.content.trim();
-    console.log('📝 Raw content:', content);
+    const content = data.choices[0].message.content.trim();
+    console.log('🔑 Raw keywords response:', content);
 
     let keywords = [];
     
@@ -194,7 +209,7 @@ Return only a JSON array like: ["keyword1", "keyword2", "keyword3", "keyword4", 
           keywords = JSON.parse(`[${arrayMatch[1]}]`);
         } catch {
           // Manual extraction
-          keywords = arrayMatch
+          keywords = arrayMatch[1]
             .split(',')
             .map(k => k.trim().replace(/['"]/g, ''))
             .filter(k => k.length > 0);
@@ -210,20 +225,20 @@ Return only a JSON array like: ["keyword1", "keyword2", "keyword3", "keyword4", 
 
     // Validate and clean keywords
     if (!Array.isArray(keywords) || keywords.length === 0) {
-      console.log('⚠️ No valid keywords, using fallback');
+      console.log('⚠️ No valid keywords, using smart fallback');
       keywords = [
-        detectedBrand || 'quality',
-        detectedCategory || 'item',
+        detectedBrand && detectedBrand !== 'Unknown' ? detectedBrand.toLowerCase() : null,
+        detectedCategory || 'clothing',
         'excellent condition',
         'authentic'
-      ];
+      ].filter(Boolean);
     }
 
     // Final cleanup
     keywords = keywords
       .filter(k => typeof k === 'string' && k.trim().length > 0)
       .map(k => k.trim().toLowerCase())
-      .slice(0, 8);
+      .slice(0, 10);
 
     console.log('🎯 Final keywords:', keywords);
 
@@ -232,7 +247,7 @@ Return only a JSON array like: ["keyword1", "keyword2", "keyword3", "keyword4", 
       headers,
       body: JSON.stringify({ 
         keywords,
-        source: 'openai_success',
+        source: 'openai_vision',
         success: true 
       })
     };

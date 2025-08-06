@@ -97,35 +97,46 @@ exports.handler = async (event, context) => {
     }
 
     // Enhanced prompt for detailed analysis
-    const prompt = `Analyze this clothing/fashion item image in detail. Provide:
+    const prompt = `You are a professional clothing appraiser and reseller. Analyze this clothing item image in extreme detail.
 
-1. **Brand**: Identify any visible brand names or logos
-2. **Category**: What type of item is this? (jacket, shirt, pants, shoes, etc.)
-3. **Style/Model**: Specific style name or model if identifiable
-4. **Color**: Primary and secondary colors
-5. **Material**: Fabric type or material (leather, cotton, denim, etc.)
-6. **Condition**: Apparent condition based on what you can see
-7. **Key Features**: Notable design elements, patterns, or features
-8. **Size Info**: Any visible size tags or indicators
+LOOK CAREFULLY AT THE IMAGE AND IDENTIFY:
 
-Be specific and detailed. Look carefully at the actual image, not just generic assumptions.
+1. **BRAND IDENTIFICATION**: Look for ANY visible brand names, logos, labels, or tags. Even if partially visible or small, identify it.
 
-Return a JSON object with these fields:
+2. **SPECIFIC ITEM TYPE**: Don't just say "clothing" - be specific (leather jacket, denim jacket, sweater, dress shirt, etc.)
+
+3. **MATERIAL & FABRIC**: Identify the actual material (leather, cotton, wool, polyester, denim, etc.)
+
+4. **COLOR DETAILS**: Primary color and any secondary colors or patterns
+
+5. **SIZE INFORMATION**: Look for any visible size tags, labels, or indicators
+
+6. **CONDITION ASSESSMENT**: Based on what you can see - any wear, stains, damage, or excellent condition
+
+7. **STYLE & FEATURES**: Specific style elements (collar type, closure style, pockets, etc.)
+
+8. **ESTIMATED VALUE**: Based on brand, condition, and style
+
+Return a detailed JSON object:
 {
-  "brand": "detected brand or 'Unknown'",
-  "category": "item type",
-  "suggestedTitle": "detailed descriptive title",
-  "suggestedPrice": 0,
-  "color": "primary color",
-  "material": "material type",
-  "condition": "condition assessment",
-  "style": "style or model name",
-  "confidence": 0,
-  "keyFeatures": [],
-  "description": ""
-}`;
+  "brand": "Actual brand name if visible, or 'Unknown' only if truly no brand visible",
+  "category": "Specific item type (e.g., 'leather jacket', 'wool sweater')",
+  "suggestedTitle": "Detailed descriptive title for listing",
+  "suggestedPrice": realistic_price_number,
+  "color": "Primary color description",
+  "material": "Specific material type",
+  "condition": "Detailed condition assessment",
+  "style": "Specific style description",
+  "size": "Size if visible on tags",
+  "confidence": confidence_score_0_to_1,
+  "keyFeatures": ["feature1", "feature2", "feature3"],
+  "description": "Detailed 2-3 sentence description for listing",
+  "priceRange": {"min": min_price, "max": max_price}
+}
 
-    console.log('🤖 Calling OpenAI API with current model...');
+BE SPECIFIC AND DETAILED. Look at the actual image, not generic assumptions.`;
+
+    console.log('🤖 Calling OpenAI API with enhanced prompt...');
 
     // Make OpenAI request with proper error handling
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -154,8 +165,8 @@ Return a JSON object with these fields:
             ]
           }
         ],
-        max_tokens: 500, // Increased for detailed response
-        temperature: 0.1 // Lower temperature for more consistent results
+        max_tokens: 600, // Increased for detailed response
+        temperature: 0.3 // Lower temperature for more consistent results
       })
     });
 
@@ -169,7 +180,7 @@ Return a JSON object with these fields:
         error: errorText
       });
       
-      // Return fallback analysis instead of failing
+      // Return enhanced fallback analysis
       return {
         statusCode: 200,
         headers,
@@ -185,8 +196,8 @@ Return a JSON object with these fields:
             condition: 'good',
             style: 'Classic',
             confidence: 0.3,
-            keyFeatures: ['Quality item', 'Good condition'],
-            description: 'Quality pre-owned fashion item in good condition.',
+            keyFeatures: ['Quality item', 'Good condition', 'Authentic'],
+            description: 'Quality pre-owned fashion item in good condition. Perfect for everyday wear.',
             priceRange: { min: 20, max: 30 }
           }
         })
@@ -199,7 +210,7 @@ Return a JSON object with these fields:
     if (!data.choices?.[0]?.message?.content) {
       console.error('❌ Invalid OpenAI response structure:', data);
       
-      // Fallback analysis
+      // Enhanced fallback analysis
       return {
         statusCode: 200,
         headers,
@@ -215,8 +226,8 @@ Return a JSON object with these fields:
             condition: 'good',
             style: 'Classic',
             confidence: 0.3,
-            keyFeatures: ['Quality item', 'Good condition'],
-            description: 'Quality pre-owned fashion item in good condition.',
+            keyFeatures: ['Quality item', 'Good condition', 'Authentic'],
+            description: 'Quality pre-owned fashion item in good condition. Perfect for everyday wear.',
             priceRange: { min: 20, max: 30 }
           }
         })
@@ -232,7 +243,7 @@ Return a JSON object with these fields:
       analysisResult = JSON.parse(content);
       console.log('✅ Analysis parsed successfully:', analysisResult);
     } catch (parseError) {
-      console.log('⚠️ JSON parsing failed, returning generic fallback:', parseError);
+      console.log('⚠️ JSON parsing failed, returning enhanced fallback:', parseError);
       analysisResult = {
         brand: 'Unknown',
         category: 'clothing',
@@ -243,8 +254,8 @@ Return a JSON object with these fields:
         condition: 'good',
         style: 'Classic',
         confidence: 0.3,
-        keyFeatures: ['Quality item', 'Good condition'],
-        description: 'Quality pre-owned fashion item in good condition.'
+        keyFeatures: ['Quality item', 'Good condition', 'Authentic'],
+        description: 'Quality pre-owned fashion item in good condition. Perfect for everyday wear.'
       };
     }
 
@@ -253,11 +264,18 @@ Return a JSON object with these fields:
       analysisResult.suggestedPrice = parseFloat(analysisResult.suggestedPrice) || 25;
     }
 
-    // Add price range based on suggested price
-    analysisResult.priceRange = {
-      min: Math.round(analysisResult.suggestedPrice * 0.8),
-      max: Math.round(analysisResult.suggestedPrice * 1.2)
-    };
+    // Add price range based on suggested price if not provided
+    if (!analysisResult.priceRange) {
+      analysisResult.priceRange = {
+        min: Math.round(analysisResult.suggestedPrice * 0.8),
+        max: Math.round(analysisResult.suggestedPrice * 1.2)
+      };
+    }
+
+    // Ensure keyFeatures is an array
+    if (!Array.isArray(analysisResult.keyFeatures)) {
+      analysisResult.keyFeatures = ['Quality item', 'Good condition'];
+    }
 
     // Ensure category is one of the predefined types or 'other'
     const validCategories = ['clothing', 'shoes', 'accessories', 'electronics', 'home_garden', 'toys_games', 'sports_outdoors', 'books_media', 'jewelry', 'collectibles', 'other'];
@@ -286,7 +304,7 @@ Return a JSON object with these fields:
     console.error('💥 Function error:', error);
     console.error('Error stack:', error.stack);
     
-    // Always return fallback analysis instead of failing
+    // Always return enhanced fallback analysis instead of failing
     return {
       statusCode: 200,
       headers,
@@ -301,8 +319,8 @@ Return a JSON object with these fields:
           condition: 'good',
           style: 'Classic',
           confidence: 0.3,
-          keyFeatures: ['Quality item', 'Good condition'],
-          description: 'Quality pre-owned fashion item in good condition.',
+          keyFeatures: ['Quality item', 'Good condition', 'Authentic'],
+          description: 'Quality pre-owned fashion item in good condition. Perfect for everyday wear.',
           priceRange: { min: 20, max: 30 }
         },
         success: true,
