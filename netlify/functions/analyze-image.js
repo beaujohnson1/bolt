@@ -1,3 +1,17 @@
+// Add this debug function to netlify/functions/analyze-image.js
+const debugAnalysis = async (imageUrl, itemId) => {
+  console.log('🔍 [DEBUG-ANALYSIS] Starting debug for:', itemId);
+  
+  try {
+    // Test 1: Can we access the image?
+    const imageTest = await fetch(imageUrl, { method: 'HEAD' });
+    console.log('✅ [DEBUG] Image accessible:', imageTest.status);
+    
+    // Test 2: What's the raw AI response?
+    // This is the prompt currently used in your analyze-image.js function
+    const currentPrompt = `CAREFULLY examine this clothing item and READ ALL VISIBLE TEXT AND TAGS.
+
+
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
