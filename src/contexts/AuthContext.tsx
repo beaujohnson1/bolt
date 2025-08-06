@@ -380,6 +380,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     authUser,
     loading,
+    redirectPath,
+    setRedirectPath,
     signUp,
     signIn,
     signInWithGoogle,

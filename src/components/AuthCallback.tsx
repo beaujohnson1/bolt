@@ -66,12 +66,23 @@ const AuthCallback: React.FC = () => {
       hasUser: !!user,
       hasAuthUser: !!authUser,
       elapsedTime: `${elapsedTime}ms`,
-      timeoutReached
+      timeoutReached,
+      redirectPath
     });
     
     if (!loading && user && authUser) {
       console.log(`✅ AuthCallback: User authenticated and profile loaded in ${elapsedTime}ms, navigating to dashboard`);
-      navigate('/app');
+      
+      // Check if we have a stored redirect path
+      if (redirectPath) {
+        console.log('🎯 [AUTH-CALLBACK] Redirecting to stored path:', redirectPath);
+        const pathToNavigate = redirectPath;
+        setRedirectPath(null); // Clear the redirect path
+        navigate(pathToNavigate, { replace: true });
+      } else {
+        console.log('🏠 [AUTH-CALLBACK] No redirect path, going to dashboard');
+        navigate('/app');
+      }
     } else if (!loading && !user && !authUser) {
       console.log(`❌ AuthCallback: No user found after loading (${elapsedTime}ms), redirecting to home`);
       navigate('/');
@@ -79,7 +90,7 @@ const AuthCallback: React.FC = () => {
       console.log(`⏰ AuthCallback: Authentication taking too long (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     }
-  }, [user, authUser, loading, navigate, authStartTime]);
+  }, [user, authUser, loading, navigate, authStartTime, redirectPath, setRedirectPath]);
   
   // Show loading while authentication is being processed
   if (timeoutReached || (!loading && (!user || !authUser))) {

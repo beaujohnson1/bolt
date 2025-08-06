@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { user, authUser, loading } = useAuth();
+  const { user, authUser, loading, setRedirectPath } = useAuth();
 
   if (loading) {
     return (
@@ -18,6 +18,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   if (!user || !authUser) {
+    // Store the current path for redirect after authentication
+    console.log('🔄 [PROTECTED-ROUTE] Storing redirect path:', window.location.pathname);
+    setRedirectPath(window.location.pathname);
     return <Navigate to="/" replace />;
   }
 
