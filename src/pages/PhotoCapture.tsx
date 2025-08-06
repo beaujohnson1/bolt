@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { KeywordOptimizationService } from '../services/KeywordOptimizationService';
-import { resizeImage, calculateImageHash } from '../utils/imageUtils';
+import { resizeImage, calculateImageHash, processImagesWithEnhancement } from '../utils/imageUtils';
 
 // Normalize condition values from AI to match database enum
 const normalizeCondition = (condition: string): string => {

@@ -89,3 +89,66 @@ export const fetchImageAsBase64 = async (imageUrl: string): Promise<string> => {
     throw error;
   }
 };
+
+// Add this image preprocessing function
+export const enhanceImageForAnalysis = (imageFile: File): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      // Set canvas size (optimize for analysis)
+      const maxSize = 1200; // Max dimension for the enhanced image
+      const ratio = Math.min(maxSize / img.width, maxSize / img.height);
+      canvas.width = img.width * ratio;
+      canvas.height = img.height * ratio;
+      
+      // Enhanced settings for text/label visibility
+      if (ctx) { // Ensure context is not null
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        
+        // Apply filters to enhance text visibility
+        ctx.filter = 'contrast(130%) brightness(110%) saturate(110%)'; // Adjust these values as needed
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      } else {
+        reject(new Error('Failed to get 2D context for canvas.'));
+        return;
+      }
+      
+      // Convert back to blob
+      canvas.toBlob((blob) => {
+        if (blob) {
+          console.log('✅ [IMAGE-ENHANCE] Image enhanced for analysis');
+          resolve(blob);
+        } else {
+          console.error('❌ [IMAGE-ENHANCE] Failed to create blob from canvas');
+          reject(new Error('Failed to create blob from canvas.'));
+        }
+      }, 'image/jpeg', 0.95); // Convert to JPEG with 95% quality
+    };
+    
+    img.onerror = () => reject(new Error('Failed to load image for enhancement.'));
+    img.crossOrigin = 'anonymous'; // Required for some image sources to prevent CORS issues
+    img.src = URL.createObjectURL(imageFile);
+  });
+};
+
+// Helper function to process multiple images with enhancement
+export const processImagesWithEnhancement = async (imageFiles: File[]): Promise<File[]> => {
+  const enhancedFiles: File[] = [];
+  
+  for (const file of imageFiles) {
+    try {
+      const enhancedBlob = await enhanceImageForAnalysis(file);
+      // Convert Blob back to File type for consistency
+      enhancedFiles.push(new File([enhancedBlob], file.name, { type: enhancedBlob.type, lastModified: Date.now() }));
+    } catch (error) {
+      console.error(`❌ [IMAGE-ENHANCE] Error enhancing image ${file.name}:`, error);
+      enhancedFiles.push(file); // Fallback to original file if enhancement fails
+    }
+  }
+  
+  return enhancedFiles;
+};
