@@ -211,6 +211,8 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
           suggestedPrice: 25,
           priceRange: {
             min: 20,
+          }
+        }
         success: true,
         analysis: {
           brand: 'Unknown',
