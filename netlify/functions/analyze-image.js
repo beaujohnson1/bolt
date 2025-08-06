@@ -1,17 +1,3 @@
-// Add this debug function to netlify/functions/analyze-image.js
-const debugAnalysis = async (imageUrl, itemId) => {
-  console.log('🔍 [DEBUG-ANALYSIS] Starting debug for:', itemId);
-  
-  try {
-    // Test 1: Can we access the image?
-    const imageTest = await fetch(imageUrl, { method: 'HEAD' });
-    console.log('✅ [DEBUG] Image accessible:', imageTest.status);
-    
-    // Test 2: What's the raw AI response?
-    // This is the prompt currently used in your analyze-image.js function
-    const currentPrompt = `CAREFULLY examine this clothing item and READ ALL VISIBLE TEXT AND TAGS.
-
-
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -27,6 +13,7 @@ exports.handler = async (event, context) => {
   try {
     const { imageUrl } = JSON.parse(event.body || '{}');
     
+    // Fallback if OpenAI API key is not set
     if (!process.env.OPENAI_API_KEY) {
       console.log('No OpenAI key - using fallback');
       return {
@@ -36,21 +23,16 @@ exports.handler = async (event, context) => {
           success: true,
           analysis: {
             brand: 'Unknown',
-            category: 'leather jacket',
-            suggestedTitle: 'Black Leather Jacket',
-            suggestedPrice: 35,
-            priceRange: {
-              min: 28,
-              max: 45
-            },
-            color: 'black',
-            material: 'leather',
-            condition: 'good',
-            style: 'classic leather jacket',
             size: 'Unknown',
-            confidence: 0.4,
-            suggestedDescription: 'Quality black leather jacket in good condition. Perfect for casual wear or layering.',
-            keyFeatures: ['leather material', 'classic style', 'good condition', 'versatile piece']
+            category: 'clothing',
+            suggestedTitle: 'Clothing Item',
+            suggestedPrice: 25,
+            priceRange: { min: 20, max: 35 },
+            color: 'Various',
+            condition: 'good',
+            confidence: 0.3,
+            suggestedDescription: 'Quality clothing item in good condition.',
+            keyFeatures: ['clothing item', 'good condition']
           }
         })
       };
@@ -60,7 +42,57 @@ exports.handler = async (event, context) => {
       throw new Error('No image URL provided');
     }
 
-    console.log('🔍 Calling OpenAI to read brand tags...');
+    console.log('🔍 Calling OpenAI with enhanced brand/size detection prompt...');
+
+    // Enhanced prompt specifically designed to find brands and sizes
+    const enhancedPrompt = `You are analyzing a clothing item photo. Your primary goal is to find EXACT brand names and sizes.
+
+CRITICAL INSTRUCTIONS:
+1. BRAND DETECTION - Look for these specific locations:
+   - Neck labels and tags (most common location)
+   - Care labels (usually inside garment near seams)
+   - Embroidered or printed logos anywhere on the item
+   - Text on buttons, zippers, or hardware
+   - Small brand marks on sleeves, chest, back, or pockets
+   
+   Common brands to recognize: Lululemon, Nike, Adidas, North Face, Patagonia, Under Armour, Gap, Old Navy, H&M, Zara, Uniqlo, American Eagle, Hollister, Abercrombie, Worthington, Target brands, Walmart brands
+
+2. SIZE DETECTION - Look for these specific formats:
+   - Letter sizes: XS, S, M, L, XL, XXL, XXXL
+   - Number sizes: 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22+
+   - Kids sizes: 2T, 3T, 4T, 5T, 6, 7, 8, 10, 12, 14, 16
+   - Measurements: 30x32, 32B, etc.
+   - International sizes: EU, UK equivalents
+
+3. EXAMINE CAREFULLY:
+   - Zoom in mentally on any visible tags or labels
+   - Read ALL text visible in the image, no matter how small
+   - Look for partially visible text that might indicate a brand
+   - Check for embossed or subtle branding
+
+RESPONSE FORMAT - Return ONLY valid JSON:
+{
+  "brand": "EXACT brand name found or Unknown if none visible",
+  "size": "EXACT size found or Unknown if none visible", 
+  "category": "specific item type like leather jacket",
+  "suggestedTitle": "Brand Name + Item Type + Key Feature",
+  "suggestedPrice": realistic_price_number,
+  "priceRange": {
+    "min": price_minus_20_percent,
+    "max": price_plus_30_percent
+  },
+  "color": "primary color",
+  "condition": "condition assessment",
+  "confidence": 0.8,
+  "suggestedDescription": "Professional description for resale listing",
+  "keyFeatures": ["material", "style", "notable features"]
+}
+
+IMPORTANT: 
+- If you cannot clearly see a brand or size, use "Unknown" - do not guess
+- Be extremely careful with JSON formatting
+- Look closely at ALL text, labels, and tags in the image
+- Prioritize accuracy over completeness`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -74,50 +106,28 @@ exports.handler = async (event, context) => {
           role: "user",
           content: [{
             type: "text",
-            text: `CAREFULLY examine this clothing item and READ ALL VISIBLE TEXT AND TAGS.
-
-CRITICAL: Look for brand names on:
-- Care labels and size tags
-- Brand patches or labels
-- Any visible text on the item
-
-What SPECIFIC brand name do you see? What type of item is this exactly?
-
-Return JSON:
-{
-  "brand": "EXACT brand name from tags/labels or 'Unknown'",
-  "category": "specific item type like 'leather jacket'",
-  "suggestedTitle": "Brand Name + Item Type",
-  "suggestedPrice": realistic_price,
-  "priceRange": {
-    "min": price_minus_20_percent,
-    "max": price_plus_30_percent
-  },
-  "color": "color",
-  "material": "material",
-  "condition": "condition",
-  "style": "style description",
-  "size": "size if visible",
-  "confidence": 0.8,
-  "suggestedDescription": "Professional description for resale",
-  "keyFeatures": ["list", "of", "key", "features"]
-}`
+            text: enhancedPrompt
           }, {
             type: "image_url",
             image_url: { url: imageUrl, detail: "high" }
           }]
         }],
-        max_tokens: 500,
+        max_tokens: 600,
         temperature: 0.1
       })
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI failed: ${response.status}`);
+      const errorText = await response.text();
+      console.error('❌ OpenAI API error:', {
+        status: response.status,
+        error: errorText
+      });
+      throw new Error(`OpenAI API failed: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    const analysisContent = data.choices[0].message.content;
+    const analysisContent = data.choices[0]?.message?.content;
     
     console.log('🤖 Raw OpenAI response:', analysisContent);
     
@@ -126,28 +136,51 @@ Return JSON:
       analysis = JSON.parse(analysisContent);
     } catch (parseError) {
       console.error('❌ Failed to parse OpenAI JSON response:', parseError);
-      throw new Error('Invalid JSON response from OpenAI');
+      console.log('🔍 Attempting to extract JSON from response...');
+      
+      // Try to extract JSON from the response
+      const jsonMatch = analysisContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          analysis = JSON.parse(jsonMatch[0]);
+          console.log('✅ Successfully extracted and parsed JSON from response');
+        } catch (innerParseError) {
+          console.error('❌ Failed to parse extracted JSON:', innerParseError);
+          throw new Error('Could not parse AI response as valid JSON');
+        }
+      } else {
+        throw new Error('No JSON structure found in AI response');
+      }
     }
+    
+    // Ensure all required fields exist with proper defaults
+    analysis.brand = analysis.brand || 'Unknown';
+    analysis.size = analysis.size || 'Unknown';
+    analysis.category = analysis.category || analysis.itemType || 'clothing';
+    analysis.suggestedTitle = analysis.suggestedTitle || `${analysis.brand !== 'Unknown' ? analysis.brand + ' ' : ''}${analysis.category}`;
+    analysis.suggestedPrice = analysis.suggestedPrice || 25;
+    analysis.color = analysis.color || (Array.isArray(analysis.colors) ? analysis.colors[0] : 'Various');
+    analysis.condition = analysis.condition || 'good';
+    analysis.confidence = analysis.confidence || 0.5;
+    analysis.suggestedDescription = analysis.suggestedDescription || `${analysis.suggestedTitle} in ${analysis.condition} condition.`;
+    analysis.keyFeatures = Array.isArray(analysis.keyFeatures) ? analysis.keyFeatures : [];
     
     // Ensure priceRange exists
     if (!analysis.priceRange) {
-      const basePrice = analysis.suggestedPrice || 25;
+      const basePrice = analysis.suggestedPrice;
       analysis.priceRange = {
         min: Math.round(basePrice * 0.8),
         max: Math.round(basePrice * 1.3)
       };
     }
     
-    // Ensure keyFeatures exists
-    if (!analysis.keyFeatures) {
-      analysis.keyFeatures = [];
-    }
-    
-    console.log('✅ OpenAI analysis successful:', {
+    console.log('✅ Enhanced AI analysis complete:', {
       brand: analysis.brand,
+      size: analysis.size,
       category: analysis.category,
       title: analysis.suggestedTitle,
-      price: analysis.suggestedPrice
+      price: analysis.suggestedPrice,
+      confidence: analysis.confidence
     });
     
     return {
@@ -161,6 +194,8 @@ Return JSON:
 
   } catch (error) {
     console.error('❌ Analysis error:', error);
+    
+    // Provide comprehensive fallback analysis
     return {
       statusCode: 200,
       headers,
@@ -168,21 +203,16 @@ Return JSON:
         success: true,
         analysis: {
           brand: 'Unknown',
-          category: 'leather jacket', 
-          suggestedTitle: 'Black Leather Jacket',
-          suggestedPrice: 35,
-          priceRange: {
-            min: 28,
-            max: 45
-          },
-          color: 'black',
-          material: 'leather',
-          condition: 'good',
-          style: 'classic leather jacket',
           size: 'Unknown',
+          category: 'clothing',
+          suggestedTitle: 'Clothing Item',
+          suggestedPrice: 25,
+          priceRange: { min: 20, max: 35 },
+          color: 'Various',
+          condition: 'good',
           confidence: 0.3,
-          suggestedDescription: 'Quality leather jacket in good condition. Perfect for casual wear.',
-          keyFeatures: ['leather material', 'classic style', 'good condition']
+          suggestedDescription: 'Quality clothing item in good condition.',
+          keyFeatures: ['clothing item', 'good condition']
         }
       })
     };
