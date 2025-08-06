@@ -127,12 +127,12 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
     const data = await openaiResponse.json();
     console.log('✅ OpenAI analysis response received');
 
-    if (!data.choices?.?.message?.content) {
+    if (!data.choices?.[0]?.message?.content) {
       console.error('❌ Invalid OpenAI response structure');
       throw new Error('Invalid response from OpenAI');
     }
 
-    const content = data.choices.message.content.trim();
+    const content = data.choices[0].message.content.trim();
     console.log('📝 Raw analysis result:', content);
 
     let analysis;
@@ -155,7 +155,10 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(analysis)
+      body: JSON.stringify({
+        success: true,
+        analysis: analysis
+      })
     };
 
   } catch (error) {
@@ -165,17 +168,20 @@ IMPORTANT: Actually examine the image carefully for text and brand information. 
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        brand: 'Unknown',
-        category: 'clothing', 
-        suggestedTitle: 'Pre-owned Fashion Item',
-        suggestedPrice: 25,
-        color: 'Various',
-        material: 'Mixed Materials',
-        condition: 'Good',
-        style: 'Classic',
-        confidence: 0.2,
-        description: 'Quality pre-owned item.',
-        error: 'Analysis failed, using fallback'
+        success: true,
+        analysis: {
+          brand: 'Unknown',
+          category: 'clothing', 
+          suggestedTitle: 'Pre-owned Fashion Item',
+          suggestedPrice: 25,
+          color: 'Various',
+          material: 'Mixed Materials',
+          condition: 'Good',
+          style: 'Classic',
+          confidence: 0.2,
+          description: 'Quality pre-owned item.',
+          error: 'Analysis failed, using fallback'
+        }
       })
     };
   }
