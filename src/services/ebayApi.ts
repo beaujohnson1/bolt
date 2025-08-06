@@ -316,9 +316,52 @@ class EbayApiService {
       'poor': 'For parts or not working'
     };
 
+    // Enhanced title generation with keywords
+    let enhancedTitle = item.title;
+    if (item.ai_suggested_keywords && item.ai_suggested_keywords.length > 0) {
+      // Add top keywords to title if they're not already included
+      const titleLower = item.title.toLowerCase();
+      const keywordsToAdd = item.ai_suggested_keywords
+        .filter(keyword => !titleLower.includes(keyword.toLowerCase()))
+        .slice(0, 3); // Add up to 3 additional keywords
+      
+      if (keywordsToAdd.length > 0) {
+        enhancedTitle = `${item.title} ${keywordsToAdd.join(' ')}`;
+        // Ensure title doesn't exceed eBay's 80 character limit
+        if (enhancedTitle.length > 80) {
+          enhancedTitle = enhancedTitle.substring(0, 77) + '...';
+        }
+      }
+    }
+
+    // Enhanced description with keywords and features
+    let enhancedDescription = item.description || `${item.title} in ${item.condition.replace('_', ' ')} condition.`;
+    
+    // Add key features if available
+    if (item.ai_analysis?.key_features && item.ai_analysis.key_features.length > 0) {
+      enhancedDescription += `\n\nKey Features:\n${item.ai_analysis.key_features.map(feature => `• ${feature}`).join('\n')}`;
+    }
+    
+    // Add keywords for SEO
+    if (item.ai_suggested_keywords && item.ai_suggested_keywords.length > 0) {
+      enhancedDescription += `\n\nKeywords: ${item.ai_suggested_keywords.join(', ')}`;
+    }
+    
+    // Add condition and brand details
+    if (item.brand) {
+      enhancedDescription += `\n\nBrand: ${item.brand}`;
+    }
+    if (item.size) {
+      enhancedDescription += `\nSize: ${item.size}`;
+    }
+    if (item.color) {
+      enhancedDescription += `\nColor: ${item.color}`;
+    }
+    
+    enhancedDescription += '\n\nFast shipping and excellent customer service guaranteed!';
     const ebayItem: EbayItem = {
-      title: item.title,
-      description: item.description || `${item.title} in ${item.condition.replace('_', ' ')} condition.`,
+      title: enhancedTitle,
+      description: enhancedDescription,
       price: item.suggested_price,
       categoryId: categoryMapping[item.category] || '99',
       condition: conditionMapping[item.condition] || 'Pre-owned',
@@ -327,6 +370,11 @@ class EbayApiService {
         {
           service: 'USPSPriority',
           cost: 8.99,
+          type: 'FLAT_RATE'
+        },
+        {
+          service: 'USPSGround',
+          cost: 5.99,
           type: 'FLAT_RATE'
         }
       ]

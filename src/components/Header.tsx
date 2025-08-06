@@ -110,7 +110,7 @@ const Header = () => {
               <div className="flex items-center space-x-3">
                 <button
                   onClick={handleDashboard}
-                  className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center space-x-2"
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center space-x-2"
                 >
                   <User className="w-4 h-4" />
                   <span>Dashboard</span>

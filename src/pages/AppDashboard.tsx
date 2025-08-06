@@ -839,7 +839,7 @@ const AppDashboard = () => {
                             </div>
                             <div className="flex items-center space-x-2">
                               <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                                Active
+                                {listing.status === 'active' ? 'Live on eBay' : 'Active'}
                               </span>
                               <button
                                 onClick={(e) => {
