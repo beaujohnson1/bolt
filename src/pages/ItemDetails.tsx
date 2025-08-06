@@ -398,23 +398,6 @@ const ItemDetails = () => {
             </div>
 
             {/* Model Number */}
-            <div className="bg-white rounded-xl shadow-sm border p-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Model Number
-              </label>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editedItem?.model_number || ''}
-                  onChange={(e) => setEditedItem(prev => prev ? {...prev, model_number: e.target.value} : null)}
-                  placeholder="e.g., Air Max 90, iPhone 14 Pro"
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              ) : (
-                <span className="font-medium">{item.model_number || 'Not detected'}</span>
-              )}
-            </div>
-
             {/* Description */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
