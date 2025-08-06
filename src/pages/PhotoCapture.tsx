@@ -339,9 +339,15 @@ const PhotoCapture = () => {
       console.log('✅ [CLIENT] User listing count updated');
 
       // Step 6: Navigate to item details
+      console.log('🔍 DEBUG - Item created with ID:', itemData.id);
+      console.log('🔍 DEBUG - About to navigate to:', `/details/${itemData.id}`);
+      console.log('🔍 DEBUG - Current location:', window.location.href);
       console.log('🎯 [CLIENT] Navigating to item details page...');
       setProcessingStatus('Complete!');
       navigate(`/details/${itemData.id}`);
+      setTimeout(() => {
+        console.log('🔍 DEBUG - Final location after navigation:', window.location.href);
+      }, 1000);
     } catch (error) {
       console.error('❌ [CLIENT] Critical error in handleProcessImage:', {
         name: error.name,
