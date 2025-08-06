@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Edit3, DollarSign, Tag, Package, Star, Hash, Palette, Ruler, Award, Brain, Save, X } from 'lucide-react';
 import { supabase, type Item } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { KeywordOptimizationService } from '../services/KeywordOptimizationService';
+import KeywordOptimizationService from '../services/KeywordOptimizationService';
 
 const ItemDetails = () => {
   const { itemId } = useParams();

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Users, Award, RefreshCw, Play, Eye, BarChart3 } from 'lucide-react';
-import { KeywordOptimizationService } from '../services/KeywordOptimizationService';
+import KeywordOptimizationService from '../services/KeywordOptimizationService';
 import { supabase } from '../lib/supabase';
 
 interface PromotableBrand {
