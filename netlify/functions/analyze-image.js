@@ -90,6 +90,77 @@ Return this EXACT JSON format:
   "keyFeatures": ["list", "of", "key", "features", "detected"]
 }
 
+    const prompt = `You are an expert clothing authenticator and reseller with 20+ years of experience reading brand tags and labels. Your specialty is identifying brands from even small, blurry, or partially visible tags.
+
+🚨 CRITICAL MISSION: FIND THE BRAND NAME AT ALL COSTS 🚨
+
+STEP 1 - BRAND TAG HUNTING (SPEND 80% OF YOUR EFFORT HERE):
+📍 WHERE TO LOOK FOR BRAND TAGS:
+- Inside collar/neckline (most common location)
+- Side seams near the waist
+- Inside pockets or pocket flaps
+- Back of neck area
+- Sleeve cuffs (especially jackets)
+- Waistband area (pants/skirts)
+- Care label tags (often attached to brand tags)
+- Size tags (brand name usually appears with size)
+- Any small text anywhere on the garment
+
+🔍 HOW TO READ DIFFICULT TAGS:
+- Look for ANY text, even if blurry or small
+- Brand names often appear in ALL CAPS
+- Common brands: WORTHINGTON, GAP, BANANA REPUBLIC, J.CREW, ZARA, H&M, FOREVER 21, OLD NAVY, TARGET brands (Goodfellow, Universal Thread, Wild Fable)
+- Even partial text like "WORTH..." likely means "WORTHINGTON"
+- Size tags format: "WORTHINGTON SIZE L" or "L WORTHINGTON"
+
+STEP 2 - SPECIFIC ITEM IDENTIFICATION:
+🎯 BE ULTRA-SPECIFIC ABOUT ITEM TYPE:
+- NOT "clothing" or "jacket" - say "leather moto jacket", "wool peacoat", "denim trucker jacket"
+- NOT "top" - say "cotton button-down shirt", "silk blouse", "knit sweater"
+- NOT "pants" - say "straight-leg jeans", "dress pants", "cargo pants"
+- Include material + style + item type
+
+STEP 3 - MATERIAL & CONDITION ASSESSMENT:
+🔬 MATERIAL CLUES:
+- Leather: shiny, textured, creases, zippers
+- Wool: fuzzy texture, thick appearance
+- Cotton: matte finish, casual look
+- Denim: blue, stitching, casual
+- Silk: shiny, flowing, elegant
+
+🔍 CONDITION INDICATORS:
+- "Like New": No visible wear, crisp appearance
+- "Good": Minor wear, still looks great
+- "Fair": Noticeable wear but functional
+- "Poor": Significant wear, damage, or stains
+
+RETURN THIS EXACT JSON (NO EXTRA TEXT):
+{
+  "brand": "EXACT brand name from tags (Worthington, Gap, etc.) - READ THE TAGS CAREFULLY!",
+  "category": "Ultra-specific item type with material (leather moto jacket, wool peacoat, cotton button-down)",
+  "material": "Specific material observed (genuine leather, 100% cotton, wool blend, etc.)",
+  "suggestedTitle": "Brand + Material + Item Type + Key Feature (Worthington Black Leather Moto Jacket)",
+  "suggestedPrice": realistic_price_for_this_specific_brand_and_item,
+  "priceRange": {
+    "min": price_minus_20_percent,
+    "max": price_plus_30_percent
+  },
+  "color": "Exact color observed",
+  "condition": "Like New, Good, Fair, or Poor based on visible wear",
+  "style": "Specific style details (moto, classic, vintage, modern, etc.)",
+  "size": "Size from tags if visible",
+  "confidence": confidence_0_to_1_based_on_tag_visibility,
+  "suggestedDescription": "Professional resale description highlighting brand, material, condition, and key selling points",
+  "keyFeatures": ["brand name", "material type", "style details", "condition notes", "special features"]
+}
+
+🎯 SUCCESS CRITERIA:
+- If you can see "WORTHINGTON" on a tag, the brand MUST be "Worthington"
+- If it's clearly a leather jacket, category MUST be "leather jacket" not "clothing"
+- Price should reflect the actual brand value (Worthington ~$25-45, designer brands higher)
+- Description should sound like a professional eBay listing
+
+EXAMINE THE IMAGE NOW - FIND THAT BRAND TAG!`;
 IMPORTANT: Actually examine the image carefully for text and brand information. This analysis is critical for accurate resale listings.`;
 
     console.log('🤖 Calling OpenAI with detailed brand detection prompt...');
