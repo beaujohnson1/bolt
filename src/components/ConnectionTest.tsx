@@ -18,226 +18,204 @@ const ConnectionTest = () => {
     status: 'idle',
     message: 'Click Test to check eBay trending items API'
   });
-  const [testsInitialized, setTestsInitialized] = useState(false);
+  const testsInitialized = React.useRef(false);
+  const testsRunning = React.useRef(false);
 
   useEffect(() => {
-    // Only run tests once when component mounts or when auth state changes significantly
-    if (!testsInitialized) {
+    // Only run tests once when component mounts and prevent multiple runs
+    if (!testsInitialized.current && !testsRunning.current) {
       console.log('🧪 [CONNECTION-TEST] Initializing tests for the first time');
       runTests();
-      setTestsInitialized(true);
+      testsInitialized.current = true;
     }
-  }, [user, authUser]); // Only depend on auth state, not testsInitialized
+  }, []); // Empty dependency array to run only once
 
   const runTests = async () => {
+    // Prevent multiple simultaneous test runs
+    if (testsRunning.current) {
+      console.log('🛑 [CONNECTION-TEST] Tests already running, skipping');
+      return;
+    }
+    
+    testsRunning.current = true;
     console.log('🔄 [CONNECTION-TEST] Starting connection tests...');
     
-    // Test 1: Supabase Connection
-    setTests(prev => ({ ...prev, supabaseConnection: { status: 'testing', message: 'Testing...' } }));
     try {
-      console.log('🔍 [CONNECTION-TEST] Testing Supabase connection...');
-      const { data, error } = await supabase.from('users').select('count').limit(1);
-      if (error) throw error;
-      
-      console.log('✅ [CONNECTION-TEST] Supabase connection successful');
-      setTests(prev => ({
-        ...prev,
-        supabaseConnection: { 
-          status: 'success', 
-          message: 'Connected to Supabase successfully' 
-        }
-      }));
-    } catch (error) {
-      console.error('❌ [CONNECTION-TEST] Supabase connection failed:', error);
-      setTests(prev => ({
-        ...prev,
-        supabaseConnection: { 
-          status: 'error', 
-          message: `Connection failed: ${error.message}` 
-        }
-      }));
-    }
-
-    // Test 2: Authentication Status
-    setTests(prev => ({ ...prev, authentication: { status: 'testing', message: 'Testing...' } }));
-    if (authUser) {
-      console.log('✅ [CONNECTION-TEST] User is authenticated');
-      setTests(prev => ({
-        ...prev,
-        authentication: { 
-          status: 'success', 
-          message: `Authenticated as: ${authUser.email}` 
-        }
-      }));
-    } else {
-      console.log('ℹ️ [CONNECTION-TEST] User not authenticated');
-      setTests(prev => ({
-        ...prev,
-        authentication: { 
-          status: 'warning', 
-          message: 'Not authenticated - this is normal if not signed in' 
-        }
-      }));
-    }
-
-    // Test 3: Database Access
-    setTests(prev => ({ ...prev, database: { status: 'testing', message: 'Testing...' } }));
-    if (authUser) {
+      // Test 1: Supabase Connection
+      setTests(prev => ({ ...prev, supabaseConnection: { status: 'testing', message: 'Testing...' } }));
       try {
-        console.log('🔍 [CONNECTION-TEST] Testing database access...');
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUser.id)
-          .single();
+        console.log('🔍 [CONNECTION-TEST] Testing Supabase connection...');
+        const { data, error } = await supabase.from('users').select('count').limit(1);
+        if (error) throw error;
         
-        if (error && error.code !== 'PGRST116') throw error;
-        
-        console.log('✅ [CONNECTION-TEST] Database access successful');
+        console.log('✅ [CONNECTION-TEST] Supabase connection successful');
         setTests(prev => ({
           ...prev,
-          database: { 
+          supabaseConnection: { 
             status: 'success', 
-            message: data ? 'User profile found in database' : 'Database accessible (no profile yet)' 
+            message: 'Connected to Supabase successfully' 
           }
         }));
       } catch (error) {
-        console.error('❌ [CONNECTION-TEST] Database access failed:', error);
+        console.error('❌ [CONNECTION-TEST] Supabase connection failed:', error);
+        setTests(prev => ({
+          ...prev,
+          supabaseConnection: { 
+            status: 'error', 
+            message: `Connection failed: ${error.message}` 
+          }
+        }));
+      }
+
+      // Test 2: Authentication Status
+      setTests(prev => ({ ...prev, authentication: { status: 'testing', message: 'Testing...' } }));
+      if (authUser) {
+        console.log('✅ [CONNECTION-TEST] User is authenticated');
+        setTests(prev => ({
+          ...prev,
+          authentication: { 
+            status: 'success', 
+            message: `Authenticated as: ${authUser.email}` 
+          }
+        }));
+      } else {
+        console.log('ℹ️ [CONNECTION-TEST] User not authenticated');
+        setTests(prev => ({
+          ...prev,
+          authentication: { 
+            status: 'warning', 
+            message: 'Not authenticated - this is normal if not signed in' 
+          }
+        }));
+      }
+
+      // Test 3: Database Access
+      setTests(prev => ({ ...prev, database: { status: 'testing', message: 'Testing...' } }));
+      if (authUser) {
+        try {
+          console.log('🔍 [CONNECTION-TEST] Testing database access...');
+          const { data, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', authUser.id)
+            .single();
+          
+          if (error && error.code !== 'PGRST116') throw error;
+          
+          console.log('✅ [CONNECTION-TEST] Database access successful');
+          setTests(prev => ({
+            ...prev,
+            database: { 
+              status: 'success', 
+              message: data ? 'User profile found in database' : 'Database accessible (no profile yet)' 
+            }
+          }));
+        } catch (error) {
+          console.error('❌ [CONNECTION-TEST] Database access failed:', error);
+          setTests(prev => ({
+            ...prev,
+            database: { 
+              status: 'error', 
+              message: `Database error: ${error.message}` 
+            }
+          }));
+        }
+      } else {
         setTests(prev => ({
           ...prev,
           database: { 
+            status: 'warning', 
+            message: 'Sign in to test database access' 
+          }
+        }));
+      }
+
+      // Test 4: Storage Access
+      setTests(prev => ({ ...prev, storage: { status: 'testing', message: 'Testing...' } }));
+      try {
+        console.log('🔍 [CONNECTION-TEST] Testing storage access...');
+        const storageClient = supabase.storage;
+        if (!storageClient) {
+          throw new Error('Storage client not initialized');
+        }
+        
+        console.log('✅ [CONNECTION-TEST] Storage client is accessible');
+        setTests(prev => ({
+          ...prev,
+          storage: { 
+            status: 'success', 
+            message: 'Storage is functional and accessible' 
+          }
+        }));
+      } catch (error) {
+        console.error('❌ [STORAGE] Storage test error:', error);
+        setTests(prev => ({
+          ...prev,
+          storage: { 
             status: 'error', 
-            message: `Database error: ${error.message}` 
+            message: `Storage test error: ${error.message}` 
           }
         }));
       }
-    } else {
-      setTests(prev => ({
-        ...prev,
-        database: { 
-          status: 'warning', 
-          message: 'Sign in to test database access' 
-        }
-      }));
-    }
 
-    // Test 4: Storage Access
-    setTests(prev => ({ ...prev, storage: { status: 'testing', message: 'Testing...' } }));
-    try {
-      console.log('🔍 [CONNECTION-TEST] Testing storage access...');
-      // Test storage accessibility by checking if storage client is available
-      // Since you can upload photos successfully, we know storage is working
-      const storageClient = supabase.storage;
-      if (!storageClient) {
-        throw new Error('Storage client not initialized');
-      }
-      
-      console.log('✅ [CONNECTION-TEST] Storage client is accessible');
-      // Test basic storage functionality with a simple operation
-      const { data: buckets, error } = await supabase.storage.listBuckets();
-      if (error) {
-        // If listBuckets fails but storage uploads work, it's likely a permissions issue
-        // with the listBuckets operation, not the storage itself
-        console.log('⚠️ [STORAGE] listBuckets failed but storage is functional:', error);
+      // Test 5: Google OAuth Configuration
+      setTests(prev => ({ ...prev, googleOAuth: { status: 'testing', message: 'Testing...' } }));
+      try {
+        console.log('🔍 [CONNECTION-TEST] Testing Google OAuth...');
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        
+        console.log('✅ [CONNECTION-TEST] OAuth system accessible');
         setTests(prev => ({
           ...prev,
-          storage: { 
+          googleOAuth: { 
             status: 'success', 
-            message: 'Storage is functional (uploads working, listBuckets has permission restrictions)' 
+            message: 'OAuth system is accessible and session management working' 
           }
         }));
-        return;
-      }
-      
-      // Check if item-images bucket exists
-      const itemImagesBucket = buckets?.find(bucket => bucket.name === 'item-images');
-      if (!itemImagesBucket) {
-        // Even if bucket not found in list, if uploads work, storage is functional
+      } catch (error) {
+        console.error('❌ [CONNECTION-TEST] OAuth test failed:', error);
         setTests(prev => ({
           ...prev,
-          storage: { 
-            status: 'success', 
-            message: 'Storage functional (bucket exists but not visible in list - this is normal)' 
+          googleOAuth: { 
+            status: 'error', 
+            message: `OAuth test failed: ${error.message}` 
           }
         }));
-        return;
+      }
+
+      // Test 6: eBay API Configuration
+      setTests(prev => ({ ...prev, ebayApi: { status: 'testing', message: 'Testing...' } }));
+      try {
+        console.log('🔍 [CONNECTION-TEST] Testing eBay API...');
+        const ebayService = new EbayApiService();
+        const connectionTest = await ebayService.testConnection();
+        
+        console.log('📊 [CONNECTION-TEST] eBay test result:', connectionTest);
+        setTests(prev => ({
+          ...prev,
+          ebayApi: { 
+            status: connectionTest.success ? 'success' : 'warning', 
+            message: `${connectionTest.message} (${connectionTest.environment})`
+          }
+        }));
+      } catch (error) {
+        console.error('❌ [CONNECTION-TEST] eBay API test failed:', error);
+        setTests(prev => ({
+          ...prev,
+          ebayApi: { 
+            status: 'error', 
+            message: `eBay API configuration error: ${error.message}` 
+          }
+        }));
       }
       
-      setTests(prev => ({
-        ...prev,
-        storage: { 
-          status: 'success', 
-          message: 'Storage bucket "item-images" found and accessible' 
-        }
-      }));
+      console.log('✅ [CONNECTION-TEST] All connection tests completed');
     } catch (error) {
-      console.error('❌ [STORAGE] Storage test error:', error);
-      setTests(prev => ({
-        ...prev,
-        storage: { 
-          status: 'error', 
-          message: `Storage test error: ${error.message}` 
-        }
-      }));
+      console.error('❌ [CONNECTION-TEST] Critical error during tests:', error);
+    } finally {
+      testsRunning.current = false;
     }
-
-    // Test 5: Google OAuth Configuration
-    setTests(prev => ({ ...prev, googleOAuth: { status: 'testing', message: 'Testing...' } }));
-    try {
-      console.log('🔍 [CONNECTION-TEST] Testing Google OAuth...');
-      const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      
-      // Test OAuth system accessibility without checking specific providers
-      console.log('✅ [CONNECTION-TEST] OAuth system accessible');
-      // (provider enumeration requires admin access)
-      
-      setTests(prev => ({
-        ...prev,
-        googleOAuth: { 
-          status: 'success', 
-          message: 'OAuth system is accessible and session management working' 
-        }
-      }));
-    } catch (error) {
-      console.error('❌ [CONNECTION-TEST] OAuth test failed:', error);
-      setTests(prev => ({
-        ...prev,
-        googleOAuth: { 
-          status: 'error', 
-          message: `OAuth test failed: ${error.message}` 
-        }
-      }));
-    }
-
-    // Test 6: eBay API Configuration
-    setTests(prev => ({ ...prev, ebayApi: { status: 'testing', message: 'Testing...' } }));
-    try {
-      console.log('🔍 [CONNECTION-TEST] Testing eBay API...');
-      const ebayService = new EbayApiService();
-      const connectionTest = await ebayService.testConnection();
-      const config = ebayService.getConfig();
-      
-      console.log('📊 [CONNECTION-TEST] eBay test result:', connectionTest);
-      setTests(prev => ({
-        ...prev,
-        ebayApi: { 
-          status: connectionTest.success ? 'success' : 'warning', 
-          message: `${connectionTest.message} (${connectionTest.environment})`
-        }
-      }));
-    } catch (error) {
-      console.error('❌ [CONNECTION-TEST] eBay API test failed:', error);
-      setTests(prev => ({
-        ...prev,
-        ebayApi: { 
-          status: 'error', 
-          message: `eBay API configuration error: ${error.message}` 
-        }
-      }));
-    }
-    
-    console.log('✅ [CONNECTION-TEST] All connection tests completed');
   };
 
   const testTrendingItems = useCallback(async () => {
@@ -353,7 +331,7 @@ const ConnectionTest = () => {
           <button
             onClick={() => {
               console.log('🔄 [CONNECTION-TEST] Manual test run triggered');
-              setTestsInitialized(false); // Reset to allow re-running
+              testsInitialized.current = false; // Reset to allow re-running
               runTests();
             }}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"

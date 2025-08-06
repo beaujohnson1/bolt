@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase, type User as AppUser } from '../lib/supabase';
-import { withTimeout, withRetry } from '../utils/promiseUtils';
+import { withTimeout, withRetry, debounceAsync } from '../utils/promiseUtils';
 
 // Timeout constants
 const PROFILE_FETCH_TIMEOUT = 90000; // 90 seconds
@@ -33,6 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AppUser | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const authEffectInitialized = React.useRef(false);
 
   const fetchUserProfile = async (supabaseUser: User): Promise<AppUser | null> => {
     try {
@@ -146,7 +147,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Debounced auth state change handler to prevent rapid successive updates
+  const handleAuthStateChange = React.useCallback(
+    debounceAsync(async (event: string, session: any) => {
+      console.log('🔄 [AUTH] Auth state change detected:', {
+        event,
+        userEmail: session?.user?.email || 'no user',
+        sessionExists: !!session,
+        userId: session?.user?.id || 'no id'
+      });
+      
+      try {
+        if (session) {
+          console.log('✅ [AUTH] Session exists, setting authUser and fetching profile...');
+          setAuthUser(session.user);
+          console.log('🔄 [AUTH] Fetching user profile for auth state change...');
+          const profile = await withRetry(
+            () => withTimeout(
+              fetchUserProfile(session.user),
+              PROFILE_FETCH_TIMEOUT,
+              'User profile fetch timed out during auth state change'
+            ),
+            3, // maxRetries
+            2000 // baseDelay
+          );
+          console.log('📊 [AUTH] Profile fetch result for auth state change:', profile ? 'success' : 'failed');
+          console.log('📊 [AUTH] Auth state change profile data:', {
+            listings_used: profile?.listings_used,
+            listings_limit: profile?.listings_limit,
+            user_id: profile?.id
+          });
+          setUser(profile);
+        } else {
+          console.log('❌ [AUTH] No session, clearing user state...');
+          setUser(null);
+          setAuthUser(null);
+        }
+      } catch (error) {
+        console.error('❌ [AUTH] Error in auth state change handler:', error);
+        // Don't clear user state on timeout - they might still be valid
+        if (!error.message.includes('timed out')) {
+          setUser(null);
+          setAuthUser(null);
+        }
+      } finally {
+        console.log('🏁 [AUTH] Auth state change processing complete, setting loading to false');
+        setLoading(false);
+      }
+    }, 500), // 500ms debounce delay
+    []
+  );
+
   useEffect(() => {
+    // Prevent multiple effect runs
+    if (authEffectInitialized.current) {
+      console.log('🛑 [AUTH] Auth effect already initialized, skipping');
+      return;
+    }
+    
+    authEffectInitialized.current = true;
     console.log('🔄 [AUTH] Auth effect triggered - setting up authentication listeners');
     
     // Get initial session
@@ -220,58 +279,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    getInitialSession();
-
-    // Listen for auth changes
-    console.log('👂 [AUTH] Setting up auth state change listener...');
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔄 [AUTH] Auth state change detected:', {
-          event,
-          userEmail: session?.user?.email || 'no user',
-          sessionExists: !!session,
-          userId: session?.user?.id || 'no id'
-        });
-        
-        try {
-          if (session) {
-            console.log('✅ [AUTH] Session exists, setting authUser and fetching profile...');
-            setAuthUser(session.user);
-            console.log('🔄 [AUTH] Fetching user profile for auth state change...');
-            const profile = await withTimeout(
-              fetchUserProfile(session.user),
-              PROFILE_FETCH_TIMEOUT,
-              'User profile fetch timed out during auth state change'
-            );
-            console.log('📊 [AUTH] Profile fetch result for auth state change:', profile ? 'success' : 'failed');
-            console.log('📊 [AUTH] Auth state change profile data:', {
-              listings_used: profile?.listings_used,
-              listings_limit: profile?.listings_limit,
-              user_id: profile?.id
-            });
-            setUser(profile);
-          } else {
-            console.log('❌ [AUTH] No session, clearing user state...');
-            setUser(null);
-            setAuthUser(null);
-          }
-        } catch (error) {
-          console.error('❌ [AUTH] Error in auth state change handler:', error);
-          // Don't clear user state on timeout - they might still be valid
-          if (!error.message.includes('timed out')) {
-            setUser(null);
-            setAuthUser(null);
-          }
-        } finally {
-          console.log('🏁 [AUTH] Auth state change processing complete, setting loading to false');
-          setLoading(false);
-        }
-      }
-    );
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
     console.log('✅ [AUTH] Auth listeners set up successfully');
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      authEffectInitialized.current = false; // Reset flag on cleanup
+    };
   }, []);
 
   const signUp = async (email: string, password: string, name: string) => {

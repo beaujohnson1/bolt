@@ -84,6 +84,40 @@ export const debounce = <T extends (...args: any[]) => any>(
 };
 
 /**
+ * Debounce async function calls
+ * @param func - Async function to debounce
+ * @param waitMs - Wait time in milliseconds
+ * @returns Debounced async function
+ */
+export const debounceAsync = <T extends (...args: any[]) => Promise<any>>(
+  func: T,
+  waitMs: number
+): ((...args: Parameters<T>) => Promise<void>) => {
+  let timeoutId: NodeJS.Timeout;
+  let pendingPromise: Promise<void> | null = null;
+
+  return (...args: Parameters<T>) => {
+    return new Promise<void>((resolve) => {
+      clearTimeout(timeoutId);
+      
+      timeoutId = setTimeout(async () => {
+        if (pendingPromise) {
+          await pendingPromise;
+        }
+        
+        pendingPromise = func(...args).then(() => {
+          pendingPromise = null;
+          resolve();
+        }).catch((error) => {
+          pendingPromise = null;
+          console.error('Debounced async function error:', error);
+          resolve(); // Resolve anyway to prevent hanging
+        });
+      }, waitMs);
+    });
+  };
+};
+/**
  * Create a cancellable Promise
  * @param promise - The Promise to make cancellable
  * @returns Object with promise and cancel function
