@@ -210,6 +210,7 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
   const [assigningSkus, setAssigningSkus] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [customSku, setCustomSku] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -250,6 +251,57 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
       setSelectedItemIds(itemsToSku.map(item => item.id));
     }
   };
+
+  const handleDeleteSelectedItems = async () => {
+    if (selectedItemIds.length === 0) {
+      alert('Please select at least one item to delete.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedItemIds.length} item${selectedItemIds.length > 1 ? 's' : ''}? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+
+    try {
+      console.log('🗑️ [SKU] Deleting selected items...', selectedItemIds);
+
+      // Delete items from database (listings will be auto-deleted due to CASCADE)
+      const { error } = await supabase
+        .from('items')
+        .delete()
+        .in('id', selectedItemIds);
+
+      if (error) {
+        console.error('❌ [SKU] Error deleting items:', error);
+        throw error;
+      }
+
+      console.log('✅ [SKU] Items deleted successfully');
+
+      // Update user's listing count
+      if (user) {
+        const newListingsUsed = Math.max(0, user.listings_used - selectedItemIds.length);
+        await updateUser({ listings_used: newListingsUsed });
+      }
+
+      // Clear selections and refresh
+      setSelectedItemIds([]);
+      await loadItems();
+
+      alert(`Successfully deleted ${selectedItemIds.length} item${selectedItemIds.length > 1 ? 's' : ''}.`);
+
+    } catch (error) {
+      console.error('❌ [SKU] Error deleting items:', error);
+      alert(`Failed to delete items: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleAssignSkus = async () => {
     if (selectedItemIds.length === 0) {
       alert('Please select items to assign SKUs to.');
@@ -404,25 +456,45 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
               </div>
             </div>
             
-            <button
-              onClick={handleAssignSkus}
-              disabled={assigningSkus || selectedItemIds.length === 0 || !customSku.trim()}
-              className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
-            >
-              {assigningSkus ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>Assigning SKUs...</span>
-                </>
-              ) : (
-                <>
-                  <Package className="w-5 h-5" />
-                  <span>
-                    Assign SKU to {selectedItemIds.length} Selected Item{selectedItemIds.length !== 1 ? 's' : ''}
-                  </span>
-                </>
-              )}
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteSelectedItems}
+                disabled={isDeleting || selectedItemIds.length === 0}
+                className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-5 h-5" />
+                    <span>Delete Selected ({selectedItemIds.length})</span>
+                  </>
+                )}
+              </button>
+              
+              <button
+                onClick={handleAssignSkus}
+                disabled={assigningSkus || selectedItemIds.length === 0 || !customSku.trim()}
+                className="flex-1 bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
+              >
+                {assigningSkus ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <span>Assigning SKUs...</span>
+                  </>
+                ) : (
+                  <>
+                    <Package className="w-5 h-5" />
+                    <span>
+                      Assign SKU to {selectedItemIds.length} Selected Item{selectedItemIds.length !== 1 ? 's' : ''}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
           </>
         ) : (
           <div className="text-center py-8">
