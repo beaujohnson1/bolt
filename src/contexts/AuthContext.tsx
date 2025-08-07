@@ -62,10 +62,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const { data: upsertedUser, error: upsertError } = await withTimeout(
         supabase.rpc('create_user_profile', {
-          user_id: supabaseUser.id,
+          user_avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
           user_email: supabaseUser.email || '',
-          user_name: userName,
-          user_avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null
+          user_id: supabaseUser.id,
+          user_name: userName
         }),
         PROFILE_CREATE_TIMEOUT,
         'RPC create_user_profile operation timed out while creating/updating user profile'
