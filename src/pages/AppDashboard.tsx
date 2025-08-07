@@ -11,7 +11,6 @@ import { resizeImage, calculateImageHash, processImagesWithEnhancement } from '.
 import DashboardLayout from '../components/DashboardLayout';
 
 // Debug log to confirm DashboardLayout is properly imported
-import GenerateListingsTable from '../components/GenerateListingsTable';
 console.log('🔍 [APP-DASHBOARD] DashboardLayout imported as:', DashboardLayout);
 console.log('🔍 [APP-DASHBOARD] DashboardLayout type:', typeof DashboardLayout);
 console.log('🔍 [APP-DASHBOARD] DashboardLayout is function:', typeof DashboardLayout === 'function');
