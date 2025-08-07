@@ -178,40 +178,23 @@ exports.handler = async (event, context) => {
         error_type: typeof error,
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       })
-    });
+    };
   }
 };
 
 function getAnalysisPrompt(analysisType) {
-  console.log('📝 [OPENAI-FUNCTION] Generating prompt for analysis type:', analysisType);
-  
-  const prompt = `You are an expert at analyzing clothing and fashion items for online resale listings. 
-
-Analyze this image and provide a detailed response in VALID JSON format only. Do not include any text before or after the JSON.
-
-Return this exact JSON structure:
+  // This function should return a prompt based on analysisType
+  // For now, it returns a generic prompt as provided in the bug report
+  return `Analyze this clothing item for resale listing. Provide response in this JSON format:
 {
-  "title": "Brand Name + Item Type + Key Feature (e.g., 'Lululemon Align Tank Top Black Size M')",
-  "brand": "exact brand name or 'Unknown'",
-  "size": "exact size found or 'Unknown'",
-  "condition": "like_new/good/fair/poor",
-  "category": "clothing/shoes/accessories/other",
-  "color": "primary color name",
-  "item_type": "specific item type (tank top, jeans, dress, etc.)",
-  "suggested_price": 25,
-  "confidence": 0.8,
-  "key_features": ["feature1", "feature2", "feature3"],
-  "keywords": ["keyword1", "keyword2", "keyword3"],
-  "model_number": "style number or model if visible",
-  "description": "Professional description for marketplace listing"
-}
-
-IMPORTANT: 
-- Look carefully for brand labels, tags, and any text in the image
-- Be conservative with pricing - suggest realistic resale prices
-- Return ONLY the JSON object, no other text
-- If you cannot determine something, use the fallback values shown above`;
-
-  console.log('✅ [OPENAI-FUNCTION] Prompt generated successfully');
-  return prompt;
+  "brand": "detected brand or 'Unknown'",
+  "itemType": "specific item type (e.g., 'leggings', 't-shirt', 'hoodie')",
+  "condition": "New with Tags/New without Tags/Excellent/Good/Fair/Poor",
+  "size": "detected size or null",
+  "color": "primary color",
+  "materials": ["list", "of", "materials"],
+  "defects": ["list", "of", "any", "defects"],
+  "style": "style category",
+  "confidence": 0.85
+}`;
 }
