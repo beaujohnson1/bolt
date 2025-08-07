@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Eye, Edit, Trash2, ExternalLink, CheckCircle, Clock, AlertCircle, RefreshCw } from 'lucide-react';
+import { Package, Eye, Edit, Trash2, ExternalLink, CheckCircle, Clock, AlertCircle, RefreshCw, Zap } from 'lucide-react';
 import { supabase, type Item } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatPrice, formatDate, getCategoryPath, getItemSpecifics } from '../utils/itemUtils';
@@ -18,44 +18,65 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
   const [isDeleting, setIsDeleting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    fetchItemsReadyForListing();
+    fetchItemsFromSKUGroups();
   }, [authUser]);
 
-  const fetchItemsReadyForListing = async () => {
+  const fetchItemsFromSKUGroups = async () => {
     if (!authUser) return;
 
     try {
-      console.log('🔍 [GENERATE-TABLE] Fetching items ready for listing...');
+      console.log('🔍 [GENERATE-TABLE] Fetching items from SKU groups...');
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('items')
-        .select(`
-          *,
-          listings (
-            id,
-            status,
-            platforms,
-            title,
-            price
-          )
-        `)
+      // Get SKU groups that are ready for listing generation
+      const { data: skuGroups, error: skuError } = await supabase
+        .from('uploaded_photos')
+        .select('assigned_sku, image_url, filename')
         .eq('user_id', authUser.id)
-        .order('created_at', { ascending: false });
+        .eq('status', 'assigned')
+        .not('assigned_sku', 'is', null);
 
-      if (fetchError) {
-        console.error('❌ [GENERATE-TABLE] Error fetching items:', fetchError);
-        throw fetchError;
+      if (skuError) {
+        console.error('❌ [GENERATE-TABLE] Error fetching SKU groups:', skuError);
+        throw skuError;
       }
 
-      console.log('✅ [GENERATE-TABLE] Items fetched successfully:', data?.length || 0);
-      setItems(data || []);
+      // Group photos by SKU
+      const groupedBySKU = (skuGroups || []).reduce((groups, photo) => {
+        const sku = photo.assigned_sku!;
+        if (!groups[sku]) {
+          groups[sku] = [];
+        }
+        groups[sku].push(photo);
+        return groups;
+      }, {} as Record<string, any[]>);
+
+      // Convert SKU groups to items format for the table
+      const skuItems = Object.entries(groupedBySKU).map(([sku, photos]) => ({
+        id: sku, // Use SKU as temporary ID
+        sku: sku,
+        title: `Item ${sku}`,
+        description: `Item with ${photos.length} photos`,
+        category: 'other',
+        condition: 'good',
+        suggested_price: 25,
+        images: photos.map(p => p.image_url),
+        primary_image_url: photos[0]?.image_url,
+        photo_count: photos.length,
+        status: 'ready_for_generation',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+
+      console.log('✅ [GENERATE-TABLE] SKU groups fetched successfully:', skuItems.length);
+      setItems(skuItems);
     } catch (error) {
-      console.error('❌ [GENERATE-TABLE] Error in fetchItemsReadyForListing:', error);
-      setError('Failed to load items. Please try again.');
+      console.error('❌ [GENERATE-TABLE] Error in fetchItemsFromSKUGroups:', error);
+      setError('Failed to load SKU groups. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -326,7 +347,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
       alert(`Successfully generated ${selectedItems.size} listings!`);
       
       // Refresh the table
-      await fetchItemsReadyForListing();
+      await fetchItemsFromSKUGroups();
       setSelectedItems(new Set());
     } catch (error) {
       console.error('❌ [GENERATE-TABLE] Error generating listings:', error);
@@ -356,7 +377,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         </h3>
         <p className={`mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{error}</p>
         <button
-          onClick={fetchItemsReadyForListing}
+          onClick={fetchItemsFromSKUGroups}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
         >
           Try Again
@@ -371,17 +392,17 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Generate Listings
+            Generate Listings from SKU Groups
           </h2>
           <p className={`${isDarkMode ? 'text-white/70' : 'text-gray-600'} mt-1`}>
-            Items Ready for Listing ({items.length} items)
+            SKU Groups Ready for AI Analysis ({items.length} groups)
           </p>
         </div>
         
         {/* Action Buttons */}
         <div className="flex items-center space-x-3">
           <button
-            onClick={fetchItemsReadyForListing}
+            onClick={fetchItemsFromSKUGroups}
             disabled={loading || isDeleting}
             className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
               isDarkMode 
@@ -494,13 +515,13 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         <div className="text-center py-12">
           <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            No Items Ready for Listing
+            No SKU Groups Ready
           </h3>
           <p className={`mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Upload and process some items first to see them here.
+            Go to the SKUs tab to assign SKUs to your uploaded photos first.
           </p>
           <button
-            onClick={fetchItemsReadyForListing}
+            onClick={fetchItemsFromSKUGroups}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 mx-auto"
           >
             <RefreshCw className="w-4 h-4" />
@@ -527,25 +548,19 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                     Photo
                   </th>
                   <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    Photo Count
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                     SKU
                   </th>
                   <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-                    Title
+                    SKU Group
                   </th>
                   <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-                    Price
+                    Status
                   </th>
                   <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-                    Generation Status
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-                    Category Path
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-                    Item Specifics
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-                    Condition
+                    AI Analysis
                   </th>
                   <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                     Actions
@@ -556,8 +571,6 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
               {/* Table Body */}
               <tbody className={`divide-y ${isDarkMode ? 'divide-gray-700 bg-gray-800' : 'divide-gray-200 bg-white'}`}>
                 {items.map((item) => {
-                  const generationStatus = getGenerationStatus(item);
-                  const StatusIcon = generationStatus.icon;
                   const isSelected = selectedItems.has(item.id);
                   
                   return (
@@ -597,6 +610,20 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                         </div>
                       </td>
 
+                      {/* Photo Count */}
+                      <td className="px-4 py-4">
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                            isDarkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {item.photo_count || item.images?.length || 0}
+                          </div>
+                          <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            photo{(item.photo_count || item.images?.length || 0) !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </td>
+
                       {/* SKU */}
                       <td className="px-4 py-4">
                         <span className={`text-sm font-mono px-2 py-1 rounded ${
@@ -606,84 +633,33 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                         </span>
                       </td>
 
-                      {/* Title */}
+                      {/* SKU Group */}
                       <td className="px-4 py-4">
                         <div className="max-w-xs">
                           <h3 className={`font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                            {item.title}
+                            SKU Group: {item.sku}
                           </h3>
-                          {item.brand && (
-                            <p className={`text-sm truncate mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {item.brand} • {item.item_type || 'Unknown type'}
-                            </p>
-                          )}
+                          <p className={`text-sm truncate mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Ready for AI analysis
+                          </p>
                         </div>
                       </td>
 
-                      {/* Price */}
-                      <td className="px-4 py-4">
-                        <div className="text-right">
-                          <div className={`font-semibold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
-                            {formatPrice(item.suggested_price)}
-                          </div>
-                          {item.price_range_min && item.price_range_max && (
-                            <div className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {formatPrice(item.price_range_min)} - {formatPrice(item.price_range_max)}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Generation Status */}
-                      <td className="px-4 py-4">
-                        <div className="flex items-center space-x-2">
-                          <StatusIcon className={`w-4 h-4 ${
-                            generationStatus.color === 'gray' ? 'text-gray-500' :
-                            generationStatus.color === 'green' ? 'text-green-600' :
-                            generationStatus.color === 'yellow' ? 'text-yellow-600' :
-                            'text-blue-600'
-                          }`} />
-                          <span className={`text-sm font-medium ${
-                            generationStatus.color === 'gray' ? 'text-gray-500' :
-                            generationStatus.color === 'green' ? 'text-green-600' :
-                            generationStatus.color === 'yellow' ? 'text-yellow-600' :
-                            'text-blue-600'
-                          }`}>
-                            {generationStatus.status}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Category Path */}
-                      <td className="px-4 py-4">
-                        <div className="max-w-xs">
-                          <span className={`text-sm truncate block ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                            {getCategoryPath(item.category)}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Item Specifics */}
-                      <td className="px-4 py-4">
-                        <div className="max-w-xs">
-                          <span className={`text-sm truncate block ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                            {getItemSpecifics(item)}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Condition */}
+                      {/* Status */}
                       <td className="px-4 py-4">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          item.condition === 'like_new' 
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                            : item.condition === 'good'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                            : item.condition === 'fair'
+                          item.status === 'ready_for_generation'
                             ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
-                            : 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                            : 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
                         }`}>
-                          {item.condition?.replace('_', ' ') || 'Good'}
+                          {item.status === 'ready_for_generation' ? 'Ready for AI' : 'Generated'}
+                        </span>
+                      </td>
+
+                      {/* AI Analysis */}
+                      <td className="px-4 py-4">
+                        <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {item.status === 'ready_for_generation' ? 'Pending' : 'Complete'}
                         </span>
                       </td>
 
@@ -691,26 +667,34 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                       <td className="px-4 py-4">
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => window.open(`/details/${item.id}`, '_blank')}
+                            onClick={() => {
+                              // TODO: Implement AI analysis for this SKU group
+                              alert(`AI analysis for SKU ${item.sku} coming soon!`);
+                            }}
                             className={`p-2 rounded-lg transition-colors ${
                               isDarkMode 
-                                ? 'hover:bg-white/10 text-white/70 hover:text-white' 
-                                : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+                                ? 'hover:bg-blue-500/20 text-blue-400 hover:text-blue-300' 
+                                : 'hover:bg-blue-50 text-blue-600 hover:text-blue-700'
                             }`}
-                            title="View details"
+                            title="Run AI analysis"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Zap className="w-4 h-4" />
                           </button>
                           
                           <button
-                            onClick={() => handleDeleteItem(item.id)}
-                            disabled={isDeleting || isGenerating}
+                            onClick={() => {
+                              // TODO: Implement delete SKU group
+                              if (window.confirm(`Delete SKU group ${item.sku} and all its photos?`)) {
+                                // Delete logic here
+                              }
+                            }}
+                            disabled={isDeleting}
                             className={`p-2 rounded-lg transition-colors ${
                               isDarkMode 
                                 ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300 disabled:text-red-600' 
                                 : 'hover:bg-red-50 text-red-600 hover:text-red-700 disabled:text-red-400'
                             }`}
-                            title="Delete item"
+                            title="Delete SKU group"
                           >
                             {isDeleting ? (
                               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
@@ -729,7 +713,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
 
           {/* Footer Stats */}
           <div className={`mt-4 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} text-center`}>
-            Showing {items.length} item{items.length !== 1 ? 's' : ''} ready for listing
+            Showing {items.length} SKU group{items.length !== 1 ? 's' : ''} ready for AI analysis
             {selectedItems.size > 0 && (
               <span className={`ml-4 font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>
                 • {selectedItems.size} selected
