@@ -77,11 +77,38 @@ export const normalizeCategory = (category: string): string => {
     'antique': 'collectibles'
   };
   
+ * @param item - Item object with brand, category, size properties
+ * @returns Generated SKU string
+ */
+export const generateSKU = (item: { brand?: string; category?: string; size?: string }): string => {
+  try {
+    const brand = item.brand || 'UNK';
+    const itemType = item.category || 'ITEM';
+    const size = item.size || 'OS'; // OS = One Size
+    const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
+    
+    // Create SKU: BRAND-TYPE-SIZE-TIMESTAMP
+    const sku = `${brand.substring(0, 3).toUpperCase()}-${itemType.substring(0, 3).toUpperCase()}-${size.toUpperCase()}-${timestamp}`;
+    
+    console.log('✅ [SKU] Generated SKU:', sku, 'for item:', item);
+    return sku;
+    
+  } catch (error) {
+    console.error('❌ [SKU] Error generating SKU:', error);
+    // Fallback SKU
+    const fallbackSku = `ITEM-${Date.now().toString().slice(-8)}`;
+    console.log('🔄 [SKU] Using fallback SKU:', fallbackSku);
+    return fallbackSku;
+  }
+};
+
+/**
+ * Generate sequential SKU numbers (legacy function for backwards compatibility)
   return categoryMap[normalized] || 'other';
 };
 
 // Generate sequential SKU numbers
-export const generateSKU = (index: number, prefix: string = 'SKU'): string => {
+export const generateSequentialSKU = (index: number, prefix: string = 'SKU'): string => {
   return `${prefix}-${String(index + 1).padStart(3, '0')}`;
 };
 

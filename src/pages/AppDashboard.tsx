@@ -5,7 +5,7 @@ import { TrendingUp, DollarSign, Package, Eye, ShoppingCart, Calendar, Target, Z
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
 import EbayApiService, { type TrendingItem } from '../services/ebayApi';
-import DashboardLayout from '../components/DashboardLayout';
+import { normalizeCondition, normalizeCategory, generateSKU, generateSequentialSKU } from '../utils/itemUtils';
 import { resizeImage, calculateImageHash, processImagesWithEnhancement } from '../utils/imageUtils';
 import { generateSKU } from '../utils/itemUtils';
 
@@ -663,7 +663,10 @@ const AppDashboard = () => {
         const processedCategoryData = Array.from(categoryMap.entries()).map(([category, data]) => ({
           name: category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
           value: totalCategorySales > 0 ? Math.round((data.sales / totalCategorySales) * 100) : 0,
-          color: categoryColors[category as keyof typeof categoryColors] || '#6b7280',
+          ai_analysis: { 
+            ...item.ai_analysis, 
+            sku: generateSKU(item) // Now calls the correct function with item object
+          },
           sales: data.revenue
         }));
         
