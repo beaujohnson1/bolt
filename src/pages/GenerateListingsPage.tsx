@@ -9,7 +9,7 @@ import { useAIAnalysis } from '../hooks/useAIAnalysis';
 import { mapAIToListing } from '../ai/mapAIToListing';
 import { coerceAI } from '../ai/schema';
 import { normalizeCategory, normalizeCondition } from '../utils/itemUtils';
-import { sTrim } from '../utils/strings';
+import { safeTrim } from '../utils/strings';
 
 interface SKUGroup {
   sku: string;
@@ -204,7 +204,7 @@ const GenerateListingsPage = () => {
           
           // Add verification log to prove the value path
           console.log('[VERIFY-LISTING]', {
-            title: sTrim(sanitizedData.title),
+            title: safeTrim(sanitizedData.title),
             price: sanitizedData.suggested_price,
             featuresCount: sanitizedData.key_features?.length ?? 0,
             keywordsCount: sanitizedData.keywords?.length ?? 0,
