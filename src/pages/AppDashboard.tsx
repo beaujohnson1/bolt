@@ -1170,18 +1170,111 @@ const AppDashboard = () => {
       case 'publish':
         return <PublishTab />;
       case 'coach':
-        return <CoachTab 
-          chatMessages={chatMessages}
-          currentMessage={currentMessage}
-          setCurrentMessage={setCurrentMessage}
-          handleSendMessage={handleSendMessage}
-          handleKeyPress={handleKeyPress}
-          chatEndRef={chatEndRef}
-          isRecording={isRecording}
-          toggleRecording={toggleRecording}
-          voiceMode={voiceMode}
-          setVoiceMode={setVoiceMode}
-        />;
+        return (
+          <div className="space-y-6">
+            <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6 h-[calc(100vh-250px)] flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-white dark:text-white">🤖 AI Reseller Coach</h2>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setVoiceMode(!voiceMode)}
+                    className={`p-2 rounded-lg transition-colors ${
+                      voiceMode ? 'bg-cyber-gradient text-white' : 'bg-white/10 text-white/70'
+                    }`}
+                  >
+                    {voiceMode ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              
+              {/* Quick Questions */}
+              <div className="mb-4">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    "What's my best-selling category?",
+                    "How should I price electronics?",
+                    "When's the best time to list?",
+                    "What items should I source?"
+                  ].map((question, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setCurrentMessage(question);
+                        const newMessage = {
+                          id: Date.now(),
+                          text: question,
+                          sender: 'user',
+                          timestamp: new Date()
+                        };
+                        setChatMessages(prev => [...prev, newMessage]);
+                        setCurrentMessage('');
+                        callAICoach(question);
+                      }}
+                      className="text-xs bg-white/10 hover:bg-white/20 text-white/80 px-3 py-1 rounded-full transition-colors"
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Chat Messages */}
+              <div className="flex-1 overflow-y-auto mb-4 p-4 rounded-lg bg-white/5 dark:bg-white/5">
+                {chatMessages.map((msg) => (
+                  <div key={msg.id} className={`mb-3 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
+                    <div className={`inline-block p-3 rounded-lg max-w-xs ${
+                      msg.sender === 'user'
+                        ? 'bg-cyber-gradient text-white'
+                        : 'bg-gray-700 text-white'
+                    }`}>
+                      {msg.typing ? (
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        </div>
+                      ) : (
+                        <span className="text-sm">{msg.text}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+              
+              {/* Chat Input */}
+              <div className="flex space-x-2">
+                {voiceMode && (
+                  <button
+                    onClick={toggleRecording}
+                    className={`p-3 rounded-lg transition-all duration-300 ${
+                      isRecording 
+                        ? 'bg-red-500 text-white animate-pulse' 
+                        : 'bg-white/10 text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    {isRecording ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+                  </button>
+                )}
+                <input
+                  type="text"
+                  value={currentMessage}
+                  onChange={(e) => setCurrentMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask your coach anything..."
+                  className="flex-1 p-3 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!currentMessage.trim()}
+                  className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-3 rounded-lg transition-opacity"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
       default:
         return <OverviewTab 
           dashboardStats={dashboardStats}
@@ -1189,6 +1282,7 @@ const AppDashboard = () => {
           chatMessages={chatMessages}
           currentMessage={currentMessage}
           setCurrentMessage={setCurrentMessage}
+          processingStatus={processingStatus}
           handleSendMessage={handleSendMessage}
           handleKeyPress={handleKeyPress}
           chatEndRef={chatEndRef}
