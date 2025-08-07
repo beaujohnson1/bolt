@@ -41,27 +41,84 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchUserProfile = async (supabaseUser: User): Promise<AppUser | null> => {
     try {
       console.log('🔍 [AUTH] Starting fetchUserProfile for user:', supabaseUser.id);
-      console.log('📋 [AUTH] User metadata:', JSON.stringify(supabaseUser.user_metadata, null, 2));
-      console.log('📧 [AUTH] User email:', supabaseUser.email);
-      console.log('🔐 [AUTH] User role:', supabaseUser.role);
-      console.log('⏰ [AUTH] User created at:', supabaseUser.created_at);
       
-      // Extract name from user metadata or email
+      // First, try to fetch existing user profile
+      console.log('🔍 [AUTH] Checking for existing user profile...');
+      const { data: existingUser, error: fetchError } = await withTimeout(
+        supabase
+          .from('users')
+          .select('*')
+          .eq('id', supabaseUser.id)
+          .single(),
+        PROFILE_FETCH_TIMEOUT,
+        'User profile fetch timed out'
+      );
+      
+      if (existingUser && !fetchError) {
+        console.log('✅ [AUTH] Found existing user profile:', existingUser);
+        return existingUser;
+      }
+      
+      // If user doesn't exist or fetch failed, create a minimal profile
+      console.log('📝 [AUTH] Creating new user profile...');
       const userName = 
         supabaseUser.user_metadata?.full_name || 
         supabaseUser.user_metadata?.name || 
         supabaseUser.email?.split('@')[0] || 
         'User';
-
-      console.log('📝 [AUTH] Preparing user profile data with name:', userName);
-      console.log('🆔 [AUTH] User ID:', supabaseUser.id);
-      console.log('📧 [AUTH] User email:', supabaseUser.email);
-      console.log('🖼️ [AUTH] Avatar URL:', supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture);
-
-      console.log('📤 [AUTH] Directly upserting user profile (bypassing RPC)...');
       
-      // Prepare user data for upsert
-      const userData = {
+      const { data: newUser, error: insertError } = await withTimeout(
+        supabase
+          .from('users')
+          .insert({
+            id: supabaseUser.id,
+            email: supabaseUser.email || '',
+            name: userName,
+            avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
+            subscription_plan: 'free',
+            subscription_status: 'active',
+            listings_used: 0,
+            listings_limit: 999,
+            is_active: true
+          })
+          .select()
+          .single(),
+        PROFILE_CREATE_TIMEOUT,
+        'User profile creation timed out'
+      );
+
+      if (insertError) {
+        console.error('❌ [AUTH] Error creating user profile:', insertError);
+        // If insert fails, return a minimal user object to prevent auth blocking
+        return {
+          id: supabaseUser.id,
+          email: supabaseUser.email || '',
+          name: userName,
+          avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
+          subscription_plan: 'free',
+          subscription_status: 'active',
+          listings_used: 0,
+          listings_limit: 999,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as AppUser;
+      }
+
+      console.log('✅ [AUTH] User profile created successfully:', newUser);
+      return newUser;
+      
+    } catch (error) {
+      console.error('❌ [AUTH] Unexpected error in fetchUserProfile:', error);
+      
+      // Return a minimal user object to prevent auth from completely failing
+      const userName = 
+        supabaseUser.user_metadata?.full_name || 
+        supabaseUser.user_metadata?.name || 
+        supabaseUser.email?.split('@')[0] || 
+        'User';
+        
+      return {
         id: supabaseUser.id,
         email: supabaseUser.email || '',
         name: userName,
@@ -70,56 +127,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         subscription_status: 'active',
         listings_used: 0,
         listings_limit: 999,
-        monthly_revenue: 0,
-        total_sales: 0,
-        notification_preferences: { email: true, push: true },
-        timezone: 'America/New_York',
         is_active: true,
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      };
-      
-      console.log('📊 [AUTH] User data to upsert:', userData);
-      
-      const { data: upsertedUser, error: upsertError } = await withTimeout(
-        supabase
-          .from('users')
-          .upsert(userData, { 
-            onConflict: 'id',
-            ignoreDuplicates: false 
-          })
-          .select()
-          .single(),
-        PROFILE_CREATE_TIMEOUT,
-        'User profile upsert operation timed out while creating/updating user profile'
-      );
-
-      console.log('📥 [AUTH] Upsert result:', { upsertedUser, upsertError });
-
-      if (upsertError) {
-        console.error('❌ [AUTH] Error upserting user profile:', upsertError);
-        console.error('❌ [AUTH] Error details:', {
-          code: upsertError.code,
-          message: upsertError.message,
-          details: upsertError.details,
-          hint: upsertError.hint
-        });
-        console.error('❌ [AUTH] User data that failed to upsert:', userData);
-        return null;
-      }
-
-      console.log('✅ [AUTH] User profile upserted successfully:', upsertedUser);
-      console.log('🔧 [AUTH] Profile data includes listing limit:', upsertedUser.listings_limit);
-      
-      return upsertedUser;
-    } catch (error) {
-      console.error('❌ [AUTH] Unexpected error in fetchUserProfile:', error);
-      console.error('❌ [AUTH] Stack trace:', error instanceof Error ? error.stack : 'No stack trace available');
-      console.error('❌ [AUTH] User data that caused error:', {
-        id: supabaseUser.id,
-        email: supabaseUser.email,
-        metadata: supabaseUser.user_metadata
-      });
-      return null;
+      } as AppUser;
     }
   };
 
