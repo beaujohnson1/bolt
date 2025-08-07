@@ -333,9 +333,12 @@ const GenerateListingsTab: React.FC = () => {
   const { authUser } = useAuth();
   const [itemsToGenerate, setItemsToGenerate] = useState<Item[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
+  const [analyzingItems, setAnalyzingItems] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [analysisStatus, setAnalysisStatus] = useState('');
 
   useEffect(() => {
-    const fetchItems = async () => {
+    const fetchAndAnalyzeItems = async () => {
       if (!authUser) return;
       setLoadingItems(true);
       try {
@@ -343,26 +346,151 @@ const GenerateListingsTab: React.FC = () => {
           .from('items')
           .select('*')
           .eq('user_id', authUser.id)
-          .eq('status', 'sku_assigned') // Fetch items with SKU assigned
+          .in('status', ['sku_assigned', 'analyzed']) // Fetch items with SKU assigned or already analyzed
           .order('created_at', { ascending: true });
 
         if (error) throw error;
-        setItemsToGenerate(data || []);
+        const fetchedItems = data || [];
+        setItemsToGenerate(fetchedItems);
+
+        // Identify items that need AI analysis
+        const itemsNeedingAnalysis = fetchedItems.filter(item => item.status === 'sku_assigned');
+
+        if (itemsNeedingAnalysis.length > 0) {
+          setAnalyzingItems(true);
+          setAnalysisStatus('Starting AI analysis...');
+          
+          // Import services here to avoid loading them unnecessarily
+          const { normalizeCondition, normalizeCategory } = await import('../utils/itemUtils');
+          const { KeywordOptimizationService } = await import('../services/KeywordOptimizationService');
+          const keywordService = new KeywordOptimizationService(supabase);
+
+          for (let i = 0; i < itemsNeedingAnalysis.length; i++) {
+            const item = itemsNeedingAnalysis[i];
+            setAnalysisProgress(((i + 1) / itemsNeedingAnalysis.length) * 100);
+            setAnalysisStatus(`Analyzing item ${i + 1}/${itemsNeedingAnalysis.length}: ${item.ai_analysis?.sku || item.title}...`);
+
+            try {
+              // Perform AI analysis
+              const analysisResponse = await fetch('/.netlify/functions/analyze-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageUrl: item.primary_image_url })
+              });
+
+              if (!analysisResponse.ok) {
+                let errorBody = '';
+                try { errorBody = await analysisResponse.text(); } catch (e) {}
+                throw new Error(`AI analysis failed for item ${item.id}: ${analysisResponse.status} ${analysisResponse.statusText}`);
+              }
+
+              const analysisResult = await analysisResponse.json();
+              const analysis = analysisResult.analysis;
+
+              // SAFETY: Ensure priceRange exists
+              if (!analysis.priceRange || typeof analysis.priceRange !== 'object') {
+                const basePrice = analysis.suggestedPrice || 25;
+                analysis.priceRange = { min: Math.round(basePrice * 0.8), max: Math.round(basePrice * 1.3) };
+              }
+              // SAFETY: Ensure keyFeatures exists
+              if (!analysis.keyFeatures || !Array.isArray(analysis.keyFeatures)) {
+                analysis.keyFeatures = [];
+              }
+
+              // Generate keyword suggestions
+              const keywordSuggestions = await keywordService.getKeywordSuggestions(
+                item.primary_image_url || '',
+                analysis.brand || 'Unknown',
+                analysis.category || 'other',
+                item.id,
+                analysis.suggestedTitle,
+                undefined,
+                analysis.confidence
+              );
+
+              // Update item in database with AI analysis results
+              const { error: updateError } = await supabase
+                .from('items')
+                .update({
+                  title: analysis.suggestedTitle,
+                  description: analysis.suggestedDescription,
+                  category: normalizeCategory(analysis.category),
+                  condition: normalizeCondition(analysis.condition),
+                  brand: analysis.brand,
+                  model_number: analysis.model_number,
+                  size: analysis.size,
+                  color: analysis.color,
+                  suggested_price: analysis.suggestedPrice,
+                  price_range_min: analysis.priceRange.min,
+                  price_range_max: analysis.priceRange.max,
+                  ai_confidence: analysis.confidence,
+                  ai_analysis: { ...item.ai_analysis, ...analysis },
+                  ai_suggested_keywords: keywordSuggestions.keywords,
+                  status: 'analyzed'
+                })
+                .eq('id', item.id);
+
+              if (updateError) throw updateError;
+
+              // Update local state for immediate display
+              setItemsToGenerate(prevItems =>
+                prevItems.map(prevItem =>
+                  prevItem.id === item.id
+                    ? {
+                        ...prevItem,
+                        title: analysis.suggestedTitle,
+                        description: analysis.suggestedDescription,
+                        category: normalizeCategory(analysis.category),
+                        condition: normalizeCondition(analysis.condition),
+                        brand: analysis.brand,
+                        model_number: analysis.model_number,
+                        size: analysis.size,
+                        color: analysis.color,
+                        suggested_price: analysis.suggestedPrice,
+                        price_range_min: analysis.priceRange.min,
+                        price_range_max: analysis.priceRange.max,
+                        ai_confidence: analysis.confidence,
+                        ai_analysis: { ...prevItem.ai_analysis, ...analysis },
+                        ai_suggested_keywords: keywordSuggestions.keywords,
+                        status: 'analyzed'
+                      }
+                    : prevItem
+                )
+              );
+
+            } catch (analysisError) {
+              console.error(`❌ [DASHBOARD] Error during AI analysis for item ${item.id}:`, analysisError);
+              // Continue to next item even if one fails
+            }
+          }
+        }
+
       } catch (error) {
-        console.error('Error fetching items for listing generation:', error);
-        alert('Failed to load items for listing generation.');
+        console.error('Error fetching or analyzing items:', error);
+        alert('Failed to load or analyze items for listing generation.');
       } finally {
         setLoadingItems(false);
+        setAnalyzingItems(false);
+        setAnalysisProgress(0);
+        setAnalysisStatus('');
       }
     };
-    fetchItems();
+
+    fetchAndAnalyzeItems();
   }, [authUser]);
 
-  if (loadingItems) {
+  if (loadingItems || analyzingItems) {
     return (
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6 text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyber-blue-500 mx-auto mb-4"></div>
-        <p className="text-white/70">Loading items for listing generation...</p>
+        <p className="text-white/70">
+          {analyzingItems ? analysisStatus : 'Loading items for listing generation...'}
+        </p>
+        {analyzingItems && analysisProgress > 0 && (
+          <div className="w-full bg-gray-700 rounded-full h-2.5 mt-4">
+            <div className="bg-cyber-blue-500 h-2.5 rounded-full" style={{ width: `${analysisProgress}%` }}></div>
+          </div>
+        )}
       </div>
     );
   }
@@ -762,7 +890,7 @@ const AppDashboard = () => {
       console.log('✅ [DASHBOARD] Item deleted successfully');
 
       // Update local state to remove the deleted listing
-      setAllListings(prevListings => 
+      setAllListings(prevListings =>
         prevListings.filter(listing => listing.id !== listingId)
       );
 
@@ -843,6 +971,12 @@ const AppDashboard = () => {
     }
   };
 
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSendMessage();
+    }
+  };
+
   const handleAIResponse = (response) => {
     const aiMessage = {
       id: Date.now(),
@@ -867,6 +1001,15 @@ const AppDashboard = () => {
       "📊 That's a solid flip! Based on your selling history, you typically do well with similar items. Your average profit margin is looking great!"
     ];
     return responses[Math.floor(Math.random() * responses.length)];
+  };
+
+  const generateSKU = (index) => {
+    const date = new Date();
+    const year = date.getFullYear().toString().slice(-2);
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const sequence = (index + 1).toString().padStart(3, '0');
+    return `SKU${year}${month}${day}${sequence}`;
   };
 
   // Handle file upload for new workflow
@@ -1075,152 +1218,88 @@ const AppDashboard = () => {
     navigate('/capture');
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSendMessage();
-    }
-  };
-
-  const generateSKU = (index) => {
-    return `SKU-${Date.now()}-${index.toString().padStart(3, '0')}`;
-  };
-
   // Overview Tab Component
-  const OverviewTab: React.FC<{
-    dashboardStats: DashboardStats;
-    user: any;
-    chatMessages: any[];
-    currentMessage: string;
-    setCurrentMessage: (message: string) => void;
-    handleSendMessage: () => void;
-    handleKeyPress: (e: any) => void;
-    chatEndRef: any;
-  }> = ({ dashboardStats, user, chatMessages, currentMessage, setCurrentMessage, handleSendMessage, handleKeyPress, chatEndRef }) => {
-    return (
-      <div className="space-y-6">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
-            icon={DollarSign}
-            title="Total Revenue"
-            value={`$${dashboardStats.totalRevenue.toFixed(2)}`}
-            change={dashboardStats.revenueChange}
-            gradient="from-green-500 to-emerald-600"
-            metric="revenue"
-            subtitle="This month"
-          />
-          <StatCard
-            icon={ShoppingCart}
-            title="Total Sales"
-            value={dashboardStats.totalSales.toString()}
-            change={dashboardStats.salesChange}
-            gradient="from-blue-500 to-cyan-600"
-            metric="sales"
-            subtitle="Items sold"
-          />
-          <StatCard
-            icon={Eye}
-            title="Total Views"
-            value={dashboardStats.totalViews.toString()}
-            change={dashboardStats.viewsChange}
-            gradient="from-purple-500 to-pink-600"
-            metric="views"
-            subtitle="Listing views"
-          />
-          <StatCard
-            icon={Package}
-            title="Active Listings"
-            value={dashboardStats.activeListings.toString()}
-            change={dashboardStats.listingsChange}
-            gradient="from-orange-500 to-red-600"
-            metric="listings"
-            subtitle={`${user?.listings_used || 0}/${user?.listings_limit || 0} used`}
-          />
-        </div>
+  const OverviewTab = ({ dashboardStats, user, chatMessages, currentMessage, setCurrentMessage, handleSendMessage, handleKeyPress, chatEndRef }) => (
+    <div className="space-y-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          icon={DollarSign}
+          title="Total Revenue"
+          value={`$${dashboardStats.totalRevenue.toFixed(2)}`}
+          change={dashboardStats.revenueChange}
+          gradient="from-green-500 to-emerald-600"
+          metric="revenue"
+          subtitle="This month"
+        />
+        <StatCard
+          icon={ShoppingCart}
+          title="Total Sales"
+          value={dashboardStats.totalSales}
+          change={dashboardStats.salesChange}
+          gradient="from-blue-500 to-cyan-600"
+          metric="sales"
+          subtitle="Items sold"
+        />
+        <StatCard
+          icon={Eye}
+          title="Total Views"
+          value={dashboardStats.totalViews}
+          change={dashboardStats.viewsChange}
+          gradient="from-purple-500 to-pink-600"
+          metric="views"
+          subtitle="Listing views"
+        />
+        <StatCard
+          icon={Package}
+          title="Active Listings"
+          value={dashboardStats.activeListings}
+          change={dashboardStats.listingsChange}
+          gradient="from-orange-500 to-red-600"
+          metric="listings"
+          subtitle="Currently listed"
+        />
+      </div>
 
-        {/* Quick Actions */}
-        <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
-          <h2 className="text-xl font-bold mb-4 text-white dark:text-white">Quick Actions</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button
-              onClick={() => setActiveTab('upload')}
-              className="bg-cyber-gradient hover:opacity-90 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
-            >
-              <Upload className="w-6 h-6" />
-              <span>Upload Photos</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('skus')}
-              className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
-            >
-              <Package className="w-6 h-6" />
-              <span>Assign SKUs</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('generate')}
-              className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
-            >
-              <Zap className="w-6 h-6" />
-              <span>Generate Listings</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('coach')}
-              className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
-            >
-              <Bot className="w-6 h-6" />
-              <span>AI Coach</span>
-            </button>
-          </div>
-        </div>
-
-        {/* AI Coach Preview */}
-        <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white dark:text-white">🤖 AI Coach</h2>
-            <button
-              onClick={() => setActiveTab('coach')}
-              className="text-cyber-blue-500 hover:text-cyber-blue-400 text-sm font-medium"
-            >
-              Open Full Chat →
-            </button>
-          </div>
-          
-          <div className="bg-white/5 dark:bg-white/5 rounded-lg p-4 mb-4 max-h-40 overflow-y-auto">
-            {chatMessages.slice(-2).map((msg) => (
-              <div key={msg.id} className={`mb-2 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
-                <div className={`inline-block p-2 rounded-lg text-sm max-w-xs ${
-                  msg.sender === 'user'
-                    ? 'bg-cyber-gradient text-white'
-                    : 'bg-gray-700 text-white'
-                }`}>
-                  {msg.text}
-                </div>
+      {/* AI Coach Chat */}
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+        <h2 className="text-xl font-bold mb-4 text-white dark:text-white">🤖 AI Reseller Coach</h2>
+        
+        <div className="h-64 overflow-y-auto mb-4 p-4 rounded-lg bg-white/5 dark:bg-white/5">
+          {chatMessages.map((msg) => (
+            <div key={msg.id} className={`mb-3 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
+              <div className={`inline-block p-3 rounded-lg max-w-xs ${
+                msg.sender === 'user'
+                  ? 'bg-cyber-gradient text-white'
+                  : 'bg-gray-700 text-white'
+              }`}>
+                <span className="text-sm">{msg.text}</span>
               </div>
-            ))}
-            <div ref={chatEndRef} />
-          </div>
-          
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              value={currentMessage}
-              onChange={(e) => setCurrentMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask your AI coach..."
-              className="flex-1 p-2 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50 text-sm"
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={!currentMessage.trim()}
-              className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-2 rounded-lg transition-opacity"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
+            </div>
+          ))}
+          <div ref={chatEndRef} />
+        </div>
+        
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            value={currentMessage}
+            onChange={(e) => setCurrentMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Ask your coach anything..."
+            className="flex-1 p-3 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50"
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={!currentMessage.trim()}
+            className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-3 rounded-lg transition-opacity"
+          >
+            <Send className="w-5 h-5" />
+          </button>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
 
   // Render content based on active tab
   const renderTabContent = () => {
