@@ -1,5 +1,5 @@
 // Utility functions for item data processing
-import { safeTrim, safeLower, safeUpper, isStr, nullIfUnknown, safeSlice, toStr, take, safeNumber } from './strings';
+import { safeTrim, safeLower, safeUpper, isStr, nullIfUnknown, safeSlice, toStr, take, safeNumber, sSub } from './strings';
 
 // Normalize condition values from AI to match database enum
 export const normalizeCondition = (condition: string): string => {
@@ -275,5 +275,5 @@ export const buildTitle = (components: {
 // Helper function to capitalize first letter
 const cap = (s: string): string => {
   const str = safeTrim(toStr(s));
-  return str.charAt(0).toUpperCase() + safeSlice(str, 1).toLowerCase();
+  return str.charAt(0).toUpperCase() + sSub(str, 1).toLowerCase();
 };

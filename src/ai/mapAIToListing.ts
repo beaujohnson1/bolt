@@ -24,6 +24,9 @@ export function mapAIToListing(ai: RawAI) {
   // Extract title first
   const titleRaw = safeTrim(ai.title);
   
+  // Extract title first
+  const titleRaw = safeTrim(ai.title);
+  
   // arrays - safely filter and trim
   const keywords = Array.isArray(ai.keywords)
     ? ai.keywords.filter(isStr).map(safeTrim).filter(Boolean).slice(0, 20)

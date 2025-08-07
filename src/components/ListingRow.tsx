@@ -64,7 +64,7 @@ const ListingRow: React.FC<ListingRowProps> = ({
   const formatItemSpecifics = (specifics: Record<string, string>) => {
     const entries = Object.entries(specifics).filter(([key, value]) => {
       const trimmedValue = safeTrim(toStr(value));
-      return trimmedValue && trimmedValue !== 'Unknown' && trimmedValue !== 'Unknown Brand';
+      return trimmedValue && !/^unknown/i.test(trimmedValue);
     });
     
     if (entries.length === 0) return 'No specifics available';

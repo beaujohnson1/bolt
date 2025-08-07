@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, X } from 'lucide-react';
-import { safeTrim, nullIfUnknown, toStr } from '../utils/strings';
+import { safeTrim, nullIfUnknown, toStr, sSub } from '../utils/strings';
 
 interface ItemSpecificsProps {
   specifics: Record<string, string>;

@@ -190,14 +190,14 @@ exports.handler = async (event, context) => {
       console.log('📊 [OPENAI-FUNCTION] Parsed keys:', Object.keys(parsedAnalysis));
     } catch (parseError) {
       console.error('❌ [OPENAI-FUNCTION] Failed to parse JSON on server:', parseError);
-      console.log('📝 [OPENAI-FUNCTION] Raw content that failed to parse:', clean.substring(0, 200));
+      console.log('📝 [OPENAI-FUNCTION] Raw content that failed to parse:', sSub(clean, 0, 200));
       return {
         statusCode: 500,
         headers: { 'Access-Control-Allow-Origin': '*' },
         body: JSON.stringify({
           ok: false,
           error: 'Failed to parse AI response as JSON',
-          raw_preview: clean.substring(0, 200)
+          raw_preview: sSub(clean, 0, 200)
         })
       };
     }

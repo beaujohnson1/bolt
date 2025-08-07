@@ -50,7 +50,7 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     console.log('📊 [OPENAI-CLIENT] Pre-extraction results:', {
       preSize,
       preBrand,
-      ocrTextPreview: ocrText.substring(0, 100)
+      ocrTextPreview: sSub(ocrText, 0, 100)
     });
 
     // Step 3: Enhanced AI analysis with constraints
