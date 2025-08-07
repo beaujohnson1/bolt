@@ -443,7 +443,8 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
   const uploadArea = (
     <div className="bg-white rounded-xl shadow-sm border p-8">
       {selectedImages.length === 0 ? (
-        <div className="text-center">
+        <>
+          <div className="text-center">
           <div 
             className={`border-2 border-dashed rounded-xl p-12 transition-all duration-300 ${
               isDragOver 
@@ -476,16 +477,16 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
               </div>
             </div>
           </div>
-        </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleImageSelect}
-          className="hidden"
-        />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+        </>
       ) : (
         <div>
           <div className="mb-6">
