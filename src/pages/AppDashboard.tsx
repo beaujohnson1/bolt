@@ -68,6 +68,7 @@ const UploadTab: React.FC<{
   uploadProgress: number;
 }> = ({ selectedFiles, onFileUpload, onProcessFiles, isUploading, uploadProgress }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragActive, setDragActive] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -87,19 +88,41 @@ const UploadTab: React.FC<{
 
       {/* Upload Area */}
       <div 
-        className="border-2 border-dashed border-cyber-blue-500/30 dark:border-cyber-blue-500/30 rounded-3xl p-20 text-center bg-white/2 dark:bg-white/2 backdrop-blur-light transition-all duration-400 cursor-pointer hover:border-cyber-blue-500 hover:bg-cyber-blue-500/5 hover:-translate-y-1 hover:shadow-2xl hover:shadow-cyber-blue-500/20 upload-area-hover"
+        className={`border-2 border-dashed rounded-3xl p-20 text-center backdrop-blur-light transition-all duration-400 cursor-pointer ${
+          dragActive 
+            ? 'border-cyber-blue-500 bg-cyber-blue-500/10 transform -translate-y-1 shadow-2xl shadow-cyber-blue-500/30' 
+            : 'border-cyber-blue-500/30 dark:border-cyber-blue-500/30 bg-white/2 dark:bg-white/2 hover:border-cyber-blue-500 hover:bg-cyber-blue-500/5 hover:-translate-y-1 hover:shadow-2xl hover:shadow-cyber-blue-500/20'
+        } upload-area-hover`}
         onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => { 
+          e.preventDefault(); 
+          setDragActive(true); 
+        }}
+        onDragLeave={(e) => { 
+          e.preventDefault(); 
+          setDragActive(false); 
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragActive(false);
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const event = {
+              target: { files: e.dataTransfer.files }
+            } as React.ChangeEvent<HTMLInputElement>;
+            onFileUpload(event);
+          }
+        }}
       >
         <div className="w-20 h-20 bg-cyber-gradient rounded-full mx-auto mb-6 flex items-center justify-center text-3xl shadow-lg shadow-cyber-blue-500/40 transition-transform duration-300 hover:scale-110 hover:rotate-6">
           <Cloud className="w-8 h-8 text-white" />
         </div>
         
         <div className="text-2xl font-bold mb-3 text-cyber-gradient">
-          AI PHOTO UPLOAD ZONE
+          {dragActive ? 'DROP FILES HERE!' : 'AI PHOTO UPLOAD ZONE'}
         </div>
         
         <div className="text-white/70 dark:text-white/70 mb-4 text-lg">
-          Drag and drop or click to select your inventory photos
+          {dragActive ? 'Release to upload your photos' : 'Drag and drop or click to select your inventory photos'}
         </div>
         
         <div className="text-white/50 dark:text-white/50 text-sm font-medium">

@@ -31,10 +31,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activeTab, 
   };
 
   const tabs = [
+    { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'upload', label: 'Upload', icon: '📤' },
     { id: 'skus', label: 'SKUs', icon: '🏷️' },
     { id: 'generate', label: 'Generate Listings', icon: '✨' },
     { id: 'publish', label: 'Publish', icon: '🚀' },
+    { id: 'coach', label: 'Coach', icon: '🤖' },
   ];
 
   const handleSignOut = async () => {
@@ -114,7 +116,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activeTab, 
                       </div>
                     </div>
                     <button
-                      onClick={() => {/* TODO: Connect eBay */}}
+                      onClick={() => { 
+                        console.log('TODO: Implement eBay connection flow'); 
+                        alert('eBay connection coming soon!'); 
+                        setShowAccountMenu(false); 
+                      }}
                       className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${
                         isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'
                       }`}
