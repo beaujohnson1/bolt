@@ -842,5 +842,3 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
 };
 
 export default GenerateListingsTable;
-
-export default GenerateListingsTable
