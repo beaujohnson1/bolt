@@ -49,7 +49,12 @@ export const normalizeCategory = (category: string): string => {
     'jewelry': 'jewelry',
     'watch': 'jewelry',
     'necklace': 'jewelry',
-    'bracelet': 'jewelry',
+    'bracelet': 'jewelry'
+  };
+  
+  return categoryMap[normalized] || 'other';
+};
+
 /**
  * Generate SKU based on item properties
  * @param item - Item object with brand, category, size properties
@@ -83,30 +88,6 @@ export const generateSKU = (item: { brand?: string; category?: string; size?: st
  * @param prefix - SKU prefix (default: 'SKU')
  * @returns Sequential SKU string
  */
-export const generateSequentialSKU = (index: number, prefix: string = 'SKU'): string => {
-  return `${prefix}-${String(index + 1).padStart(3, '0')}`;
-};
-
-// Format price for display
-export const formatPrice = (price: number): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(price);
-};
-
-// Format date for display
-export const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
-};
-  return categoryMap[normalized] || 'other';
-};
-
-// Generate sequential SKU numbers
 export const generateSequentialSKU = (index: number, prefix: string = 'SKU'): string => {
   return `${prefix}-${String(index + 1).padStart(3, '0')}`;
 };
