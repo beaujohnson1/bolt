@@ -7,6 +7,7 @@ import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
 import EbayApiService, { type TrendingItem } from '../services/ebayApi';
 import DashboardLayout from '../components/DashboardLayout';
 import { resizeImage, calculateImageHash, processImagesWithEnhancement } from '../utils/imageUtils';
+import { generateSKU } from '../utils/itemUtils';
 
 // Types for dashboard data
 interface DashboardStats {
@@ -1079,10 +1080,6 @@ const AppDashboard = () => {
     if (e.key === 'Enter') {
       handleSendMessage();
     }
-  };
-
-  const generateSKU = (index) => {
-    return `SKU-${Date.now()}-${index.toString().padStart(3, '0')}`;
   };
 
   // Overview Tab Component
