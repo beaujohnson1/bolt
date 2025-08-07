@@ -148,11 +148,12 @@ exports.handler = async (event, context) => {
     if (typeof raw !== "string") raw = JSON.stringify(raw);
     const clean = stripFences(raw);
     
-    // Parse on the server
+    // Parse on the server (critical change)
     let parsedAnalysis;
     try {
       parsedAnalysis = JSON.parse(clean);
       console.log('✅ [OPENAI-FUNCTION] Successfully parsed JSON on server');
+      console.log('📊 [OPENAI-FUNCTION] Parsed keys:', Object.keys(parsedAnalysis));
     } catch (parseError) {
       console.error('❌ [OPENAI-FUNCTION] Failed to parse JSON on server:', parseError);
       console.log('📝 [OPENAI-FUNCTION] Raw content that failed to parse:', clean.substring(0, 200));
@@ -167,7 +168,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    console.log('📝 [OPENAI-FUNCTION] Parsed analysis keys:', Object.keys(parsedAnalysis));
 
     return {
       statusCode: 200,

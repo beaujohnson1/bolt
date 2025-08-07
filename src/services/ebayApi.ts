@@ -669,6 +669,93 @@ class EbayApiService {
     };
   }
 
+  // Get category suggestions from eBay Taxonomy API
+  async getCategorySuggestions(query: string): Promise<Array<{
+    categoryId: string;
+    categoryName: string;
+    categoryPath: string;
+    confidence: number;
+  }>> {
+    try {
+      console.log('🎯 [EBAY] Getting category suggestions for query:', query);
+      
+      const encodedQuery = encodeURIComponent(query);
+      const apiUrl = `${this.config.baseUrl}/commerce/taxonomy/v1/category_tree/0/get_category_suggestions?q=${encodedQuery}`;
+      
+      const response = await this._callProxy(
+        apiUrl,
+        'GET',
+        {
+          'Authorization': `Bearer ${await this.getApplicationToken()}`,
+          'Content-Type': 'application/json'
+        }
+      );
+
+      if (response.status !== 200) {
+        console.error('❌ [EBAY] Category suggestions failed:', response.status);
+        return [];
+      }
+
+      const data = response.data;
+      const suggestions = (data.categorySuggestions || []).map((suggestion: any) => ({
+        categoryId: suggestion.category?.categoryId || '',
+        categoryName: suggestion.category?.categoryName || '',
+        categoryPath: suggestion.category?.categoryTreeNodeAncestors?.map((a: any) => a.categoryName).join(' > ') || '',
+        confidence: suggestion.relevancy?.score || 0.5
+      }));
+      
+      console.log('✅ [EBAY] Category suggestions retrieved:', suggestions.length);
+      return suggestions;
+    } catch (error) {
+      console.error('❌ [EBAY] Error getting category suggestions:', error);
+      return [];
+    }
+  }
+
+  // Get item aspects (specifics) for a category from eBay Sell Metadata API
+  async getItemAspectsForCategory(categoryId: string): Promise<Array<{
+    name: string;
+    importance: 'REQUIRED' | 'RECOMMENDED' | 'OPTIONAL';
+    allowedValues: string[];
+    maxValues: number;
+    aspectDataType: string;
+  }>> {
+    try {
+      console.log('📋 [EBAY] Getting item aspects for category:', categoryId);
+      
+      const apiUrl = `${this.config.baseUrl}/sell/metadata/v1/category/${categoryId}/item_aspects`;
+      
+      const response = await this._callProxy(
+        apiUrl,
+        'GET',
+        {
+          'Authorization': `Bearer ${await this.getApplicationToken()}`,
+          'Content-Type': 'application/json'
+        }
+      );
+
+      if (response.status !== 200) {
+        console.error('❌ [EBAY] Item aspects failed:', response.status);
+        return [];
+      }
+
+      const data = response.data;
+      const aspects = (data.aspects || []).map((aspect: any) => ({
+        name: aspect.localizedAspectName || aspect.aspectName,
+        importance: aspect.aspectConstraint?.aspectMode || aspect.aspectConstraint?.importance || 'OPTIONAL',
+        allowedValues: (aspect.aspectValues || []).map((v: any) => v.localizedValue || v.value),
+        maxValues: aspect.aspectConstraint?.aspectMaxLength || 1,
+        aspectDataType: aspect.aspectDataType || 'STRING'
+      }));
+      
+      console.log('✅ [EBAY] Item aspects retrieved:', aspects.length);
+      return aspects;
+    } catch (error) {
+      console.error('❌ [EBAY] Error getting item aspects:', error);
+      return [];
+    }
+  }
+
   // Get trending/best-selling items from eBay
   async getTrendingItems(categoryIds: string[] = [], limit: number = 12): Promise<TrendingItem[]> {
     try {

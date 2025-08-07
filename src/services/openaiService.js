@@ -110,6 +110,18 @@ export const analyzeClothingTags = async (imageBase64) => {
   }
 };
 
+// Helper function to get OCR text (simplified version)
+const getOcrText = async (imageUrl) => {
+  try {
+    // For now, return empty string - can be enhanced with Google Vision later
+    console.log('📝 [OCR] OCR text extraction (placeholder)');
+    return '';
+  } catch (error) {
+    console.error('❌ [OCR] OCR failed:', error);
+    return '';
+  }
+};
+
 // Test function to verify OpenAI connection
 export const testOpenAIConnection = async () => {
   try {

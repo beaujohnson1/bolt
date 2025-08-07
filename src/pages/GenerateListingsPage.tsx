@@ -235,7 +235,9 @@ const GenerateListingsPage = () => {
           key_features: extractedData.keyFeatures || [],
           market_comparisons: analysisResult?.marketResearch || {},
           category_suggestions: analysisResult?.categoryAnalysis?.suggestions || [],
-          ai_source: aiData?.source || 'fallback'
+          ai_source: aiData?.source || 'fallback',
+          ebay_category_id: analysisResult?.ebay_category_id || null,
+          ebay_item_specifics: extractedData.ebaySpecifics || {}
         },
         status: 'draft',
         created_at: new Date().toISOString(),

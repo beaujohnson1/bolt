@@ -46,7 +46,10 @@ export const useAIAnalysis = () => {
       
       // Use the existing OpenAI service with retry logic
       const result = await withRetry(
-        () => analyzeClothingItem(imageUrl),
+        () => analyzeClothingItem(imageUrl, {
+          includeEbayAspects: options.includeCategoryAnalysis || false,
+          sku: options.sku
+        }),
         2, // Reduced retries to avoid long waits
         2000 // 2 second delay between retries
       );

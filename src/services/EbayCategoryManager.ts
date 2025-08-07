@@ -107,6 +107,51 @@ export class EbayCategoryManager {
     try {
       console.log('📋 [CATEGORY-MANAGER] Getting specifics for category:', categoryId);
       
+      // Check cache first
+      const { data: cachedCategory, error: cacheError } = await this.supabase
+        .from('ebay_categories')
+        .select('item_specifics')
+        .eq('category_id', categoryId)
+        .gte('last_updated', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // 24 hours
+        .single();
+      
+      if (!cacheError && cachedCategory?.item_specifics) {
+        console.log('✅ [CATEGORY-MANAGER] Using cached category specifics');
+        return cachedCategory.item_specifics;
+      }
+
+      // Use new eBay Sell Metadata API for better specifics
+      const ebayAspects = await this.ebayApi.getItemAspectsForCategory(categoryId);
+      
+      if (ebayAspects.length > 0) {
+        // Convert eBay aspects to our ItemSpecific format
+        const specifics: ItemSpecific[] = ebayAspects.map(aspect => ({
+          name: aspect.name,
+          maxValues: aspect.maxValues,
+          selectionMode: aspect.allowedValues.length > 0 ? 'SelectionOrFreeText' : 'FreeText',
+          values: aspect.allowedValues,
+          required: aspect.importance === 'REQUIRED',
+          helpText: `${aspect.importance} - ${aspect.aspectDataType}`
+        }));
+        
+        // Cache the results
+        await this.supabase
+          .from('ebay_categories')
+          .upsert({
+            category_id: categoryId,
+            category_name: 'Auto-detected',
+            category_path: 'Auto-detected',
+            is_leaf_category: true,
+            category_level: 1,
+            item_specifics: specifics,
+            last_updated: new Date().toISOString()
+          });
+        
+        console.log('✅ [CATEGORY-MANAGER] eBay API category specifics retrieved and cached:', specifics.length);
+        return specifics;
+      }
+      
+      // Fallback to existing logic
       const specifics = await this.ebayApi.getCategorySpecifics(categoryId);
       
       console.log('✅ [CATEGORY-MANAGER] Category specifics retrieved:', specifics.length);
