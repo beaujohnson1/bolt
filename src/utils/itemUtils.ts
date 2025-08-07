@@ -1,5 +1,5 @@
 // Utility functions for item data processing
-import { safeTrim, safeLower, safeUpper, isStr, nullIfUnknown, safeSlice, toStr, take } from './strings';
+import { safeTrim, safeLower, safeUpper, isStr, nullIfUnknown, safeSlice, toStr, take, safeNumber } from './strings';
 
 // Normalize condition values from AI to match database enum
 export const normalizeCondition = (condition: string): string => {
@@ -97,15 +97,17 @@ export const generateSequentialSKU = (index: number, prefix: string = 'SKU'): st
 
 // Format price for display
 export const formatPrice = (price: number): string => {
+  const safePrice = safeNumber(price, 0);
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD'
-  }).format(price);
+  }).format(safePrice);
 };
 
 // Format date for display
 export const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString('en-US', {
+  const safeDateString = toStr(dateString);
+  return new Date(safeDateString).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
