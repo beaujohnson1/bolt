@@ -964,8 +964,6 @@ const AppDashboard = () => {
           throw itemError;
         }
         processedItems.push(itemData);
-
-        // Generate keyword suggestions
       }
 
       // Update user's listing count
@@ -1088,71 +1086,82 @@ const AppDashboard = () => {
   };
 
   // Overview Tab Component
-  const OverviewTab = ({ dashboardStats, user, chatMessages, currentMessage, setCurrentMessage, handleSendMessage, handleKeyPress, chatEndRef }) => (
-    <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          icon={DollarSign}
-          title="Total Revenue"
-          value={`$${dashboardStats.totalRevenue.toFixed(2)}`}
-          change={dashboardStats.revenueChange}
-          gradient="from-green-500 to-emerald-600"
-          metric="revenue"
-          subtitle="This month"
-        />
-        <StatCard
-          icon={ShoppingCart}
-          title="Total Sales"
-          value={dashboardStats.totalSales.toString()}
-          change={dashboardStats.salesChange}
-          gradient="from-blue-500 to-cyan-600"
-          metric="sales"
-          subtitle="Items sold"
-        />
-        <StatCard
-          icon={Eye}
-          title="Total Views"
-          value={dashboardStats.totalViews.toString()}
-          change={dashboardStats.viewsChange}
-          gradient="from-purple-500 to-violet-600"
-          metric="views"
-          subtitle="Listing views"
-        />
-        <StatCard
-          icon={Package}
-          title="Active Listings"
-          value={dashboardStats.activeListings.toString()}
-          change={dashboardStats.listingsChange}
-          gradient="from-orange-500 to-red-600"
-          metric="listings"
-          subtitle="Currently listed"
-        />
-      </div>
-
-      {/* Quick Chat */}
-      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
-        <h2 className="text-xl font-bold mb-4 text-white dark:text-white">🤖 Quick AI Coach</h2>
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            value={currentMessage}
-            onChange={(e) => setCurrentMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Ask your AI coach anything..."
-            className="flex-1 p-3 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50"
+  const OverviewTab: React.FC<{
+    dashboardStats: DashboardStats;
+    user: any;
+    chatMessages: any[];
+    currentMessage: string;
+    setCurrentMessage: (message: string) => void;
+    handleSendMessage: () => void;
+    handleKeyPress: (e: any) => void;
+    chatEndRef: any;
+  }> = ({ dashboardStats, user, chatMessages, currentMessage, setCurrentMessage, handleSendMessage, handleKeyPress, chatEndRef }) => {
+    return (
+      <div className="space-y-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard
+            icon={DollarSign}
+            title="Total Revenue"
+            value={`$${dashboardStats.totalRevenue.toFixed(2)}`}
+            change={dashboardStats.revenueChange}
+            gradient="from-green-500 to-emerald-600"
+            metric="revenue"
+            subtitle="This month"
           />
-          <button
-            onClick={handleSendMessage}
-            disabled={!currentMessage.trim()}
-            className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-3 rounded-lg transition-opacity"
-          >
-            <Send className="w-5 h-5" />
-          </button>
+          <StatCard
+            icon={ShoppingCart}
+            title="Total Sales"
+            value={dashboardStats.totalSales.toString()}
+            change={dashboardStats.salesChange}
+            gradient="from-blue-500 to-cyan-600"
+            metric="sales"
+            subtitle="Items sold"
+          />
+          <StatCard
+            icon={Eye}
+            title="Total Views"
+            value={dashboardStats.totalViews.toString()}
+            change={dashboardStats.viewsChange}
+            gradient="from-purple-500 to-pink-600"
+            metric="views"
+            subtitle="Listing views"
+          />
+          <StatCard
+            icon={Package}
+            title="Active Listings"
+            value={dashboardStats.activeListings.toString()}
+            change={dashboardStats.listingsChange}
+            gradient="from-orange-500 to-red-600"
+            metric="listings"
+            subtitle="Currently listed"
+          />
+        </div>
+
+        {/* Quick Chat */}
+        <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+          <h2 className="text-xl font-bold mb-4 text-white dark:text-white">🤖 Quick AI Coach</h2>
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              value={currentMessage}
+              onChange={(e) => setCurrentMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Ask your AI coach anything..."
+              className="flex-1 p-3 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50"
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!currentMessage.trim()}
+              className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-3 rounded-lg transition-opacity"
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Render content based on active tab
   const renderTabContent = () => {
