@@ -69,7 +69,8 @@ const UploadTab: React.FC<{
   onProcessFiles: () => void;
   isUploading: boolean;
   uploadProgress: number;
-}> = ({ selectedFiles, onFileUpload, onProcessFiles, isUploading, uploadProgress }) => {
+  processingStatus: string;
+}> = ({ selectedFiles, onFileUpload, onProcessFiles, isUploading, uploadProgress, processingStatus }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -163,14 +164,15 @@ const UploadTab: React.FC<{
                 </div>
               </div>
             ))}
-                  {processingStatus || `Processing ${selectedFiles.length} photos...`}
-              <div className="bg-white/10 dark:bg-white/10 rounded-lg p-3 text-center flex items-center justify-center">
-                <div className="text-white/80 dark:text-white/80 text-sm">
-                  Please wait while we process your photos with AI...
-                </div>
-              </div>
-            )}
           </div>
+          
+          {isUploading && (
+            <div className="bg-white/10 dark:bg-white/10 rounded-lg p-3 text-center flex items-center justify-center mb-6">
+              <div className="text-white/80 dark:text-white/80 text-sm">
+                {processingStatus || `Processing ${selectedFiles.length} photos...`}
+              </div>
+            </div>
+          )}
           
           {/* Process Button */}
           <button
@@ -1158,6 +1160,8 @@ const AppDashboard = () => {
           onProcessFiles={processUploadedFiles}
           isUploading={isUploading}
           uploadProgress={uploadProgress}
+          processingStatus={processingStatus}
+          processingStatus={processingStatus}
         />;
       case 'skus':
         return <SKUTab setActiveTab={setActiveTab} />;
