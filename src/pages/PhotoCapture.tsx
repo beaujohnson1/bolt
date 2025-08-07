@@ -445,35 +445,36 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
       {selectedImages.length === 0 ? (
         <>
           <div className="text-center">
-          <div 
-            className={`border-2 border-dashed rounded-xl p-12 transition-all duration-300 ${
-              isDragOver 
-                ? 'border-blue-500 bg-blue-50' 
-                : 'border-gray-300 hover:border-blue-400'
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <Camera className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {isDragOver ? 'Drop your photos here!' : 'Add Your Photos'}
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Drag and drop photos here, or click to upload multiple photos of your item from different angles.
-            </p>
-            
-            <div className="space-y-4">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Upload Photos</span>
-              </button>
+            <div 
+              className={`border-2 border-dashed rounded-xl p-12 transition-all duration-300 ${
+                isDragOver 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-300 hover:border-blue-400'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <Camera className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {isDragOver ? 'Drop your photos here!' : 'Add Your Photos'}
+              </h3>
+              <p className="text-gray-600 mb-6">
+                Drag and drop photos here, or click to upload multiple photos of your item from different angles.
+              </p>
               
-              <div className="text-sm text-gray-500">
-                Supports JPG, PNG up to 10MB each. Upload 2-8 photos for best results.
+              <div className="space-y-4">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Upload Photos</span>
+                </button>
+                
+                <div className="text-sm text-gray-500">
+                  Supports JPG, PNG up to 10MB each. Upload 2-8 photos for best results.
+                </div>
               </div>
             </div>
           </div>
