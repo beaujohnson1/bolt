@@ -259,10 +259,6 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
     }
   };
 
-  const generateSKU = (index: number) => {
-    return `SKU-${Date.now()}-${index.toString().padStart(3, '0')}`;
-  };
-
   if (loadingSkus) {
     return (
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6 text-center">
@@ -431,48 +427,6 @@ const PublishTab: React.FC = () => {
           <p className="text-white/50 dark:text-white/50">
             Generate listings first to publish them
           </p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Overview Tab Component
-const OverviewTab: React.FC<{
-  dashboardStats: DashboardStats;
-  user: any;
-  chatMessages: any[];
-  currentMessage: string;
-  setCurrentMessage: (message: string) => void;
-  handleSendMessage: () => void;
-  handleKeyPress: (e: React.KeyboardEvent) => void;
-  chatEndRef: React.RefObject<HTMLDivElement>;
-}> = ({ dashboardStats, user, chatMessages, currentMessage, setCurrentMessage, handleSendMessage, handleKeyPress, chatEndRef }) => {
-  return (
-    <div className="space-y-6">
-      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
-        <h2 className="text-xl font-bold mb-4 text-white dark:text-white">📊 Dashboard Overview</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white/10 rounded-lg p-4 text-center">
-            <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
-            <p className="text-white/80 text-sm">Total Revenue</p>
-            <p className="text-2xl font-bold text-white">${dashboardStats.totalRevenue}</p>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 text-center">
-            <ShoppingCart className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-            <p className="text-white/80 text-sm">Total Sales</p>
-            <p className="text-2xl font-bold text-white">{dashboardStats.totalSales}</p>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 text-center">
-            <Eye className="w-8 h-8 text-purple-400 mx-auto mb-2" />
-            <p className="text-white/80 text-sm">Total Views</p>
-            <p className="text-2xl font-bold text-white">{dashboardStats.totalViews}</p>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 text-center">
-            <Package className="w-8 h-8 text-orange-400 mx-auto mb-2" />
-            <p className="text-white/80 text-sm">Active Listings</p>
-            <p className="text-2xl font-bold text-white">{dashboardStats.activeListings}</p>
-          </div>
         </div>
       </div>
     </div>
@@ -889,12 +843,6 @@ const AppDashboard = () => {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSendMessage();
-    }
-  };
-
   const handleAIResponse = (response) => {
     const aiMessage = {
       id: Date.now(),
@@ -1016,6 +964,8 @@ const AppDashboard = () => {
           throw itemError;
         }
         processedItems.push(itemData);
+
+        // Generate keyword suggestions
       }
 
       // Update user's listing count
@@ -1126,6 +1076,83 @@ const AppDashboard = () => {
   const handleNewListing = () => {
     navigate('/capture');
   };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSendMessage();
+    }
+  };
+
+  const generateSKU = (index) => {
+    return `SKU-${Date.now()}-${index.toString().padStart(3, '0')}`;
+  };
+
+  // Overview Tab Component
+  const OverviewTab = ({ dashboardStats, user, chatMessages, currentMessage, setCurrentMessage, handleSendMessage, handleKeyPress, chatEndRef }) => (
+    <div className="space-y-6">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          icon={DollarSign}
+          title="Total Revenue"
+          value={`$${dashboardStats.totalRevenue.toFixed(2)}`}
+          change={dashboardStats.revenueChange}
+          gradient="from-green-500 to-emerald-600"
+          metric="revenue"
+          subtitle="This month"
+        />
+        <StatCard
+          icon={ShoppingCart}
+          title="Total Sales"
+          value={dashboardStats.totalSales.toString()}
+          change={dashboardStats.salesChange}
+          gradient="from-blue-500 to-cyan-600"
+          metric="sales"
+          subtitle="Items sold"
+        />
+        <StatCard
+          icon={Eye}
+          title="Total Views"
+          value={dashboardStats.totalViews.toString()}
+          change={dashboardStats.viewsChange}
+          gradient="from-purple-500 to-violet-600"
+          metric="views"
+          subtitle="Listing views"
+        />
+        <StatCard
+          icon={Package}
+          title="Active Listings"
+          value={dashboardStats.activeListings.toString()}
+          change={dashboardStats.listingsChange}
+          gradient="from-orange-500 to-red-600"
+          metric="listings"
+          subtitle="Currently listed"
+        />
+      </div>
+
+      {/* Quick Chat */}
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+        <h2 className="text-xl font-bold mb-4 text-white dark:text-white">🤖 Quick AI Coach</h2>
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            value={currentMessage}
+            onChange={(e) => setCurrentMessage(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Ask your AI coach anything..."
+            className="flex-1 p-3 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50"
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={!currentMessage.trim()}
+            className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-3 rounded-lg transition-opacity"
+          >
+            <Send className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   // Render content based on active tab
   const renderTabContent = () => {
