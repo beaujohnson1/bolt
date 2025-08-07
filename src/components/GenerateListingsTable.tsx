@@ -20,6 +20,11 @@ interface SKUGroup {
   photo_count: number;
   status: 'ready_for_generation' | 'processing' | 'completed' | 'error';
   created_at: string;
+  title?: string;
+  price?: number;
+  category_path?: string;
+  item_specifics?: string;
+  condition?: string;
 }
 
 const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMode }) => {
@@ -225,7 +230,8 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
       return {
         item: itemResult,
         listing: listingResult,
-        sku: skuGroup.sku
+        sku: skuGroup.sku,
+        analysis
       };
 
     } catch (error) {
@@ -318,6 +324,26 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
           const result = await processSKUGroupAndGenerateListing(skuGroup);
           results.push(result);
           
+          // Update the SKU group with generated data
+          setSkuGroups(prev => prev.map(group => 
+            group.sku === skuGroup.sku 
+              ? {
+                  ...group,
+                  status: 'completed',
+                  title: result.analysis.suggestedTitle,
+                  price: result.analysis.suggestedPrice,
+                  category_path: getCategoryPath(normalizeCategory(result.analysis.category)),
+                  item_specifics: getItemSpecifics({
+                    brand: result.analysis.brand,
+                    size: result.analysis.size,
+                    color: result.analysis.color,
+                    model_number: result.analysis.modelNumber
+                  }),
+                  condition: normalizeCondition(result.analysis.condition)
+                }
+              : group
+          ));
+          
           setProcessingStatus(prev => ({
             ...prev,
             [skuGroup.sku]: 'Completed ✅'
@@ -328,6 +354,12 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         } catch (error) {
           console.error(`❌ [GENERATE-TABLE] Error processing SKU ${i + 1}:`, error);
           errors.push({ sku: skuGroup.sku, error: error.message });
+          
+          setSkuGroups(prev => prev.map(group => 
+            group.sku === skuGroup.sku 
+              ? { ...group, status: 'error' }
+              : group
+          ));
           
           setProcessingStatus(prev => ({
             ...prev,
@@ -360,11 +392,8 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         console.error('Generation errors:', errors);
       }
 
-      // Clear selection and refresh
+      // Clear selection
       setSelectedSKUs(new Set());
-      setTimeout(() => {
-        fetchSKUGroups();
-      }, 2000);
 
     } catch (error) {
       console.error('❌ [GENERATE-TABLE] Error in batch generation:', error);
@@ -372,6 +401,50 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
     } finally {
       setIsGenerating(false);
       setProcessingStatus({});
+    }
+  };
+
+  const getStatusDisplay = (group: SKUGroup) => {
+    const processingText = processingStatus[group.sku];
+    if (processingText) {
+      return (
+        <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+          {processingText}
+        </span>
+      );
+    }
+
+    switch (group.status) {
+      case 'ready_for_generation':
+        return (
+          <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            Not Started
+          </span>
+        );
+      case 'processing':
+        return (
+          <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+            Processing...
+          </span>
+        );
+      case 'completed':
+        return (
+          <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+            Completed ✅
+          </span>
+        );
+      case 'error':
+        return (
+          <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400">
+            Error ❌
+          </span>
+        );
+      default:
+        return (
+          <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+            Unknown
+          </span>
+        );
     }
   };
 
@@ -410,27 +483,25 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Generate Listings with AI
+            Generate Listings
           </h2>
           <p className={`${isDarkMode ? 'text-white/70' : 'text-gray-600'} mt-1`}>
-            AI will analyze your SKU groups and create optimized listings ({skuGroups.length} groups ready)
+            Items Ready for Listing
           </p>
         </div>
         
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={fetchSKUGroups}
-            disabled={loading || isGenerating}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
-              isDarkMode 
-                ? 'bg-white/10 hover:bg-white/20 text-white disabled:bg-white/5' 
-                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:bg-gray-50'
-            }`}
-          >
-            <RefreshCw className={`w-4 h-4 ${loading || isGenerating ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-        </div>
+        <button
+          onClick={fetchSKUGroups}
+          disabled={loading || isGenerating}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
+            isDarkMode 
+              ? 'bg-white/10 hover:bg-white/20 text-white disabled:bg-white/5' 
+              : 'bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:bg-gray-50'
+          }`}
+        >
+          <RefreshCw className={`w-4 h-4 ${loading || isGenerating ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
       </div>
 
       {/* Success/Error Messages */}
@@ -527,109 +598,216 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         </div>
       ) : (
         <>
-          {/* SKU Groups Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {skuGroups.map((skuGroup) => {
-              const isSelected = selectedSKUs.has(skuGroup.sku);
-              const isProcessing = processingStatus[skuGroup.sku];
-              
-              return (
-                <div
-                  key={skuGroup.sku}
-                  onClick={() => !isGenerating && handleSelectSKU(skuGroup.sku)}
-                  className={`relative cursor-pointer rounded-xl border-2 transition-all duration-200 p-4 ${
-                    isSelected 
-                      ? 'border-blue-500 ring-2 ring-blue-200 scale-105' 
-                      : isDarkMode
-                      ? 'border-gray-600 hover:border-blue-400 bg-gray-800/50'
-                      : 'border-gray-200 hover:border-blue-300 bg-white'
-                  } ${isGenerating ? 'pointer-events-none' : ''}`}
-                >
-                  {/* Selection Indicator */}
-                  {isSelected && (
-                    <div className="absolute top-2 right-2 bg-blue-500 text-white rounded-full p-1 z-10">
-                      <CheckCircle className="w-4 h-4" />
-                    </div>
-                  )}
-
-                  {/* SKU Header */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      isDarkMode ? 'bg-blue-900/50 text-blue-300' : 'bg-blue-100 text-blue-700'
-                    }`}>
-                      SKU: {skuGroup.sku}
-                    </div>
-                    <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {skuGroup.photo_count} photo{skuGroup.photo_count > 1 ? 's' : ''}
-                    </span>
-                  </div>
-
-                  {/* Primary Photo */}
-                  <div className="mb-3">
-                    <img
-                      src={skuGroup.photos[0]?.image_url}
-                      alt={`SKU ${skuGroup.sku} primary`}
-                      className="w-full h-32 object-cover rounded-lg border"
+          {/* Table */}
+          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              {/* Table Header */}
+              <thead className={isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}>
+                <tr>
+                  <th className="w-12 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSKUs.size === skuGroups.length && skuGroups.length > 0}
+                      onChange={handleSelectAll}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
-                  </div>
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    Photo
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    SKU
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    Title
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    Price
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    Generation Status
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    Category Path
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    Item Specifics
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    Condition
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
 
-                  {/* Photo Grid Preview */}
-                  <div className="grid grid-cols-4 gap-1 mb-3">
-                    {skuGroup.photos.slice(0, 4).map((photo, index) => (
-                      <img
-                        key={photo.id}
-                        src={photo.image_url}
-                        alt={`${skuGroup.sku} photo ${index + 1}`}
-                        className="w-full h-12 object-cover rounded border"
-                      />
-                    ))}
-                    {skuGroup.photos.length > 4 && (
-                      <div className={`w-full h-12 rounded border flex items-center justify-center text-xs font-medium ${
-                        isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        +{skuGroup.photos.length - 4}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Status */}
-                  <div className="flex items-center justify-between">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      skuGroup.status === 'ready_for_generation'
-                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
-                        : 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                    }`}>
-                      {isProcessing ? 'Processing...' : 'Ready for AI'}
-                    </span>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteSKUGroup(skuGroup.sku);
-                      }}
-                      disabled={isGenerating || isDeleting}
-                      className={`p-1 rounded transition-colors ${
-                        isDarkMode 
-                          ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300' 
-                          : 'hover:bg-red-50 text-red-600 hover:text-red-700'
+              {/* Table Body */}
+              <tbody className={`divide-y ${isDarkMode ? 'divide-gray-700 bg-gray-800' : 'divide-gray-200 bg-white'}`}>
+                {skuGroups.map((group) => {
+                  const isSelected = selectedSKUs.has(group.sku);
+                  
+                  return (
+                    <tr
+                      key={group.sku}
+                      className={`transition-colors ${
+                        isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'
+                      } ${
+                        isSelected ? (isDarkMode ? 'bg-blue-900/20' : 'bg-blue-50') : ''
                       }`}
-                      title="Delete SKU group"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                      {/* Checkbox */}
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleSelectSKU(group.sku)}
+                          disabled={isGenerating}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
 
-                  {/* Processing Status */}
-                  {isProcessing && (
-                    <div className="mt-2 text-xs text-center">
-                      <div className={`${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>
-                        {processingStatus[skuGroup.sku]}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                      {/* Photo */}
+                      <td className="px-4 py-4">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
+                          {group.photos[0]?.image_url ? (
+                            <img
+                              src={group.photos[0].image_url}
+                              alt={`SKU ${group.sku}`}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package className="w-6 h-6 text-gray-400" />
+                            </div>
+                          )}
+                          {group.photo_count > 1 && (
+                            <div className="absolute bottom-0 right-0 bg-blue-600 text-white text-xs px-1 rounded-tl">
+                              +{group.photo_count - 1}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* SKU */}
+                      <td className="px-4 py-4">
+                        <span className={`text-sm font-mono px-2 py-1 rounded ${
+                          isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {group.sku}
+                        </span>
+                      </td>
+
+                      {/* Title */}
+                      <td className="px-4 py-4">
+                        <div className="max-w-xs">
+                          {group.title ? (
+                            <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {group.title}
+                            </span>
+                          ) : (
+                            <span className={`text-gray-500 ${isDarkMode ? 'dark:text-gray-400' : ''}`}>
+                              -
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Price */}
+                      <td className="px-4 py-4">
+                        {group.price ? (
+                          <span className={`font-semibold ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                            {formatPrice(group.price)}
+                          </span>
+                        ) : (
+                          <span className={`text-gray-500 ${isDarkMode ? 'dark:text-gray-400' : ''}`}>
+                            -
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Generation Status */}
+                      <td className="px-4 py-4">
+                        {getStatusDisplay(group)}
+                      </td>
+
+                      {/* Category Path */}
+                      <td className="px-4 py-4">
+                        <div className="max-w-xs">
+                          {group.category_path ? (
+                            <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {group.category_path}
+                            </span>
+                          ) : (
+                            <span className={`text-gray-500 ${isDarkMode ? 'dark:text-gray-400' : ''}`}>
+                              -
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Item Specifics */}
+                      <td className="px-4 py-4">
+                        <div className="max-w-xs">
+                          {group.item_specifics ? (
+                            <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                              {group.item_specifics}
+                            </span>
+                          ) : (
+                            <span className={`text-gray-500 ${isDarkMode ? 'dark:text-gray-400' : ''}`}>
+                              -
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Condition */}
+                      <td className="px-4 py-4">
+                        {group.condition ? (
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            group.condition === 'like_new' 
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                              : group.condition === 'good'
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                              : group.condition === 'fair'
+                              ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
+                              : 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                          }`}>
+                            {group.condition.replace('_', ' ')}
+                          </span>
+                        ) : (
+                          <span className={`text-gray-500 ${isDarkMode ? 'dark:text-gray-400' : ''}`}>
+                            -
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-4">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleDeleteSKUGroup(group.sku)}
+                            disabled={isGenerating || isDeleting}
+                            className={`p-2 rounded-lg transition-colors ${
+                              isDarkMode 
+                                ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300 disabled:text-red-600' 
+                                : 'hover:bg-red-50 text-red-600 hover:text-red-700 disabled:text-red-400'
+                            }`}
+                            title="Delete SKU group"
+                          >
+                            {isDeleting ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
           {/* Footer Stats */}
