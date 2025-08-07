@@ -824,15 +824,20 @@ const AppDashboard = () => {
     navigate('/capture');
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSendMessage();
-    }
-  };
-
   // Render content based on active tab
   const renderTabContent = () => {
     switch (activeTab) {
+      case 'overview':
+        return <OverviewTab 
+          dashboardStats={dashboardStats}
+          user={user}
+          chatMessages={chatMessages}
+          currentMessage={currentMessage}
+          setCurrentMessage={setCurrentMessage}
+          handleSendMessage={handleSendMessage}
+          handleKeyPress={handleKeyPress}
+          chatEndRef={chatEndRef}
+        />;
       case 'upload':
         return <UploadTab 
           selectedFiles={selectedFiles}
@@ -847,13 +852,29 @@ const AppDashboard = () => {
         return <GenerateListingsTab />;
       case 'publish':
         return <PublishTab />;
+      case 'coach':
+        return <CoachTab 
+          chatMessages={chatMessages}
+          currentMessage={currentMessage}
+          setCurrentMessage={setCurrentMessage}
+          handleSendMessage={handleSendMessage}
+          handleKeyPress={handleKeyPress}
+          chatEndRef={chatEndRef}
+          isRecording={isRecording}
+          toggleRecording={toggleRecording}
+          voiceMode={voiceMode}
+          setVoiceMode={setVoiceMode}
+        />;
       default:
-        return <UploadTab 
-          selectedFiles={selectedFiles}
-          onFileUpload={handleFileUpload}
-          onProcessFiles={processUploadedFiles}
-          isUploading={isUploading}
-          uploadProgress={uploadProgress}
+        return <OverviewTab 
+          dashboardStats={dashboardStats}
+          user={user}
+          chatMessages={chatMessages}
+          currentMessage={currentMessage}
+          setCurrentMessage={setCurrentMessage}
+          handleSendMessage={handleSendMessage}
+          handleKeyPress={handleKeyPress}
+          chatEndRef={chatEndRef}
         />;
     }
   };
