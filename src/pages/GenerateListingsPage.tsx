@@ -128,17 +128,17 @@ const GenerateListingsPage = () => {
           sku: group.sku,
           photos: group.photos.map(p => p.image_url),
           primaryPhoto,
-          title: sanitizedData.title,
-          description: sanitizedData.description,
-          price: sanitizedData.suggested_price,
-          category: normalizeCategory(sanitizedData.item_type),
-          condition: normalizeCondition(sanitizedData.condition),
-          brand: sanitizedData.brand,
-          size: sanitizedData.size,
-          color: sanitizedData.color,
-          model_number: sanitizedData.model_number,
-          ai_suggested_keywords: sanitizedData.keywords || [],
-          ai_confidence: sanitizedData.confidence || 0.8,
+          title: existingItem?.title || '',
+          description: existingItem?.description || '',
+          price: existingItem?.suggested_price || 0,
+          category: existingItem?.category || 'other',
+          condition: existingItem?.condition || 'good',
+          brand: existingItem?.brand,
+          size: existingItem?.size,
+          color: existingItem?.color,
+          model_number: existingItem?.model_number,
+          ai_suggested_keywords: existingItem?.ai_suggested_keywords || [],
+          ai_confidence: existingItem?.ai_confidence || 0.8,
           ai_analysis: existingItem?.ai_analysis || {},
           status: existingItem ? 'complete' : 'not_started',
           generationError: undefined,
@@ -157,7 +157,8 @@ const GenerateListingsPage = () => {
     }
   };
 
-  // Import safe array helper
+  // Generate single item
+  const handleGenerateItem = async (item: GeneratedItem) => {
     try {
       console.log('🚀 [GENERATE-LISTINGS] Starting generation for item:', item.sku);
       
@@ -302,17 +303,17 @@ const GenerateListingsPage = () => {
           ? {
               ...i,
               id: savedItem.id,
-              title: extractedData.title,
-              description: extractedData.description,
-              price: extractedData.price,
-              category: extractedData.category,
-              condition: extractedData.condition,
-              brand: extractedData.brand,
-              size: extractedData.size,
-              color: extractedData.color,
-              model_number: extractedData.model_number,
-              ai_suggested_keywords: extractedData.keywords || [],
-              ai_confidence: extractedData.confidence || 0.8,
+              title: sanitizedData.title,
+              description: sanitizedData.description,
+              price: sanitizedData.suggested_price,
+              category: normalizeCategory(sanitizedData.item_type),
+              condition: normalizeCondition(sanitizedData.condition),
+              brand: sanitizedData.brand,
+              size: sanitizedData.size,
+              color: sanitizedData.color,
+              model_number: sanitizedData.model_number,
+              ai_suggested_keywords: sanitizedData.keywords || [],
+              ai_confidence: sanitizedData.confidence || 0.8,
               ai_analysis: itemData.ai_analysis,
               status: 'ready',
               generationError: undefined,
@@ -546,7 +547,7 @@ const GenerateListingsPage = () => {
 
   // Normalize category to match database enum
   const normalizeCategory = (category: string): string => {
-    const normalized = safeLower(toStr(category));
+    const normalized = category?.toLowerCase() || '';
     const categoryMap: Record<string, string> = {
       'clothing': 'clothing',
       'jacket': 'clothing',
@@ -571,7 +572,7 @@ const GenerateListingsPage = () => {
 
   // Normalize condition to match database enum
   const normalizeCondition = (condition: string): string => {
-    const normalized = safeLower(toStr(condition));
+    const normalized = condition?.toLowerCase() || '';
     const conditionMap: Record<string, string> = {
       'new': 'like_new',
       'like new': 'like_new',
