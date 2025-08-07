@@ -10,6 +10,7 @@ import { resizeImage, calculateImageHash, processImagesWithEnhancement } from '.
 import DashboardLayout from '../components/DashboardLayout';
 
 // Debug log to confirm DashboardLayout is properly imported
+import GenerateListingsTable from '../components/GenerateListingsTable';
 console.log('🔍 [APP-DASHBOARD] DashboardLayout imported as:', DashboardLayout);
 console.log('🔍 [APP-DASHBOARD] DashboardLayout type:', typeof DashboardLayout);
 console.log('🔍 [APP-DASHBOARD] DashboardLayout is function:', typeof DashboardLayout === 'function');
@@ -1861,50 +1862,7 @@ const AppDashboard = () => {
                     }`}>
                       {msg.typing ? (
                         <div className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        </div>
-                      ) : (
-                        <span className="text-sm">{msg.text}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-              
-              {/* Chat Input */}
-              <div className="flex space-x-2">
-                {voiceMode && (
-                  <button
-                    onClick={toggleRecording}
-                    className={`p-3 rounded-lg transition-all duration-300 ${
-                      isRecording 
-                        ? 'bg-red-500 text-white animate-pulse' 
-                        : 'bg-white/10 text-white/70 hover:bg-white/20'
-                    }`}
-                  >
-                    {isRecording ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-                  </button>
-                )}
-                <input
-                  type="text"
-                  value={currentMessage}
-                  onChange={(e) => setCurrentMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask your coach anything..."
-                  className="flex-1 p-3 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50"
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!currentMessage.trim()}
-                  className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-3 rounded-lg transition-opacity"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+            <GenerateListingsTable isDarkMode={isDarkMode} />
           </div>
         );
       default:
