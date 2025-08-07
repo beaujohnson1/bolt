@@ -42,38 +42,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔍 [AUTH] Starting fetchUserProfile for user:', supabaseUser.id);
       
-      // Use RPC function to create or retrieve user profile (bypasses RLS)
-      console.log('🔍 [AUTH] Using RPC function to create/retrieve user profile...');
       const userName = 
         supabaseUser.user_metadata?.full_name || 
         supabaseUser.user_metadata?.name || 
         supabaseUser.email?.split('@')[0] || 
         'User';
       
-      const { data: userProfile, error: rpcError } = await withTimeout(
-        supabase.rpc('create_user_profile', {
-          user_id: supabaseUser.id,
-          user_email: supabaseUser.email || '',
-          user_name: userName,
-          user_avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null
-        }),
+      const avatarUrl = supabaseUser.user_metadata?.avatar_url || 
+                       supabaseUser.user_metadata?.picture;
+      
+      console.log('📋 [AUTH] User metadata:', supabaseUser.user_metadata);
+      console.log('📧 [AUTH] User email:', supabaseUser.email);
+      console.log('🔐 [AUTH] User role:', supabaseUser.role);
+      console.log('⏰ [AUTH] User created at:', supabaseUser.created_at);
+      
+      // Prepare user profile data
+      const userProfileData = {
+        id: supabaseUser.id,
+        email: supabaseUser.email!,
+        name: userName,
+        avatar_url: avatarUrl,
+        subscription_plan: 'free',
+        subscription_status: 'active',
+        listings_used: 0,
+        listings_limit: 999,
+        monthly_revenue: 0,
+        total_sales: 0,
+        notification_preferences: {
+          email: true,
+          push: true
+        },
+        timezone: 'America/New_York',
+        is_active: true,
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('📝 [AUTH] Preparing user profile data with name:', userName);
+      console.log('🆔 [AUTH] User ID:', supabaseUser.id);
+      console.log('📧 [AUTH] User email:', supabaseUser.email);
+      console.log('🖼️ [AUTH] Avatar URL:', avatarUrl);
+      
+      // Use upsert to create or update user profile
+      console.log('📤 [AUTH] Directly upserting user profile (bypassing RPC)...');
+      console.log('📊 [AUTH] User data to upsert:', userProfileData);
+      
+      const { data, error: upsertError } = await withTimeout(
+        supabase
+          .from('users')
+          .upsert(userProfileData, { 
+            onConflict: 'id',
+            ignoreDuplicates: false
+          })
+          .select()
+          .single(),
         PROFILE_FETCH_TIMEOUT,
-        'RPC create_user_profile operation timed out while creating/updating user profile'
+        'User profile upsert operation timed out while creating/updating user profile'
       );
+      
+      console.log('📥 [AUTH] Upsert result:', data);
 
-      if (rpcError) {
-        console.error('❌ [AUTH] Error details:', rpcError.message);
-        console.error('❌ [AUTH] RPC parameters that failed:', {
-          user_avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
-          user_email: supabaseUser.email || '',
-          user_id: supabaseUser.id,
-          user_name: userName
-        });
-        throw rpcError;
+      if (upsertError) {
+        console.error('❌ [AUTH] Error details:', upsertError.message);
+        console.error('❌ [AUTH] Upsert parameters that failed:', userProfileData);
+        throw upsertError;
       }
 
-      if (!userProfile) {
-        console.error('❌ [AUTH] RPC function returned no data');
+      if (!data) {
+        console.error('❌ [AUTH] Upsert operation returned no data');
         // If insert fails, return a minimal user object to prevent auth blocking
         return {
           id: supabaseUser.id,
@@ -90,8 +125,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } as AppUser;
       }
 
-      console.log('✅ [AUTH] User profile created/retrieved successfully:', userProfile);
-      return userProfile;
+      console.log('✅ [AUTH] User profile upserted successfully:', data);
+      console.log('🔧 [AUTH] Profile data includes listing limit:', data.listings_limit);
+      return data;
       
     } catch (error) {
       console.error('❌ [AUTH] Unexpected error in fetchUserProfile:', error);
