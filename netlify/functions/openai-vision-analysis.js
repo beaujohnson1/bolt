@@ -2,8 +2,22 @@ const OpenAI = require('openai');
 
 // Helper function to strip markdown code fences
 function stripFences(s) {
-  const m = typeof s === "string" && s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (typeof s !== "string") return s;
+  const m = s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   return m ? m[1] : s;
+}
+
+// Safe string helpers for server-side processing
+function safeTrim(v) {
+  return typeof v === "string" ? v.trim() : String(v || "").trim();
+}
+
+function safeStringify(obj) {
+  try {
+    return JSON.stringify(obj);
+  } catch (e) {
+    return "{}";
+  }
 }
 
 exports.handler = async (event, context) => {
@@ -59,7 +73,8 @@ exports.handler = async (event, context) => {
       ocrText = '', 
       candidates = {}, 
       analysisType = 'enhanced_listing',
-      ebayAspects = []
+      ebayAspects = [],
+      knownFields = {}
     } = requestData;
 
     // Support both new array format and legacy single URL
@@ -94,9 +109,10 @@ exports.handler = async (event, context) => {
     console.log('🔑 [OPENAI-FUNCTION] OpenAI API key is configured');
     console.log('🖼️ [OPENAI-FUNCTION] Processing images:', {
       count: imageArray.length,
-      ocrTextLength: ocrText.length,
+      ocrTextLength: safeTrim(ocrText).length,
       hasCandidates: Object.keys(candidates).length > 0,
-      ebayAspectsCount: ebayAspects.length
+      ebayAspectsCount: Array.isArray(ebayAspects) ? ebayAspects.length : 0,
+      hasKnownFields: Object.keys(knownFields).length > 0
     });
 
     const openai = new OpenAI({
@@ -116,7 +132,7 @@ exports.handler = async (event, context) => {
           content: [
             {
               type: "text",
-              text: getAnalysisPrompt(analysisType, ocrText, candidates, ebayAspects)
+              text: getAnalysisPrompt(analysisType, ocrText, candidates, ebayAspects, knownFields)
             },
             // Send all images to the LLM
             ...imageArray.map(url => ({
@@ -220,36 +236,41 @@ exports.handler = async (event, context) => {
   }
 };
 
-function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspects = []) {
+function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspects = [], knownFields = {}) {
   console.log('📝 [OPENAI-FUNCTION] Generating prompt for analysis type:', analysisType);
   console.log('📝 [OPENAI-FUNCTION] Prompt context:', {
-    ocrTextLength: ocrText.length,
+    ocrTextLength: safeTrim(ocrText).length,
     candidatesProvided: Object.keys(candidates),
-    ebayAspectsCount: ebayAspects.length
+    ebayAspectsCount: Array.isArray(ebayAspects) ? ebayAspects.length : 0,
+    knownFieldsProvided: Object.keys(knownFields)
   });
   
-  const basePrompt = `You are an expert clothing and fashion item analyzer for eBay listings. Your goal is to extract MAXIMUM detail from images and OCR text to create accurate, profitable listings.
+  const basePrompt = `You are an expert clothing and fashion item analyzer for eBay listings. Extract MAXIMUM detail from images and OCR text to create accurate, profitable listings.
 
 CRITICAL INSTRUCTIONS:
-- If you cannot verify a field from the image or OCR, return null (NOT the word "Unknown")
+- If you cannot verify a field from the image or OCR, return null (NEVER use the word "Unknown")
 - Prefer OCR text over visual guesses when available
 - Use provided CANDIDATES when they match what you see
 - Choose ONLY from allowed values when provided for eBay aspects
 - Be extremely specific with item types and descriptions
+- Report evidence for how you determined brand/size (ocr|vision|null)
 
 CANDIDATES (pre-extracted from OCR):
-${JSON.stringify(candidates)}
+${safeStringify(candidates)}
+
+KNOWN_FIELDS (from previous analysis):
+${safeStringify(knownFields)}
 
 OCR_TEXT:
-${ocrText}`;
+${safeTrim(ocrText)}`;
 
   // Add eBay aspects if provided
   let ebayAspectsPrompt = '';
-  if (ebayAspects.length > 0) {
+  if (Array.isArray(ebayAspects) && ebayAspects.length > 0) {
     ebayAspectsPrompt = `
 
 EBAY ITEM SPECIFICS (fill these exactly):
-${JSON.stringify(ebayAspects.slice(0, 15))}
+${safeStringify(ebayAspects.slice(0, 15))}
 
 For each aspect:
 - If it has allowedValues, choose ONE from the list (best match)
@@ -275,7 +296,7 @@ Return ONLY JSON matching this schema:
   "evidence": {
     "brand": "ocr|vision|null",
     "size": "ocr|vision|null"
-  }${ebayAspects.length > 0 ? ',\n  "ebay_item_specifics": { [aspectName]: value|null }' : ''}
+  }${Array.isArray(ebayAspects) && ebayAspects.length > 0 ? ',\n  "ebay_item_specifics": { [aspectName]: value|null }' : ''}
 }
 
 Do NOT include markdown or code fences.`;
@@ -283,4 +304,5 @@ Do NOT include markdown or code fences.`;
   const fullPrompt = basePrompt + ebayAspectsPrompt + schemaPrompt;
 
   console.log('✅ [OPENAI-FUNCTION] Prompt generated successfully');
+  return fullPrompt;
 }

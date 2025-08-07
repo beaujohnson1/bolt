@@ -1,10 +1,12 @@
 // Utility functions for item data processing
+import { safeTrim, safeLower, safeUpper, isStr, normUnknown, safeSlice } from './strings';
 
 // Normalize condition values from AI to match database enum
 export const normalizeCondition = (condition: string): string => {
-  if (!condition) return 'good';
+  const trimmed = safeTrim(condition);
+  if (!trimmed) return 'good';
   
-  const normalized = condition.toLowerCase().trim();
+  const normalized = safeLower(trimmed);
   const conditionMap: { [key: string]: string } = {
     'new': 'like_new',
     'like new': 'like_new',
@@ -21,9 +23,10 @@ export const normalizeCondition = (condition: string): string => {
 
 // Normalize category values from AI to match database enum
 export const normalizeCategory = (category: string): string => {
-  if (!category) return 'clothing';
+  const trimmed = safeTrim(category);
+  if (!trimmed) return 'clothing';
   
-  const normalized = category.toLowerCase().trim();
+  const normalized = safeLower(trimmed);
   
   // Map AI responses to database enum values
   const categoryMap: { [key: string]: string } = {
@@ -62,13 +65,13 @@ export const normalizeCategory = (category: string): string => {
  */
 export const generateSKU = (item: { brand?: string; category?: string; size?: string }): string => {
   try {
-    const brand = item.brand || 'UNK';
-    const itemType = item.category || 'ITEM';
-    const size = item.size || 'OS'; // OS = One Size
+    const brand = safeTrim(item.brand) || 'UNK';
+    const itemType = safeTrim(item.category) || 'ITEM';
+    const size = safeTrim(item.size) || 'OS'; // OS = One Size
     const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
     
     // Create SKU: BRAND-TYPE-SIZE-TIMESTAMP
-    const sku = `${brand.substring(0, 3).toUpperCase()}-${itemType.substring(0, 3).toUpperCase()}-${size.toUpperCase()}-${timestamp}`;
+    const sku = `${safeSlice(brand, 0, 3).toUpperCase()}-${safeSlice(itemType, 0, 3).toUpperCase()}-${safeUpper(size)}-${timestamp}`;
     
     console.log('✅ [SKU] Generated SKU:', sku, 'for item:', item);
     return sku;
@@ -129,10 +132,15 @@ export const getCategoryPath = (category: string): string => {
 // Get item specifics for display
 export const getItemSpecifics = (item: { brand?: string; size?: string; color?: string; model_number?: string }): string => {
   const specifics = [];
-  if (item.brand) specifics.push(`Brand: ${item.brand}`);
-  if (item.size) specifics.push(`Size: ${item.size}`);
-  if (item.color) specifics.push(`Color: ${item.color}`);
-  if (item.model_number) specifics.push(`Model: ${item.model_number}`);
+  const brand = safeTrim(item.brand);
+  const size = safeTrim(item.size);
+  const color = safeTrim(item.color);
+  const model = safeTrim(item.model_number);
+  
+  if (brand) specifics.push(`Brand: ${brand}`);
+  if (size) specifics.push(`Size: ${size}`);
+  if (color) specifics.push(`Color: ${color}`);
+  if (model) specifics.push(`Model: ${model}`);
   return specifics.join(', ') || '-';
 };
 
@@ -155,10 +163,11 @@ const KNOWN_BRANDS = [
  * @returns Extracted size or null if not found
  */
 export const extractSize = (ocrText: string): string | null => {
-  if (!ocrText) return null;
+  const text = safeTrim(ocrText);
+  if (!text) return null;
   
   try {
-    const s = ocrText.replace(/\s+/g, " ").toUpperCase();
+    const s = safeUpper(text).replace(/\s+/g, " ");
     
     // Alpha sizes (most common)
     const alpha = s.match(/\b(XXXS|XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL)\b/);
@@ -204,13 +213,14 @@ export const extractSize = (ocrText: string): string | null => {
  * @returns Extracted brand or null if not found
  */
 export const extractBrand = (ocrText: string, brands: string[] = KNOWN_BRANDS): string | null => {
-  if (!ocrText) return null;
+  const text = safeTrim(ocrText);
+  if (!text) return null;
   
   try {
-    const s = ocrText.toUpperCase();
+    const s = safeUpper(text);
     
     // Find exact brand matches (case-insensitive)
-    const hit = brands.find(brand => s.includes(brand.toUpperCase()));
+    const hit = brands.find(brand => s.includes(safeUpper(brand)));
     
     if (hit) {
       console.log('✅ [BRAND-EXTRACT] Found brand in OCR:', hit);
@@ -238,13 +248,20 @@ export const buildTitle = (components: {
   gender?: string | null;
   fabric?: string | null;
 }): string => {
+  const brand = normUnknown(components.brand);
+  const itemType = safeTrim(components.item_type);
+  const color = normUnknown(components.color);
+  const size = normUnknown(components.size);
+  const gender = normUnknown(components.gender);
+  const fabric = normUnknown(components.fabric);
+  
   const parts = [
-    components.brand && components.brand.trim(),
-    components.gender && /men|women|kid/i.test(components.gender) ? `${cap(components.gender)}'s` : null,
-    components.item_type,
-    components.fabric && !/unknown/i.test(components.fabric) ? components.fabric : null,
-    components.color && !/unknown/i.test(components.color) ? components.color : null,
-    components.size ? `Size ${components.size.toUpperCase()}` : "Size Unknown",
+    brand,
+    gender && /men|women|kid/i.test(gender) ? `${cap(gender)}'s` : null,
+    itemType,
+    fabric,
+    color,
+    size ? `Size ${safeUpper(size)}` : "Size Unknown",
   ].filter(Boolean);
   
   const title = parts.join(" ");
@@ -254,5 +271,6 @@ export const buildTitle = (components: {
 
 // Helper function to capitalize first letter
 const cap = (s: string): string => {
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  const str = safeTrim(s);
+  return str.charAt(0).toUpperCase() + safeSlice(str, 1).toLowerCase();
 };

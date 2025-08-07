@@ -306,28 +306,28 @@ const ItemDetails = () => {
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
                   <h3 className="font-medium text-gray-700 mb-1">Brand</h3>
-                  <p className="text-gray-900">{item.brand || 'Unknown'}</p>
+                  <p className="text-gray-900">{item.brand ?? 'Unknown'}</p>
                 </div>
                 <div>
                   <h3 className="font-medium text-gray-700 mb-1">Category</h3>
-                  <p className="text-gray-900">{item.category?.replace('_', ' ') || 'Unknown'}</p>
+                  <p className="text-gray-900">{item.category?.replace('_', ' ') ?? 'Unknown'}</p>
                 </div>
                 <div>
                   <h3 className="font-medium text-gray-700 mb-1">Size</h3>
-                  <p className="text-gray-900">{item.size || 'Not specified'}</p>
+                  <p className="text-gray-900">{item.size ?? 'Not specified'}</p>
                 </div>
                 <div>
                   <h3 className="font-medium text-gray-700 mb-1">Condition</h3>
-                  <p className="text-gray-900">{item.condition?.replace('_', ' ') || 'Good'}</p>
+                  <p className="text-gray-900">{item.condition?.replace('_', ' ') ?? 'Good'}</p>
                 </div>
                 <div>
                   <h3 className="font-medium text-gray-700 mb-1">Color</h3>
-                  <p className="text-gray-900">{item.color || 'Various'}</p>
+                  <p className="text-gray-900">{item.color ?? 'Various'}</p>
                 </div>
                 {item.model_number && (
                   <div>
                     <h3 className="font-medium text-gray-700 mb-1">Model Number</h3>
-                    <p className="text-gray-900">{item.model_number}</p>
+                    <p className="text-gray-900">{item.model_number ?? 'Not specified'}</p>
                   </div>
                 )}
               </div>

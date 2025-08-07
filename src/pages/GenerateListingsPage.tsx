@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, RefreshCw, Zap, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext'; // Keep this import
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import ListingsTable from '../components/ListingsTable';
 import EditListingModal from '../components/EditListingModal';
 import { useAIAnalysis } from '../hooks/useAIAnalysis';
+import { safeTrim, isStr, normUnknown, safeStringArray, safeNumber, safeLower } from '../utils/strings';
+import { buildTitle } from '../utils/itemUtils';
 
 interface SKUGroup {
   sku: string;
@@ -154,6 +156,9 @@ const GenerateListingsPage = () => {
     }
   };
 
+  // Import safe array helper
+  const safeArray = (v: unknown): any[] => Array.isArray(v) ? v : [];
+
   // Generate listing for individual item
   const handleGenerateItem = async (item: GeneratedItem) => {
     try {
@@ -197,9 +202,18 @@ const GenerateListingsPage = () => {
       } catch (aiError) {
         console.error('❌ [GENERATE-LISTINGS] AI analysis failed:', aiError);
         
-        // Create fallback data when AI fails
-        console.log('🔄 [GENERATE-LISTINGS] Creating fallback data for failed AI analysis...');
-        aiData = createFallbackAIData(item);
+        // Don't create fallback data - mark as needs attention
+        console.log('🚨 [GENERATE-LISTINGS] AI analysis failed, marking as needs attention');
+        setGeneratedItems(prev => prev.map(i => 
+          i.sku === item.sku 
+            ? { 
+                ...i, 
+                status: 'needs_attention',
+                generationError: `AI analysis failed: ${aiError.message}`
+              }
+            : i
+        ));
+        return; // Exit early, don't continue processing
       }
 
       // Extract structured data
@@ -207,7 +221,17 @@ const GenerateListingsPage = () => {
         extractedData = extractListingDataFromAI(aiData, analysisResult?.marketResearch, analysisResult?.categoryAnalysis);
       } catch (extractError) {
         console.error('❌ [GENERATE-LISTINGS] Data extraction failed:', extractError);
-        extractedData = createFallbackExtractedData(item);
+        // Mark as needs attention instead of using fallback
+        setGeneratedItems(prev => prev.map(i => 
+          i.sku === item.sku 
+            ? { 
+                ...i, 
+                status: 'needs_attention',
+                generationError: `Data extraction failed: ${extractError.message}`
+              }
+            : i
+        ));
+        return; // Exit early
       }
       
       console.log('📊 [GENERATE-LISTINGS] Extracted data:', extractedData);
@@ -293,8 +317,8 @@ const GenerateListingsPage = () => {
               ai_suggested_keywords: extractedData.keywords || [],
               ai_confidence: extractedData.confidence || 0.8,
               ai_analysis: itemData.ai_analysis,
-              status: aiData?.source === 'fallback' ? 'needs_attention' : 'ready',
-              generationError: aiData?.source === 'fallback' ? 'AI analysis failed - manual review required' : undefined,
+              status: 'ready',
+              generationError: undefined,
               lastUpdated: new Date()
             }
           : i
@@ -318,19 +342,6 @@ const GenerateListingsPage = () => {
     }
   };
   
-  // Fallback listing generation for error handling
-  const generateFallbackListing = (item: GeneratedItem) => {
-    return {
-      ...item,
-      title: `Item ${item.sku} - Manual Review Required`,
-      description: 'This item requires manual review and editing due to an AI analysis failure.',
-      price: 0,
-      category: 'other',
-      condition: 'good',
-      ai_suggested_keywords: []
-    };
-  };
-
   // Generate all listings
   const handleGenerateAll = async () => {
     const itemsToGenerate = generatedItems.filter(item => 
@@ -362,7 +373,7 @@ const GenerateListingsPage = () => {
           console.error(`❌ [GENERATE-LISTINGS] Bulk generation failed for item ${item.sku}:`, error);
           setGeneratedItems(prev => prev.map(i => 
             i.sku === item.sku 
-              ? { ...generateFallbackListing(item), status: 'needs_attention', generationError: error.message }
+              ? { ...i, status: 'needs_attention', generationError: error.message }
               : i
           ));
         }
@@ -493,73 +504,86 @@ const GenerateListingsPage = () => {
     // Handle null or undefined aiAnalysis
     if (!aiAnalysis) {
       console.log('⚠️ [EXTRACT] No AI analysis data provided, using fallback');
-      return createFallbackExtractedData({ sku: 'unknown' });
+      throw new Error('No AI analysis data provided');
     }
     
-    // Try all possible field name variations with enhanced eBay integration
-    const title = aiAnalysis?.title || 
-                  aiAnalysis?.suggested_title || 
-                  aiAnalysis?.name || 
-                  aiAnalysis?.itemName || 
-                  aiAnalysis?.item_name || 
-                  aiAnalysis?.product_name || 
-                  aiAnalysis?.listing_title ||
-                  generateFallbackTitle(aiAnalysis) ||
-                  'Item - Manual Review Required';
+    // Use safe string operations for all field extractions
+    const rawTitle = aiAnalysis?.title || 
+                     aiAnalysis?.suggested_title || 
+                     aiAnalysis?.name || 
+                     aiAnalysis?.itemName || 
+                     aiAnalysis?.item_name || 
+                     aiAnalysis?.product_name || 
+                     aiAnalysis?.listing_title;
+    
+    const title = safeTrim(rawTitle) || buildTitle({
+      brand: normUnknown(aiAnalysis?.brand),
+      item_type: safeTrim(aiAnalysis?.item_type) || 'Item',
+      color: normUnknown(aiAnalysis?.color),
+      size: normUnknown(aiAnalysis?.size)
+    });
     
     // Use market research price if available, otherwise AI price, otherwise fallback
-    const rawPrice = marketResearch?.suggestedPrice || // Market research price first
+    const rawPrice = marketResearch?.suggestedPrice || 
                      aiAnalysis?.suggested_price || 
                      aiAnalysis?.price || 
                      aiAnalysis?.estimated_price || 
                      aiAnalysis?.estimatedPrice || 
                      aiAnalysis?.suggestedPrice || 
                      aiAnalysis?.market_price || 
-                     aiAnalysis?.listing_price ||
-                     25; // Fallback price
+                     aiAnalysis?.listing_price;
     
-    const price = parseFloat(rawPrice) || 25;
+    const price = safeNumber(rawPrice, 25);
     
-    const brand = aiAnalysis?.brand || aiAnalysis?.detected_brand || 'Unknown';
-    const size = aiAnalysis?.size || 'Unknown';
-    const condition = aiAnalysis?.condition || aiAnalysis?.detected_condition || 'good';
+    const brand = normUnknown(aiAnalysis?.brand || aiAnalysis?.detected_brand);
+    const size = normUnknown(aiAnalysis?.size);
+    const condition = safeTrim(aiAnalysis?.condition || aiAnalysis?.detected_condition) || 'good';
     const category = categoryAnalysis?.recommended?.categoryName ||
                     aiAnalysis?.recommended_category?.categoryName || 
-                    aiAnalysis?.category || 
-                    aiAnalysis?.detected_category ||
-                    aiAnalysis?.item_type || 
+                    safeTrim(aiAnalysis?.category) || 
+                    safeTrim(aiAnalysis?.detected_category) ||
+                    safeTrim(aiAnalysis?.item_type) || 
                     'other';
-    const color = aiAnalysis?.color || aiAnalysis?.detected_color || 'Various';
-    const model_number = aiAnalysis?.model_number || aiAnalysis?.modelNumber || null;
+    const color = normUnknown(aiAnalysis?.color || aiAnalysis?.detected_color);
+    const model_number = normUnknown(aiAnalysis?.model_number || aiAnalysis?.modelNumber);
     
     // Enhanced keywords from multiple sources
-    const keywords = [
-      ...(aiAnalysis?.keywords || []),
-      ...(aiAnalysis?.ai_suggested_keywords || []),
-      ...(aiAnalysis?.key_features || []),
-      ...(aiAnalysis?.keyFeatures || [])
-    ].filter((keyword, index, array) => 
-      keyword && array.indexOf(keyword) === index // Remove duplicates
-    ).slice(0, 10); // Limit to 10 keywords
+    const keywords = safeStringArray([
+      ...safeArray(aiAnalysis?.keywords),
+      ...safeArray(aiAnalysis?.ai_suggested_keywords),
+      ...safeArray(aiAnalysis?.key_features),
+      ...safeArray(aiAnalysis?.keyFeatures)
+    ]).filter((keyword, index, array) => 
+      keyword && array.indexOf(keyword) === index
+    ).slice(0, 10);
     
-    const description = generateListingDescription({
-      title, brand, size, condition, category, color, keywords
-    });
+    const description = safeTrim(aiAnalysis?.description) || 
+                       generateListingDescription({
+                         title, brand, size, condition, category, color, keywords
+                       });
     
     // Extract key features for AI analysis
-    const keyFeatures = [
-      ...(aiAnalysis?.key_features || []),
-      ...(aiAnalysis?.keyFeatures || []),
-      ...(aiAnalysis?.features || [])
-    ].filter((feature, index, array) => 
+    const keyFeatures = safeStringArray([
+      ...safeArray(aiAnalysis?.key_features),
+      ...safeArray(aiAnalysis?.keyFeatures),
+      ...safeArray(aiAnalysis?.features)
+    ]).filter((feature, index, array) => 
       feature && array.indexOf(feature) === index
     ).slice(0, 8);
     
     // Extract eBay item specifics if available
-    const ebaySpecifics = aiAnalysis?.ebay_item_specifics || {};
+    const ebaySpecifics = aiAnalysis?.ebay_item_specifics || aiAnalysis?.ebayItemSpecifics || {};
     
     // Extract evidence data
     const evidence = aiAnalysis?.evidence || {};
+    
+    // Safe confidence extraction
+    const confidence = safeNumber(
+      marketResearch?.confidence || 
+      aiAnalysis?.market_confidence || 
+      aiAnalysis?.confidence,
+      0.5
+    );
     
     const extractedData = {
       title,
@@ -573,7 +597,7 @@ const GenerateListingsPage = () => {
       model_number,
       keywords,
       keyFeatures,
-      confidence: marketResearch?.confidence || aiAnalysis?.market_confidence || aiAnalysis?.confidence || 0.5,
+      confidence,
       ebaySpecifics,
       evidence
     };
@@ -633,7 +657,8 @@ const GenerateListingsPage = () => {
 
   // Normalize category to match database enum
   const normalizeCategory = (category: string): string => {
-    const categoryMap: { [key: string]: string } = {
+    const normalized = safeLower(category);
+    const categoryMap: Record<string, string> = {
       'clothing': 'clothing',
       'jacket': 'clothing',
       'shirt': 'clothing',
@@ -652,13 +677,13 @@ const GenerateListingsPage = () => {
       'collectibles': 'collectibles'
     };
     
-    const normalized = category.toLowerCase();
     return categoryMap[normalized] || 'other';
   };
 
   // Normalize condition to match database enum
   const normalizeCondition = (condition: string): string => {
-    const conditionMap: { [key: string]: string } = {
+    const normalized = safeLower(condition);
+    const conditionMap: Record<string, string> = {
       'new': 'like_new',
       'like new': 'like_new',
       'excellent': 'like_new',
@@ -669,69 +694,18 @@ const GenerateListingsPage = () => {
       'damaged': 'poor'
     };
     
-    const normalized = condition.toLowerCase();
     return conditionMap[normalized] || 'good';
   };
 
 
   // Helper functions
-  const generateFallbackTitle = (aiAnalysis: any) => {
-    if (!aiAnalysis) return 'Item - Manual Review Required';
-    
-    const brand = aiAnalysis?.brand || 'Quality';
-    const category = aiAnalysis?.category || aiAnalysis?.item_type || 'Clothing Item';
-    const size = aiAnalysis?.size ? ` Size ${aiAnalysis.size}` : '';
-    const condition = aiAnalysis?.condition ? ` - ${aiAnalysis.condition}` : '';
-    
-    return `${brand} ${category}${size}${condition}`;
-  };
-
-  // Create fallback AI data when analysis completely fails
-  const createFallbackAIData = (item: GeneratedItem) => {
-    console.log('🔄 [FALLBACK] Creating fallback AI data for SKU:', item.sku);
-    
-    return {
-      title: `Item ${item.sku} - Manual Review Required`,
-      brand: 'Unknown',
-      size: 'Unknown',
-      condition: 'good',
-      category: 'other',
-      color: 'Various',
-      suggested_price: 25,
-      price: 25,
-      confidence: 0.1,
-      key_features: ['manual review required'],
-      keywords: ['item', 'manual review'],
-      source: 'fallback'
-    };
-  };
-
-  // Create fallback extracted data when extraction fails
-  const createFallbackExtractedData = (item: GeneratedItem) => {
-    console.log('🔄 [FALLBACK] Creating fallback extracted data for SKU:', item.sku);
-    
-    return {
-      title: `Item ${item.sku} - Manual Review Required`,
-      description: `This item (SKU: ${item.sku}) requires manual review and editing. The AI analysis was unable to process the image properly. Please review the photos and add details manually.`,
-      price: 25,
-      category: 'other',
-      condition: 'good',
-      brand: 'Unknown',
-      size: 'Unknown',
-      color: 'Various',
-      model_number: null,
-      keywords: ['manual review', 'item'],
-      keyFeatures: ['requires manual review'],
-      confidence: 0.1
-    };
-  };
   const generateListingDescription = ({ title, brand, size, condition, category, color, keywords }) => {
     // Handle undefined parameters
-    const safeBrand = brand || 'Unknown';
-    const safeSize = size || 'Unknown';
-    const safeCondition = condition || 'good';
-    const safeColor = color || 'Various';
-    const safeKeywords = keywords || [];
+    const safeBrand = safeTrim(brand) || 'Unknown';
+    const safeSize = safeTrim(size) || 'Unknown';
+    const safeCondition = safeTrim(condition) || 'good';
+    const safeColor = safeTrim(color) || 'Various';
+    const safeKeywords = safeStringArray(keywords);
     
     const features = [];
     if (safeBrand !== 'Unknown') features.push(`Brand: ${safeBrand}`);
@@ -742,7 +716,7 @@ const GenerateListingsPage = () => {
     const featureText = features.length > 0 ? features.join(' | ') : 'Quality item in great condition';
     const keywordText = safeKeywords.length > 0 ? `\n\nKeywords: ${safeKeywords.join(', ')}` : '';
     
-    return `${title || 'Quality Item'}
+    return `${safeTrim(title) || 'Quality Item'}
 
 ${featureText}${keywordText}
 

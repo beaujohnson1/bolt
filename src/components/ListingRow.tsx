@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Edit, Trash2, Zap, Eye, ExternalLink } from 'lucide-react';
 import StatusBadge from './StatusBadge';
+import { safeTrim } from '../utils/strings';
 
 interface GeneratedItem {
   id: string;
@@ -61,8 +62,10 @@ const ListingRow: React.FC<ListingRowProps> = ({
   };
 
   const formatItemSpecifics = (specifics: Record<string, string>) => {
-    const entries = Object.entries(specifics).filter(([key, value]) => 
-      value && value !== 'Unknown' && value !== 'Unknown Brand'
+    const entries = Object.entries(specifics).filter(([key, value]) => {
+      const trimmedValue = safeTrim(value);
+      return trimmedValue && trimmedValue !== 'Unknown' && trimmedValue !== 'Unknown Brand';
+    }
     );
     
     if (entries.length === 0) return 'No specifics available';
@@ -137,12 +140,12 @@ const ListingRow: React.FC<ListingRowProps> = ({
             <div
               onClick={() => item.title && setEditingTitle(true)}
               className={`text-sm ${
-                item.title 
+                safeTrim(item.title)
                   ? 'text-gray-900 cursor-pointer hover:text-blue-600' 
                   : 'text-gray-400 italic'
               }`}
             >
-              {item.title || 'Click Generate to create title'}
+              {safeTrim(item.title) || 'Click Generate to create title'}
             </div>
           )}
         </div>
@@ -226,11 +229,11 @@ const ListingRow: React.FC<ListingRowProps> = ({
             
             <button
               onClick={onDelete}
-              className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-              title="Delete item"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            Brand: item.brand ?? 'Unknown',
+            Size: item.size ?? 'Unknown',
+            Condition: item.condition ?? 'Unknown',
+            Color: item.color ?? 'Unknown',
+            Category: item.category ?? 'Unknown'
           </div>
         </div>
       </div>
