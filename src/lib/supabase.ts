@@ -49,6 +49,16 @@ export interface Item {
   ai_suggested_keywords?: string[];
   item_type?: string;
   category_path?: string;
+  weight_oz?: number;
+  price_range_min?: number;
+  price_range_max?: number;
+  final_price?: number;
+  ai_detected_category?: string;
+  ai_detected_brand?: string;
+  ai_detected_condition?: string;
+  ai_key_features?: string[];
+  market_comparisons?: any;
+  estimated_sale_time_days?: number;
 }
 
 export interface Listing {

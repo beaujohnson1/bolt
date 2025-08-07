@@ -1,59 +1,51 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Eye, Edit, Trash2, ExternalLink, CheckCircle, Clock, AlertCircle, RefreshCw } from 'lucide-react';
+import { Package, Edit, Trash2, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase, type Item } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { formatPrice, formatDate, getCategoryPath, getItemSpecifics } from '../utils/itemUtils';
+import { formatPrice, generateSKU, getItemSpecifics } from '../utils/itemUtils';
 
-interface GenerateListingsTableProps {
+interface SKUTableProps {
   isDarkMode: boolean;
 }
 
-const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMode }) => {
+const SKUTable: React.FC<SKUTableProps> = ({ isDarkMode }) => {
   const { authUser, user, updateUser } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGeneratingSKUs, setIsGeneratingSKUs] = useState(false);
+  const [editingSKU, setEditingSKU] = useState<string | null>(null);
+  const [editSKUValue, setEditSKUValue] = useState('');
 
   useEffect(() => {
-    fetchItemsReadyForListing();
+    fetchItems();
   }, [authUser]);
 
-  const fetchItemsReadyForListing = async () => {
+  const fetchItems = async () => {
     if (!authUser) return;
 
     try {
-      console.log('🔍 [GENERATE-TABLE] Fetching items ready for listing...');
+      console.log('🔍 [SKU-TABLE] Fetching items...');
       setLoading(true);
       setError(null);
 
       const { data, error: fetchError } = await supabase
         .from('items')
-        .select(`
-          *,
-          listings (
-            id,
-            status,
-            platforms,
-            title,
-            price
-          )
-        `)
+        .select('*')
         .eq('user_id', authUser.id)
-        .not('sku', 'is', null) // Only items with assigned SKUs
         .order('created_at', { ascending: false });
 
       if (fetchError) {
-        console.error('❌ [GENERATE-TABLE] Error fetching items:', fetchError);
+        console.error('❌ [SKU-TABLE] Error fetching items:', fetchError);
         throw fetchError;
       }
 
-      console.log('✅ [GENERATE-TABLE] Items fetched successfully:', data?.length || 0);
+      console.log('✅ [SKU-TABLE] Items fetched successfully:', data?.length || 0);
       setItems(data || []);
     } catch (error) {
-      console.error('❌ [GENERATE-TABLE] Error in fetchItemsReadyForListing:', error);
+      console.error('❌ [SKU-TABLE] Error in fetchItems:', error);
       setError('Failed to load items. Please try again.');
     } finally {
       setLoading(false);
@@ -78,19 +70,6 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
     }
   };
 
-  const getGenerationStatus = (item: Item & { listings?: any[] }) => {
-    if (!item.listings || item.listings.length === 0) {
-      return { status: 'Not Started', color: 'gray', icon: Clock };
-    }
-    
-    const hasActive = item.listings.some(listing => listing.status === 'active');
-    const hasDraft = item.listings.some(listing => listing.status === 'draft');
-    
-    if (hasActive) return { status: 'Live', color: 'green', icon: CheckCircle };
-    if (hasDraft) return { status: 'Draft', color: 'yellow', icon: AlertCircle };
-    return { status: 'Generated', color: 'blue', icon: CheckCircle };
-  };
-
   const handleDeleteSelected = async () => {
     if (selectedItems.size === 0) {
       alert('Please select items to delete.');
@@ -105,7 +84,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
 
     setIsDeleting(true);
     try {
-      console.log('🗑️ [GENERATE-TABLE] Deleting selected items...');
+      console.log('🗑️ [SKU-TABLE] Deleting selected items...');
       
       const selectedItemsArray = Array.from(selectedItems);
       
@@ -117,8 +96,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
           .eq('item_id', itemId);
 
         if (listingError) {
-          console.error('❌ [GENERATE-TABLE] Error deleting listings for item:', itemId, listingError);
-          // Continue with other deletions even if one fails
+          console.error('❌ [SKU-TABLE] Error deleting listings for item:', itemId, listingError);
         }
       }
 
@@ -129,7 +107,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         .in('id', selectedItemsArray);
 
       if (itemError) {
-        console.error('❌ [GENERATE-TABLE] Error deleting items:', itemError);
+        console.error('❌ [SKU-TABLE] Error deleting items:', itemError);
         throw itemError;
       }
 
@@ -139,14 +117,14 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         await updateUser({ listings_used: newListingsUsed });
       }
 
-      console.log('✅ [GENERATE-TABLE] Items deleted successfully');
+      console.log('✅ [SKU-TABLE] Items deleted successfully');
       
       // Refresh the table and clear selection
-      await fetchItemsReadyForListing();
+      await fetchItems();
       setSelectedItems(new Set());
       
     } catch (error) {
-      console.error('❌ [GENERATE-TABLE] Error deleting items:', error);
+      console.error('❌ [SKU-TABLE] Error deleting items:', error);
       alert('Failed to delete items. Please try again.');
     } finally {
       setIsDeleting(false);
@@ -159,7 +137,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
 
     setIsDeleting(true);
     try {
-      console.log('🗑️ [GENERATE-TABLE] Deleting single item:', itemId);
+      console.log('🗑️ [SKU-TABLE] Deleting single item:', itemId);
       
       // Delete associated listings first
       const { error: listingError } = await supabase
@@ -168,7 +146,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         .eq('item_id', itemId);
 
       if (listingError) {
-        console.error('❌ [GENERATE-TABLE] Error deleting listings for item:', itemId, listingError);
+        console.error('❌ [SKU-TABLE] Error deleting listings for item:', itemId, listingError);
       }
 
       // Delete the item
@@ -178,7 +156,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         .eq('id', itemId);
 
       if (itemError) {
-        console.error('❌ [GENERATE-TABLE] Error deleting item:', itemError);
+        console.error('❌ [SKU-TABLE] Error deleting item:', itemError);
         throw itemError;
       }
 
@@ -187,75 +165,91 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         await updateUser({ listings_used: Math.max(0, user.listings_used - 1) });
       }
 
-      console.log('✅ [GENERATE-TABLE] Item deleted successfully');
+      console.log('✅ [SKU-TABLE] Item deleted successfully');
       
       // Refresh the table
-      await fetchItemsReadyForListing();
+      await fetchItems();
       
     } catch (error) {
-      console.error('❌ [GENERATE-TABLE] Error deleting item:', error);
+      console.error('❌ [SKU-TABLE] Error deleting item:', error);
       alert('Failed to delete item. Please try again.');
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const handleGenerateListings = async () => {
+  const handleGenerateSKUs = async () => {
     if (selectedItems.size === 0) {
-      alert('Please select items to generate listings for.');
+      alert('Please select items to generate SKUs for.');
       return;
     }
 
-    setIsGenerating(true);
+    setIsGeneratingSKUs(true);
     try {
-      console.log('🚀 [GENERATE-TABLE] Generating listings for selected items...');
+      console.log('🏷️ [SKU-TABLE] Generating SKUs for selected items...');
       
       const selectedItemsArray = items.filter(item => selectedItems.has(item.id));
       
       for (const item of selectedItemsArray) {
-        // Create listing for each selected item
-        const { error: listingError } = await supabase
-          .from('listings')
-          .insert([{
-            item_id: item.id,
-            user_id: authUser!.id,
-            title: item.title,
-            description: item.description || `${item.title} in ${item.condition.replace('_', ' ')} condition.`,
-            price: item.suggested_price,
-            images: item.images,
-            platforms: ['ebay'],
-            status: 'draft',
-            created_at: new Date().toISOString()
-          }]);
-
-        if (listingError) {
-          console.error('❌ [GENERATE-TABLE] Error creating listing for item:', item.id, listingError);
-          throw listingError;
-        }
-
-        // Update item status to indicate listing has been generated
+        const newSKU = generateSKU(item);
+        
         const { error: updateError } = await supabase
           .from('items')
-          .update({ status: 'listed' })
+          .update({ sku: newSKU })
           .eq('id', item.id);
 
         if (updateError) {
-          console.error('❌ [GENERATE-TABLE] Error updating item status:', updateError);
+          console.error('❌ [SKU-TABLE] Error updating SKU for item:', item.id, updateError);
+          throw updateError;
         }
       }
 
-      console.log('✅ [GENERATE-TABLE] Listings generated successfully');
-      alert(`Successfully generated ${selectedItems.size} listings!`);
+      console.log('✅ [SKU-TABLE] SKUs generated successfully');
+      alert(`Successfully generated SKUs for ${selectedItems.size} items!`);
       
       // Refresh the table
-      await fetchItemsReadyForListing();
+      await fetchItems();
       setSelectedItems(new Set());
     } catch (error) {
-      console.error('❌ [GENERATE-TABLE] Error generating listings:', error);
-      alert('Failed to generate listings. Please try again.');
+      console.error('❌ [SKU-TABLE] Error generating SKUs:', error);
+      alert('Failed to generate SKUs. Please try again.');
     } finally {
-      setIsGenerating(false);
+      setIsGeneratingSKUs(false);
     }
+  };
+
+  const handleEditSKU = (itemId: string, currentSKU: string) => {
+    setEditingSKU(itemId);
+    setEditSKUValue(currentSKU || '');
+  };
+
+  const handleSaveSKU = async (itemId: string) => {
+    if (!editSKUValue.trim()) {
+      alert('SKU cannot be empty.');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('items')
+        .update({ sku: editSKUValue.trim() })
+        .eq('id', itemId);
+
+      if (error) throw error;
+
+      console.log('✅ [SKU-TABLE] SKU updated successfully');
+      setEditingSKU(null);
+      setEditSKUValue('');
+      await fetchItems();
+    } catch (error) {
+      console.error('❌ [SKU-TABLE] Error updating SKU:', error);
+      alert('Failed to update SKU. Please try again.');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSKU(null);
+    setEditSKUValue('');
   };
 
   if (loading) {
@@ -263,7 +257,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <span className={`ml-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-          Loading items ready for listing...
+          Loading items...
         </span>
       </div>
     );
@@ -278,7 +272,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         </h3>
         <p className={`mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>{error}</p>
         <button
-          onClick={fetchItemsReadyForListing}
+          onClick={fetchItems}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
         >
           Try Again
@@ -293,17 +287,16 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Generate Listings
+            SKU Management
           </h2>
           <p className={`${isDarkMode ? 'text-white/70' : 'text-gray-600'} mt-1`}>
-            Items Ready for Listing ({items.length} items)
+            Manage SKUs for your items ({items.length} items)
           </p>
         </div>
         
-        {/* Action Buttons */}
         <div className="flex items-center space-x-3">
           <button
-            onClick={fetchItemsReadyForListing}
+            onClick={fetchItems}
             disabled={loading}
             className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
               isDarkMode 
@@ -365,11 +358,11 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
             </button>
             
             <button
-              onClick={handleGenerateListings}
-              disabled={isGenerating}
+              onClick={handleGenerateSKUs}
+              disabled={isGeneratingSKUs}
               className="px-6 py-2 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg font-medium transition-all duration-300 flex items-center space-x-2 shadow-lg"
             >
-              {isGenerating ? (
+              {isGeneratingSKUs ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                   <span>Generating...</span>
@@ -377,7 +370,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4" />
-                  <span>Generate {selectedItems.size} Listing{selectedItems.size > 1 ? 's' : ''}</span>
+                  <span>Generate SKUs for {selectedItems.size} Item{selectedItems.size > 1 ? 's' : ''}</span>
                 </>
               )}
             </button>
@@ -389,13 +382,13 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         <div className="text-center py-12">
           <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className={`text-lg font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            No Items Ready for Listing
+            No Items Found
           </h3>
           <p className={`mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Upload and process some items first, then assign SKUs to see them here.
+            Upload some photos to get started with SKU management.
           </p>
           <button
-            onClick={fetchItemsReadyForListing}
+            onClick={fetchItems}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 mx-auto"
           >
             <RefreshCw className="w-4 h-4" />
@@ -431,10 +424,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                     Price
                   </th>
                   <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-                    Generation Status
-                  </th>
-                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-                    Category Path
+                    Category
                   </th>
                   <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                     Item Specifics
@@ -451,9 +441,8 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
               {/* Table Body */}
               <tbody className={`divide-y ${isDarkMode ? 'divide-gray-700 bg-gray-800' : 'divide-gray-200 bg-white'}`}>
                 {items.map((item) => {
-                  const generationStatus = getGenerationStatus(item);
-                  const StatusIcon = generationStatus.icon;
                   const isSelected = selectedItems.has(item.id);
+                  const isEditing = editingSKU === item.id;
                   
                   return (
                     <tr
@@ -493,11 +482,52 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
 
                       {/* SKU */}
                       <td className="px-4 py-4">
-                        <span className={`text-sm font-mono px-2 py-1 rounded ${
-                          isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {item.sku || '-'}
-                        </span>
+                        {isEditing ? (
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="text"
+                              value={editSKUValue}
+                              onChange={(e) => setEditSKUValue(e.target.value)}
+                              className={`text-sm font-mono px-2 py-1 rounded border ${
+                                isDarkMode 
+                                  ? 'bg-gray-700 text-gray-200 border-gray-600' 
+                                  : 'bg-white text-gray-800 border-gray-300'
+                              } focus:ring-2 focus:ring-blue-500`}
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveSKU(item.id)}
+                              className="text-green-600 hover:text-green-700 p-1"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="text-gray-600 hover:text-gray-700 p-1"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <span className={`text-sm font-mono px-2 py-1 rounded ${
+                              isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {item.sku || 'No SKU'}
+                            </span>
+                            <button
+                              onClick={() => handleEditSKU(item.id, item.sku || '')}
+                              className={`p-1 rounded transition-colors ${
+                                isDarkMode 
+                                  ? 'hover:bg-white/10 text-white/70 hover:text-white' 
+                                  : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+                              }`}
+                              title="Edit SKU"
+                            >
+                              <Edit className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
                       </td>
 
                       {/* Title */}
@@ -508,7 +538,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                           </h3>
                           {item.brand && (
                             <p className={`text-sm truncate mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {item.brand} • {item.item_type || 'Unknown type'}
+                              {item.brand}
                             </p>
                           )}
                         </div>
@@ -528,33 +558,11 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                         </div>
                       </td>
 
-                      {/* Generation Status */}
+                      {/* Category */}
                       <td className="px-4 py-4">
-                        <div className="flex items-center space-x-2">
-                          <StatusIcon className={`w-4 h-4 ${
-                            generationStatus.color === 'gray' ? 'text-gray-500' :
-                            generationStatus.color === 'green' ? 'text-green-600' :
-                            generationStatus.color === 'yellow' ? 'text-yellow-600' :
-                            'text-blue-600'
-                          }`} />
-                          <span className={`text-sm font-medium ${
-                            generationStatus.color === 'gray' ? 'text-gray-500' :
-                            generationStatus.color === 'green' ? 'text-green-600' :
-                            generationStatus.color === 'yellow' ? 'text-yellow-600' :
-                            'text-blue-600'
-                          }`}>
-                            {generationStatus.status}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Category Path */}
-                      <td className="px-4 py-4">
-                        <div className="max-w-xs">
-                          <span className={`text-sm truncate block ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                            {getCategoryPath(item.category)}
-                          </span>
-                        </div>
+                        <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                          {item.category?.replace('_', ' ') || 'Other'}
+                        </span>
                       </td>
 
                       {/* Item Specifics */}
@@ -585,18 +593,6 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                       <td className="px-4 py-4">
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => window.open(`/details/${item.id}`, '_blank')}
-                            className={`p-2 rounded-lg transition-colors ${
-                              isDarkMode 
-                                ? 'hover:bg-white/10 text-white/70 hover:text-white' 
-                                : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-                            }`}
-                            title="View details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          
-                          <button
                             onClick={() => handleDeleteItem(item.id)}
                             disabled={isDeleting}
                             className={`p-2 rounded-lg transition-colors ${
@@ -619,7 +615,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
 
           {/* Footer Stats */}
           <div className={`mt-4 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} text-center`}>
-            Showing {items.length} item{items.length !== 1 ? 's' : ''} ready for listing
+            Showing {items.length} item{items.length !== 1 ? 's' : ''} 
             {selectedItems.size > 0 && (
               <span className={`ml-4 font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>
                 • {selectedItems.size} selected
@@ -632,4 +628,4 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
   );
 };
 
-export default GenerateListingsTable;
+export default SKUTable;
