@@ -259,6 +259,10 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
     }
   };
 
+  const generateSKU = (index: number) => {
+    return `SKU-${Date.now()}-${index.toString().padStart(3, '0')}`;
+  };
+
   if (loadingSkus) {
     return (
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6 text-center">
@@ -427,6 +431,48 @@ const PublishTab: React.FC = () => {
           <p className="text-white/50 dark:text-white/50">
             Generate listings first to publish them
           </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Overview Tab Component
+const OverviewTab: React.FC<{
+  dashboardStats: DashboardStats;
+  user: any;
+  chatMessages: any[];
+  currentMessage: string;
+  setCurrentMessage: (message: string) => void;
+  handleSendMessage: () => void;
+  handleKeyPress: (e: React.KeyboardEvent) => void;
+  chatEndRef: React.RefObject<HTMLDivElement>;
+}> = ({ dashboardStats, user, chatMessages, currentMessage, setCurrentMessage, handleSendMessage, handleKeyPress, chatEndRef }) => {
+  return (
+    <div className="space-y-6">
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+        <h2 className="text-xl font-bold mb-4 text-white dark:text-white">📊 Dashboard Overview</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white/10 rounded-lg p-4 text-center">
+            <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-white/80 text-sm">Total Revenue</p>
+            <p className="text-2xl font-bold text-white">${dashboardStats.totalRevenue}</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-4 text-center">
+            <ShoppingCart className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+            <p className="text-white/80 text-sm">Total Sales</p>
+            <p className="text-2xl font-bold text-white">{dashboardStats.totalSales}</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-4 text-center">
+            <Eye className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+            <p className="text-white/80 text-sm">Total Views</p>
+            <p className="text-2xl font-bold text-white">{dashboardStats.totalViews}</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-4 text-center">
+            <Package className="w-8 h-8 text-orange-400 mx-auto mb-2" />
+            <p className="text-white/80 text-sm">Active Listings</p>
+            <p className="text-2xl font-bold text-white">{dashboardStats.activeListings}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -843,6 +889,12 @@ const AppDashboard = () => {
     }
   };
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSendMessage();
+    }
+  };
+
   const handleAIResponse = (response) => {
     const aiMessage = {
       id: Date.now(),
@@ -964,8 +1016,8 @@ const AppDashboard = () => {
           throw itemError;
         }
         processedItems.push(itemData);
+      }
 
-        // Generate keyword suggestions
       // Update user's listing count
       setProcessingStatus('Updating user listing count...');
       await updateUser({ listings_used: user.listings_used + processedItems.length });
@@ -1090,13 +1142,12 @@ const AppDashboard = () => {
           chatEndRef={chatEndRef}
         />;
       case 'upload':
-        return <UploadTab selectedFiles={selectedFiles} onFileUpload={handleFileUpload} onProcessFiles={processUploadedFiles} isUploading={isUploading} uploadProgress={uploadProgress} processingStatus={processingStatus} />;
+        return <UploadTab 
           selectedFiles={selectedFiles}
           onFileUpload={handleFileUpload}
           onProcessFiles={processUploadedFiles}
           isUploading={isUploading}
           uploadProgress={uploadProgress}
-          processingStatus={processingStatus}
           processingStatus={processingStatus}
         />;
       case 'skus':
@@ -1218,7 +1269,6 @@ const AppDashboard = () => {
           chatMessages={chatMessages}
           currentMessage={currentMessage}
           setCurrentMessage={setCurrentMessage}
-          processingStatus={processingStatus}
           handleSendMessage={handleSendMessage}
           handleKeyPress={handleKeyPress}
           chatEndRef={chatEndRef}
