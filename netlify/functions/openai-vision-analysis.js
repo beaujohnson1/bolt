@@ -1,5 +1,11 @@
 const OpenAI = require('openai');
 
+// Helper function to strip markdown code fences
+function stripFences(s) {
+  const m = typeof s === "string" && s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  return m ? m[1] : s;
+}
+
 exports.handler = async (event, context) => {
   // Handle CORS preflight requests
   if (event.httpMethod === 'OPTIONS') {
@@ -87,8 +93,9 @@ exports.handler = async (event, context) => {
     console.log('🤖 [OPENAI-FUNCTION] Calling OpenAI API...');
     
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
+        { role: "system", content: "Return only valid JSON as requested." },
         {
           role: "user",
           content: [
@@ -107,20 +114,26 @@ exports.handler = async (event, context) => {
         }
       ],
       max_tokens: 1500, // Increase token limit
-      temperature: 0.1  // Lower temperature for consistent results
+      temperature: 0.1,
+      response_format: { type: "json_object" }
     });
 
     console.log('✅ [OPENAI-FUNCTION] OpenAI API call successful');
     console.log('📊 [OPENAI-FUNCTION] Response usage:', response.usage);
     
-    const analysis = response.choices[0]?.message?.content;
+    let raw = response.choices[0]?.message?.content || "";
     
-    if (!analysis) {
+    // Debug logging
+    console.log("[SERVER] typeof raw:", typeof raw);
+    console.log("[SERVER] raw preview:", typeof raw === "string" ? raw.slice(0, 120) : raw);
+    
+    if (!raw) {
       console.error('❌ [OPENAI-FUNCTION] No content in OpenAI response');
       return {
         statusCode: 500,
         headers: { 'Access-Control-Allow-Origin': '*' },
         body: JSON.stringify({ 
+          ok: false,
           error: 'No analysis content returned from OpenAI',
           response_structure: {
             choices_length: response.choices?.length || 0,
@@ -131,19 +144,30 @@ exports.handler = async (event, context) => {
       };
     }
     
-    console.log('📝 [OPENAI-FUNCTION] Analysis content length:', analysis.length);
-    console.log('📝 [OPENAI-FUNCTION] Analysis preview:', analysis.substring(0, 200));
-
-    // Try to parse as JSON if it looks like JSON
-    let parsedAnalysis = analysis;
-    if (analysis.trim().startsWith('{') && analysis.trim().endsWith('}')) {
-      try {
-        parsedAnalysis = JSON.parse(analysis);
-        console.log('✅ [OPENAI-FUNCTION] Successfully parsed JSON response');
-      } catch (parseError) {
-        console.log('⚠️ [OPENAI-FUNCTION] Could not parse as JSON, returning as text');
-      }
+    // Ensure raw is a string and strip any potential fences
+    if (typeof raw !== "string") raw = JSON.stringify(raw);
+    const clean = stripFences(raw);
+    
+    // Parse on the server
+    let parsedAnalysis;
+    try {
+      parsedAnalysis = JSON.parse(clean);
+      console.log('✅ [OPENAI-FUNCTION] Successfully parsed JSON on server');
+    } catch (parseError) {
+      console.error('❌ [OPENAI-FUNCTION] Failed to parse JSON on server:', parseError);
+      console.log('📝 [OPENAI-FUNCTION] Raw content that failed to parse:', clean.substring(0, 200));
+      return {
+        statusCode: 500,
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({
+          ok: false,
+          error: 'Failed to parse AI response as JSON',
+          raw_preview: clean.substring(0, 200)
+        })
+      };
     }
+
+    console.log('📝 [OPENAI-FUNCTION] Parsed analysis keys:', Object.keys(parsedAnalysis));
 
     return {
       statusCode: 200,
@@ -152,8 +176,8 @@ exports.handler = async (event, context) => {
         'Access-Control-Allow-Origin': '*'
       },
       body: JSON.stringify({
-        success: true,
-        analysis: parsedAnalysis,
+        ok: true,
+        data: parsedAnalysis,
         usage: response.usage
       })
     };

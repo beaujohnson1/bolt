@@ -492,9 +492,6 @@ const GenerateListingsPage = () => {
       return createFallbackExtractedData({ sku: 'unknown' });
     }
     
-    // Debug the AI response
-    debugAIResponse(aiAnalysis);
-    
     // Try all possible field name variations with enhanced eBay integration
     const title = aiAnalysis?.title || 
                   aiAnalysis?.suggested_title || 
@@ -664,52 +661,6 @@ const GenerateListingsPage = () => {
     return conditionMap[normalized] || 'good';
   };
 
-  // Debug AI response
-  const debugAIResponse = (aiAnalysis: any) => {
-    if (!aiAnalysis) {
-      console.log('🔍 [DEBUG] No AI analysis data to debug');
-      return;
-    }
-    
-    console.log('🔍 [DEBUG] =====================================');
-    console.log('🔍 [DEBUG] FULL AI ANALYSIS RESPONSE:');
-    console.log('🔍 [DEBUG] =====================================');
-    console.log('🔍 [DEBUG] Raw response:', JSON.stringify(aiAnalysis, null, 2));
-    console.log('🔍 [DEBUG] Response type:', typeof aiAnalysis);
-    console.log('🔍 [DEBUG] Available keys:', Object.keys(aiAnalysis || {}));
-    
-    // Check every possible field name for title
-    console.log('🔍 [DEBUG] TITLE FIELD VARIATIONS:');
-    const titleFields = ['title', 'suggested_title', 'name', 'itemName', 'item_name', 'product_name', 'listing_title'];
-    titleFields.forEach(field => {
-      if (aiAnalysis[field] !== undefined) {
-        console.log(`🔍 [DEBUG] ✅ FOUND TITLE: ${field} = "${aiAnalysis[field]}"`);
-      } else {
-        console.log(`🔍 [DEBUG] ❌ Missing: ${field}`);
-      }
-    });
-    
-    // Check every possible field name for price
-    console.log('🔍 [DEBUG] PRICE FIELD VARIATIONS:');
-    const priceFields = ['price', 'suggested_price', 'estimated_price', 'estimatedPrice', 'suggestedPrice', 'market_price', 'listing_price'];
-    priceFields.forEach(field => {
-      if (aiAnalysis[field] !== undefined) {
-        console.log(`🔍 [DEBUG] ✅ FOUND PRICE: ${field} = "${aiAnalysis[field]}"`);
-      } else {
-        console.log(`🔍 [DEBUG] ❌ Missing: ${field}`);
-      }
-    });
-    
-    // Check other important fields
-    console.log('🔍 [DEBUG] OTHER IMPORTANT FIELDS:');
-    ['brand', 'size', 'condition', 'category', 'item_type', 'color', 'model_number'].forEach(field => {
-      if (aiAnalysis[field] !== undefined) {
-        console.log(`🔍 [DEBUG] ✅ ${field.toUpperCase()}: "${aiAnalysis[field]}"`);
-      }
-    });
-    
-    console.log('🔍 [DEBUG] =====================================');
-  };
 
   // Helper functions
   const generateFallbackTitle = (aiAnalysis: any) => {

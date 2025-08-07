@@ -38,54 +38,31 @@ export const analyzeClothingItem = async (imageInput) => {
       throw new Error(`OpenAI analysis failed: ${response.status} ${response.statusText}`);
     }
 
-    const result = await response.json();
+    const payload = await response.json();
+    if (!payload.ok) {
+      throw new Error(payload.error || "AI analysis failed");
+    }
+    
+    const ai = payload.data;
+    if (!ai || typeof ai !== "object" || Array.isArray(ai)) {
+      throw new Error("AI payload is not an object");
+    }
+    
+    // Optional coercions/guards
+    if (typeof ai.suggested_price === "string") {
+      ai.suggested_price = Number(ai.suggested_price);
+    }
+    if (!ai.title || typeof ai.title !== "string") {
+      throw new Error("AI payload missing title");
+    }
+    
     console.log('✅ [OPENAI-CLIENT] Enhanced GPT-4 Vision response received');
-    console.log('📊 [OPENAI-CLIENT] Enhanced result:', result);
-    
-    // Debug the AI response structure
-    console.log('🔍 [DEBUG] =====================================');
-    console.log('🔍 [DEBUG] FULL AI ANALYSIS RESPONSE:');
-    console.log('🔍 [DEBUG] =====================================');
-    console.log('🔍 [DEBUG] Raw response:', JSON.stringify(result.analysis, null, 2));
-    console.log('🔍 [DEBUG] Response type:', typeof result.analysis);
-    console.log('🔍 [DEBUG] Available keys:', Object.keys(result.analysis || {}));
-    
-    // Check every possible field name for title
-    console.log('🔍 [DEBUG] TITLE FIELD VARIATIONS:');
-    const titleFields = ['title', 'suggested_title', 'name', 'itemName', 'item_name', 'product_name', 'listing_title'];
-    titleFields.forEach(field => {
-      if (result.analysis[field] !== undefined) {
-        console.log(`🔍 [DEBUG] ✅ FOUND TITLE: ${field} = "${result.analysis[field]}"`);
-      } else {
-        console.log(`🔍 [DEBUG] ❌ Missing: ${field}`);
-      }
-    });
-    
-    // Check every possible field name for price
-    console.log('🔍 [DEBUG] PRICE FIELD VARIATIONS:');
-    const priceFields = ['price', 'suggested_price', 'estimated_price', 'estimatedPrice', 'suggestedPrice', 'market_price', 'listing_price'];
-    priceFields.forEach(field => {
-      if (result.analysis[field] !== undefined) {
-        console.log(`🔍 [DEBUG] ✅ FOUND PRICE: ${field} = "${result.analysis[field]}"`);
-      } else {
-        console.log(`🔍 [DEBUG] ❌ Missing: ${field}`);
-      }
-    });
-    
-    // Check other important fields
-    console.log('🔍 [DEBUG] OTHER IMPORTANT FIELDS:');
-    ['brand', 'size', 'condition', 'category', 'item_type', 'color', 'material'].forEach(field => {
-      if (result.analysis[field] !== undefined) {
-        console.log(`🔍 [DEBUG] ✅ ${field.toUpperCase()}: "${result.analysis[field]}"`);
-      }
-    });
-    
-    console.log('🔍 [DEBUG] =====================================');
+    console.log('📊 [OPENAI-CLIENT] AI data received:', ai);
     
     // Ensure the response has the expected structure
     return {
       success: true,
-      analysis: result.analysis || result,
+      analysis: ai,
       source: 'openai-vision-enhanced'
     };
   } catch (error) {
