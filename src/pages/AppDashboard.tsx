@@ -700,20 +700,207 @@ const PublishTab: React.FC = () => {
           .eq('user_id', authUser.id)
           .eq('status', 'ready_to_publish')
           .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        setReadyToPublish(data || []);
+      } catch (error) {
+        console.error('Error fetching items ready to publish:', error);
+      } finally {
+        setLoadingItems(false);
+      }
+    };
+    fetchReadyItems();
+  }, [authUser]);
+
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItems(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
+  const handlePublishToEbay = async () => {
+    if (selectedItems.length === 0) {
+      alert('Please select items to publish.');
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      console.log('🚀 [PUBLISH] Publishing selected items to eBay...');
+      
+      for (const itemId of selectedItems) {
+        const item = readyToPublish.find(i => i.id === itemId);
+        if (!item) continue;
+
+        // Create listing in database
+        const { data: listingData, error: listingError } = await supabase
+          .from('listings')
+          .insert([{
+            item_id: item.id,
+            user_id: authUser.id,
+            title: item.title,
+            description: item.description || '',
+            price: item.suggested_price,
+            images: item.images,
+            platforms: ['ebay'],
+            status: 'active',
+            listed_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+
+        if (listingError) {
+          console.error(`❌ [PUBLISH] Error creating listing for item ${item.id}:`, listingError);
+          continue;
+        }
+
+        // Update item status
+        await supabase
+          .from('items')
+          .update({ status: 'published' })
+          .eq('id', item.id);
+
+        console.log(`✅ [PUBLISH] Item ${item.id} published successfully`);
+      }
+
+      // Refresh the list
+      const { data: remainingItems, error: fetchError } = await supabase
+        .from('items')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .eq('status', 'ready_to_publish')
+        .order('created_at', { ascending: true });
+
+      if (fetchError) throw fetchError;
+      setReadyToPublish(remainingItems || []);
+      setSelectedItems([]);
+      
+      alert(`Successfully published ${selectedItems.length} listing${selectedItems.length > 1 ? 's' : ''} to eBay!`);
+    } catch (error) {
+      console.error('❌ [PUBLISH] Error publishing items:', error);
+      alert('Failed to publish some items. Please try again.');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  if (loadingItems) {
+    return (
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyber-blue-500 mx-auto mb-4"></div>
+        <p className="text-white/70">Loading items ready to publish...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
         <h2 className="text-xl font-bold mb-4 text-white dark:text-white">🚀 Publish to eBay</h2>
         <p className="text-white/80 dark:text-white/80 mb-6">
-          Publish your generated listings to eBay and other platforms.
+          Review AI-generated listings and publish directly to eBay.
         </p>
         
-        <div className="text-center py-8">
-          <ShoppingCart className="w-16 h-16 text-white/30 dark:text-white/30 mx-auto mb-4" />
-          <p className="text-white/50 dark:text-white/50">
-            Generate listings first to publish them
-          </p>
-        </div>
+        {readyToPublish.length > 0 ? (
+          <>
+            {/* Selection Controls */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => {
+                    if (selectedItems.length === readyToPublish.length) {
+                      setSelectedItems([]);
+                    } else {
+                      setSelectedItems(readyToPublish.map(item => item.id));
+                    }
+                  }}
+                  className="text-cyber-blue-500 hover:text-cyber-blue-400 text-sm font-medium"
+                >
+                  {selectedItems.length === readyToPublish.length ? 'Deselect All' : 'Select All'}
+                </button>
+                <span className="text-white/60 text-sm">
+                  {selectedItems.length} of {readyToPublish.length} selected
+                </span>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {readyToPublish.map((item) => (
+                <div 
+                  key={item.id}
+                  onClick={() => toggleItemSelection(item.id)}
+                  className={`bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-200 hover:bg-white/20 ${
+                    selectedItems.includes(item.id) 
+                      ? 'ring-2 ring-cyber-blue-500 bg-cyber-blue-500/20' 
+                      : ''
+                  }`}
+                >
+                  {/* Selection indicator */}
+                  <div className="relative">
+                    <div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                      selectedItems.includes(item.id)
+                        ? 'bg-cyber-blue-500 text-white'
+                        : 'bg-white/20 text-white/60'
+                    }`}>
+                      {selectedItems.includes(item.id) ? '✓' : '○'}
+                    </div>
+                  </div>
+                  
+                  <div className="flex space-x-4">
+                    <img
+                      src={item.primary_image_url || 'https://via.placeholder.com/150'}
+                      alt={item.title}
+                      className="w-24 h-24 object-cover rounded-md flex-shrink-0"
+                    />
+                    <div className="flex-1 text-left space-y-2">
+                      <h3 className="text-sm text-white/90 font-medium">{item.title}</h3>
+                      <p className="text-xs text-white/60">SKU: {item.sku}</p>
+                      <p className="text-xs text-white/60">Brand: {item.brand || 'Unknown'}</p>
+                      <p className="text-xs text-white/60">Price: ${item.suggested_price}</p>
+                      <p className="text-xs text-white/60">Category: {item.category?.replace('_', ' ')}</p>
+                      {item.ai_suggested_keywords && item.ai_suggested_keywords.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {item.ai_suggested_keywords.slice(0, 3).map((keyword, i) => (
+                            <span key={i} className="px-1 py-0.5 bg-cyber-blue-500/30 text-white/80 rounded text-xs">
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <button
+              onClick={handlePublishToEbay}
+              disabled={publishing || selectedItems.length === 0}
+              className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
+            >
+              {publishing ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Publishing to eBay...</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="w-5 h-5" />
+                  <span>Publish {selectedItems.length} Listing{selectedItems.length !== 1 ? 's' : ''} to eBay</span>
+                </>
+              )}
+            </button>
+          </>
+        ) : (
+          <div className="text-center py-8">
+            <ShoppingCart className="w-16 h-16 text-white/30 dark:text-white/30 mx-auto mb-4" />
+            <p className="text-white/50 dark:text-white/50">
+              No items ready to publish. Generate listings first!
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -948,10 +1135,7 @@ const AppDashboard = () => {
         const processedCategoryData = Array.from(categoryMap.entries()).map(([category, data]) => ({
           name: category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
           value: totalCategorySales > 0 ? Math.round((data.sales / totalCategorySales) * 100) : 0,
-          ai_analysis: { 
-            ...item.ai_analysis, 
-            sku: generateSKU(item) // Now calls the correct function with item object
-          },
+          color: categoryColors[category] || '#6b7280',
           sales: data.revenue
         }));
         
@@ -1679,186 +1863,8 @@ const AppDashboard = () => {
     </div>
   );
 
-        if (error) throw error;
-        setReadyToPublish(data || []);
-      } catch (error) {
-        console.error('Error fetching items ready to publish:', error);
-      } finally {
-        setLoadingItems(false);
-      }
-    };
-    fetchReadyItems();
-  }, [authUser]);
-
-  const handlePublishToEbay = async () => {
-    if (selectedItems.length === 0) {
-      alert('Please select items to publish.');
-      return;
-    }
-
-    setPublishing(true);
-    try {
-      console.log('🚀 [PUBLISH] Publishing selected items to eBay...');
-      
-      for (const itemId of selectedItems) {
-        const item = readyToPublish.find(i => i.id === itemId);
-        if (!item) continue;
-
-        // Create listing in database
-        const { data: listingData, error: listingError } = await supabase
-          .from('listings')
-          .insert([{
-            item_id: item.id,
-            user_id: authUser.id,
-            title: item.title,
-            description: item.description || '',
-            price: item.suggested_price,
-            images: item.images,
-            platforms: ['ebay'],
-            status: 'active',
-            listed_at: new Date().toISOString()
-          }])
-          .select()
-          .single();
-
-        if (listingError) {
-          console.error(`❌ [PUBLISH] Error creating listing for item ${item.id}:`, listingError);
-          continue;
-        }
-
-        // Update item status
-        await supabase
-          .from('items')
-          .update({ status: 'published' })
-          .eq('id', item.id);
-
-        console.log(`✅ [PUBLISH] Item ${item.id} published successfully`);
-      }
-
-      // Refresh the list
-      const { data: remainingItems, error: fetchError } = await supabase
-        .from('items')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .eq('status', 'ready_to_publish')
-        .order('created_at', { ascending: true });
-
-      if (fetchError) throw fetchError;
-      setReadyToPublish(remainingItems || []);
-      setSelectedItems([]);
-      
-      alert(`Successfully published ${selectedItems.length} listing${selectedItems.length > 1 ? 's' : ''} to eBay!`);
-    } catch (error) {
-      console.error('❌ [PUBLISH] Error publishing items:', error);
-      alert('Failed to publish some items. Please try again.');
-    } finally {
-      setPublishing(false);
-    }
-  };
-
-  if (loadingItems) {
-    return (
-          Review AI-generated listings and publish directly to eBay.
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyber-blue-500 mx-auto mb-4"></div>
-        <p className="text-white/70">Loading items ready to publish...</p>
-        {readyToPublish.length > 0 ? (
-          <>
-            {/* Selection Controls */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => {
-                    if (selectedItems.length === readyToPublish.length) {
-                      setSelectedItems([]);
-                    } else {
-                      setSelectedItems(readyToPublish.map(item => item.id));
-                    }
-                  }}
-                  className="text-cyber-blue-500 hover:text-cyber-blue-400 text-sm font-medium"
-                >
-                  {selectedItems.length === readyToPublish.length ? 'Deselect All' : 'Select All'}
-                </button>
-                <span className="text-white/60 text-sm">
-                  {selectedItems.length} of {readyToPublish.length} selected
-                </span>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              {readyToPublish.map((item) => (
-                <div 
-                  key={item.id}
-                  onClick={() => toggleItemSelection(item.id)}
-                  className={`bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-200 hover:bg-white/20 ${
-                    selectedItems.includes(item.id) 
-                      ? 'ring-2 ring-cyber-blue-500 bg-cyber-blue-500/20' 
-                      : ''
-                  }`}
-                >
-                  {/* Selection indicator */}
-                  <div className="relative">
-                    <div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                      selectedItems.includes(item.id)
-                        ? 'bg-cyber-blue-500 text-white'
-                        : 'bg-white/20 text-white/60'
-                    }`}>
-                      {selectedItems.includes(item.id) ? '✓' : '○'}
-                    </div>
-                  </div>
-                  
-                  <div className="flex space-x-4">
-                    <img
-                      src={item.primary_image_url || 'https://via.placeholder.com/150'}
-                      alt={item.title}
-                      className="w-24 h-24 object-cover rounded-md flex-shrink-0"
-                    />
-                    <div className="flex-1 text-left space-y-2">
-                      <h3 className="text-sm text-white/90 font-medium">{item.title}</h3>
-                      <p className="text-xs text-white/60">SKU: {item.sku}</p>
-                      <p className="text-xs text-white/60">Brand: {item.brand || 'Unknown'}</p>
-                      <p className="text-xs text-white/60">Price: ${item.suggested_price}</p>
-                      <p className="text-xs text-white/60">Category: {item.category?.replace('_', ' ')}</p>
-                      {item.ai_suggested_keywords && item.ai_suggested_keywords.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {item.ai_suggested_keywords.slice(0, 3).map((keyword, i) => (
-                            <span key={i} className="px-1 py-0.5 bg-cyber-blue-500/30 text-white/80 rounded text-xs">
-                              {keyword}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <button
-              onClick={handlePublishToEbay}
-              disabled={publishing || selectedItems.length === 0}
-              className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
-            >
-              {publishing ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>Publishing to eBay...</span>
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="w-5 h-5" />
-                  <span>Publish {selectedItems.length} Listing{selectedItems.length !== 1 ? 's' : ''} to eBay</span>
-                </>
-              )}
-            </button>
-          </>
-        ) : (
-          <div className="text-center py-8">
-            <ShoppingCart className="w-16 h-16 text-white/30 dark:text-white/30 mx-auto mb-4" />
-            <p className="text-white/50 dark:text-white/50">
-              No items ready to publish. Generate listings first!
-            </p>
-          </div>
-        )}
+  return (
+    <DashboardLayout activeTab={activeTab} setActiveTab={setActiveTab}>
       {renderTabContent()}
     </DashboardLayout>
   );
