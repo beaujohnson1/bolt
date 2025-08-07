@@ -5,12 +5,12 @@ import { TrendingUp, DollarSign, Package, Eye, ShoppingCart, Calendar, Target, Z
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
 import EbayApiService, { type TrendingItem } from '../services/ebayApi';
-import GenerateListingsTable from '../components/GenerateListingsTable';
 import { normalizeCondition, normalizeCategory, generateSKU, generateSequentialSKU } from '../utils/itemUtils';
 import { resizeImage, calculateImageHash, processImagesWithEnhancement } from '../utils/imageUtils';
 import DashboardLayout from '../components/DashboardLayout';
 
 // Debug log to confirm DashboardLayout is properly imported
+import GenerateListingsTable from '../components/GenerateListingsTable';
 console.log('🔍 [APP-DASHBOARD] DashboardLayout imported as:', DashboardLayout);
 console.log('🔍 [APP-DASHBOARD] DashboardLayout type:', typeof DashboardLayout);
 console.log('🔍 [APP-DASHBOARD] DashboardLayout is function:', typeof DashboardLayout === 'function');
@@ -1899,7 +1899,7 @@ const AppDashboard = () => {
       case 'listings':
         return (
           <div className="space-y-6">
-            <GenerateListingsTable isDarkMode={true} />
+            <GenerateListingsTable isDarkMode={isDarkMode} />
           </div>
         );
       default:
