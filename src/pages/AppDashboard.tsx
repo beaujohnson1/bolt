@@ -259,6 +259,10 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
     }
   };
 
+  const generateSKU = (index: number) => {
+    return `SKU-${Date.now()}-${index.toString().padStart(3, '0')}`;
+  };
+
   if (loadingSkus) {
     return (
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6 text-center">
@@ -427,6 +431,48 @@ const PublishTab: React.FC = () => {
           <p className="text-white/50 dark:text-white/50">
             Generate listings first to publish them
           </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Overview Tab Component
+const OverviewTab: React.FC<{
+  dashboardStats: DashboardStats;
+  user: any;
+  chatMessages: any[];
+  currentMessage: string;
+  setCurrentMessage: (message: string) => void;
+  handleSendMessage: () => void;
+  handleKeyPress: (e: React.KeyboardEvent) => void;
+  chatEndRef: React.RefObject<HTMLDivElement>;
+}> = ({ dashboardStats, user, chatMessages, currentMessage, setCurrentMessage, handleSendMessage, handleKeyPress, chatEndRef }) => {
+  return (
+    <div className="space-y-6">
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+        <h2 className="text-xl font-bold mb-4 text-white dark:text-white">📊 Dashboard Overview</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white/10 rounded-lg p-4 text-center">
+            <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-white/80 text-sm">Total Revenue</p>
+            <p className="text-2xl font-bold text-white">${dashboardStats.totalRevenue.toFixed(2)}</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-4 text-center">
+            <ShoppingCart className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+            <p className="text-white/80 text-sm">Total Sales</p>
+            <p className="text-2xl font-bold text-white">{dashboardStats.totalSales}</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-4 text-center">
+            <Eye className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+            <p className="text-white/80 text-sm">Total Views</p>
+            <p className="text-2xl font-bold text-white">{dashboardStats.totalViews}</p>
+          </div>
+          <div className="bg-white/10 rounded-lg p-4 text-center">
+            <Package className="w-8 h-8 text-orange-400 mx-auto mb-2" />
+            <p className="text-white/80 text-sm">Active Listings</p>
+            <p className="text-2xl font-bold text-white">{dashboardStats.activeListings}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -843,6 +889,12 @@ const AppDashboard = () => {
     }
   };
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSendMessage();
+    }
+  };
+
   const handleAIResponse = (response) => {
     const aiMessage = {
       id: Date.now(),
@@ -1073,153 +1125,6 @@ const AppDashboard = () => {
 
   const handleNewListing = () => {
     navigate('/capture');
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSendMessage();
-    }
-  };
-
-  const generateSKU = (index) => {
-    return `SKU-${Date.now()}-${index.toString().padStart(3, '0')}`;
-  };
-
-  // Overview Tab Component
-  const OverviewTab: React.FC<{
-    dashboardStats: DashboardStats;
-    user: any;
-    chatMessages: any[];
-    currentMessage: string;
-    setCurrentMessage: (message: string) => void;
-    handleSendMessage: () => void;
-    handleKeyPress: (e: any) => void;
-    chatEndRef: any;
-  }> = ({ dashboardStats, user, chatMessages, currentMessage, setCurrentMessage, handleSendMessage, handleKeyPress, chatEndRef }) => {
-    return (
-      <div className="space-y-6">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
-            icon={DollarSign}
-            title="Total Revenue"
-            value={`$${dashboardStats.totalRevenue.toFixed(2)}`}
-            change={dashboardStats.revenueChange}
-            gradient="from-green-500 to-emerald-600"
-            metric="revenue"
-            subtitle="This month"
-          />
-          <StatCard
-            icon={ShoppingCart}
-            title="Total Sales"
-            value={dashboardStats.totalSales.toString()}
-            change={dashboardStats.salesChange}
-            gradient="from-blue-500 to-cyan-600"
-            metric="sales"
-            subtitle="Items sold"
-          />
-          <StatCard
-            icon={Eye}
-            title="Total Views"
-            value={dashboardStats.totalViews.toString()}
-            change={dashboardStats.viewsChange}
-            gradient="from-purple-500 to-pink-600"
-            metric="views"
-            subtitle="Listing views"
-          />
-          <StatCard
-            icon={Package}
-            title="Active Listings"
-            value={dashboardStats.activeListings.toString()}
-            change={dashboardStats.listingsChange}
-            gradient="from-orange-500 to-red-600"
-            metric="listings"
-            subtitle={`${user?.listings_used || 0}/${user?.listings_limit || 0} used`}
-          />
-        </div>
-
-        {/* Quick Actions */}
-        <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
-          <h2 className="text-xl font-bold mb-4 text-white dark:text-white">Quick Actions</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button
-              onClick={() => setActiveTab('upload')}
-              className="bg-cyber-gradient hover:opacity-90 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
-            >
-              <Upload className="w-6 h-6" />
-              <span>Upload Photos</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('skus')}
-              className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
-            >
-              <Package className="w-6 h-6" />
-              <span>Assign SKUs</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('generate')}
-              className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
-            >
-              <Zap className="w-6 h-6" />
-              <span>Generate Listings</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('coach')}
-              className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
-            >
-              <Bot className="w-6 h-6" />
-              <span>AI Coach</span>
-            </button>
-          </div>
-        </div>
-
-        {/* AI Coach Preview */}
-        <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white dark:text-white">🤖 AI Coach</h2>
-            <button
-              onClick={() => setActiveTab('coach')}
-              className="text-cyber-blue-500 hover:text-cyber-blue-400 text-sm font-medium"
-            >
-              Open Full Chat →
-            </button>
-          </div>
-          
-          <div className="bg-white/5 dark:bg-white/5 rounded-lg p-4 mb-4 max-h-40 overflow-y-auto">
-            {chatMessages.slice(-2).map((msg) => (
-              <div key={msg.id} className={`mb-2 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
-                <div className={`inline-block p-2 rounded-lg text-sm max-w-xs ${
-                  msg.sender === 'user'
-                    ? 'bg-cyber-gradient text-white'
-                    : 'bg-gray-700 text-white'
-                }`}>
-                  {msg.text}
-                </div>
-              </div>
-            ))}
-            <div ref={chatEndRef} />
-          </div>
-          
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              value={currentMessage}
-              onChange={(e) => setCurrentMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask your AI coach..."
-              className="flex-1 p-2 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50 text-sm"
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={!currentMessage.trim()}
-              className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-2 rounded-lg transition-opacity"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   // Render content based on active tab
