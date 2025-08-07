@@ -1134,28 +1134,87 @@ const AppDashboard = () => {
             change={dashboardStats.listingsChange}
             gradient="from-orange-500 to-red-600"
             metric="listings"
-            subtitle="Currently listed"
+            subtitle={`${user?.listings_used || 0}/${user?.listings_limit || 0} used`}
           />
         </div>
 
-        {/* Quick Chat */}
+        {/* Quick Actions */}
         <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
-          <h2 className="text-xl font-bold mb-4 text-white dark:text-white">🤖 Quick AI Coach</h2>
+          <h2 className="text-xl font-bold mb-4 text-white dark:text-white">Quick Actions</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button
+              onClick={() => setActiveTab('upload')}
+              className="bg-cyber-gradient hover:opacity-90 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
+            >
+              <Upload className="w-6 h-6" />
+              <span>Upload Photos</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('skus')}
+              className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
+            >
+              <Package className="w-6 h-6" />
+              <span>Assign SKUs</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('generate')}
+              className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
+            >
+              <Zap className="w-6 h-6" />
+              <span>Generate Listings</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('coach')}
+              className="bg-white/10 hover:bg-white/20 text-white p-4 rounded-xl font-semibold transition-all duration-300 hover:scale-105 hover:shadow-lg flex flex-col items-center space-y-2"
+            >
+              <Bot className="w-6 h-6" />
+              <span>AI Coach</span>
+            </button>
+          </div>
+        </div>
+
+        {/* AI Coach Preview */}
+        <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white dark:text-white">🤖 AI Coach</h2>
+            <button
+              onClick={() => setActiveTab('coach')}
+              className="text-cyber-blue-500 hover:text-cyber-blue-400 text-sm font-medium"
+            >
+              Open Full Chat →
+            </button>
+          </div>
+          
+          <div className="bg-white/5 dark:bg-white/5 rounded-lg p-4 mb-4 max-h-40 overflow-y-auto">
+            {chatMessages.slice(-2).map((msg) => (
+              <div key={msg.id} className={`mb-2 ${msg.sender === 'user' ? 'text-right' : 'text-left'}`}>
+                <div className={`inline-block p-2 rounded-lg text-sm max-w-xs ${
+                  msg.sender === 'user'
+                    ? 'bg-cyber-gradient text-white'
+                    : 'bg-gray-700 text-white'
+                }`}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+          
           <div className="flex space-x-2">
             <input
               type="text"
               value={currentMessage}
               onChange={(e) => setCurrentMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ask your AI coach anything..."
-              className="flex-1 p-3 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50"
+              placeholder="Ask your AI coach..."
+              className="flex-1 p-2 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50 text-sm"
             />
             <button
               onClick={handleSendMessage}
               disabled={!currentMessage.trim()}
-              className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-3 rounded-lg transition-opacity"
+              className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-2 rounded-lg transition-opacity"
             >
-              <Send className="w-5 h-5" />
+              <Send className="w-4 h-4" />
             </button>
           </div>
         </div>
