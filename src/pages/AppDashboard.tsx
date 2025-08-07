@@ -8,6 +8,7 @@ import GenerateListingsTable from '../components/GenerateListingsTable';
 import SKUAssignmentPage from '../components/SKUAssignment/SKUAssignmentPage';
 import PhotoCapture from './PhotoCapture';
 import { formatPrice } from '../utils/itemUtils';
+import GenerateListingsPage from './GenerateListingsPage';
 
 const AppDashboard = () => {
   const { user, authUser } = useAuth();
@@ -84,7 +85,7 @@ const AppDashboard = () => {
       case 'skus':
         return <SKUAssignmentPage isDarkMode={isDarkMode} key={refreshTrigger} onAssignmentComplete={() => setActiveTab('generate')} />;
       case 'generate':
-        return <GenerateListingsTable isDarkMode={isDarkMode} key={refreshTrigger} />;
+        return <GenerateListingsPage />;
       case 'publish':
         return <PublishTab />;
       case 'coach':
