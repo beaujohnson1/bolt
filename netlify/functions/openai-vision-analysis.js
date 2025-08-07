@@ -55,23 +55,27 @@ exports.handler = async (event, context) => {
     
     console.log('📝 Request details:', {
       hasImageUrl: !!imageUrl,
-      imageUrlLength: imageUrl?.length,
+      hasImageBase64: !!requestBody.imageBase64,
+      imageUrlLength: imageUrl?.length || 0,
+      imageBase64Length: requestBody.imageBase64?.length || 0,
       detectedBrand,
       detectedCategory
     });
 
-    // Validate image URL
-    if (!imageUrl) {
-      console.error('❌ No image URL provided');
+    // Validate image input (URL or base64)
+    const imageInput = imageUrl || (requestBody.imageBase64 ? `data:image/jpeg;base64,${requestBody.imageBase64}` : null);
+    
+    if (!imageInput) {
+      console.error('❌ No image URL or base64 provided');
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Image URL is required' })
+        body: JSON.stringify({ error: 'Image URL or base64 is required' })
       };
     }
 
-    // Check if image URL is accessible
-    if (!imageUrl.startsWith('https://')) {
+    // Validate image format
+    if (imageUrl && !imageUrl.startsWith('https://')) {
       console.error('❌ Invalid image URL format:', imageUrl);
       return {
         statusCode: 400,
@@ -80,7 +84,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    console.log('🖼️ Analyzing image for keywords:', imageUrl);
+    console.log('🖼️ Analyzing image:', imageInput.substring(0, 50) + '...');
 
     // Create specific prompt for keywords
     const prompt = `Look at this clothing item and generate 8-10 specific selling keywords for eBay/marketplace listings.
@@ -119,7 +123,7 @@ Return ONLY a JSON array of keywords like:
               {
                 type: "image_url",
                 image_url: {
-                  url: imageUrl,
+                  url: imageInput,
                   detail: "high" // Use high detail for better analysis
                 }
               }

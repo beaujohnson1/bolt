@@ -151,13 +151,13 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
       setUploadStatus('Complete!');
       setUploadComplete(true);
 
-      // Call the completion callback if provided (for embedded mode)
-      if (onUploadComplete) {
-        console.log('🎯 [PHOTO] Calling upload completion callback...');
-        setTimeout(() => {
+      // Auto-redirect to SKUs tab after successful upload
+      setTimeout(() => {
+        if (onUploadComplete) {
+          console.log('🎯 [PHOTO] Calling upload completion callback to switch to SKUs tab...');
           onUploadComplete();
-        }, 1500);
-      }
+        }
+      }, 2000);
     } catch (error) {
       console.error('❌ [PHOTO] Upload failed:', error);
       alert(`Failed to upload photos: ${error.message}. Please try again.`);
@@ -189,12 +189,13 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
             </h2>
             <p className="text-gray-600 mb-6">
               {selectedFiles.length} photo{selectedFiles.length > 1 ? 's' : ''} uploaded. 
-              Now assign SKUs to group your photos into items.
+              Redirecting to SKU assignment...
             </p>
             
             {embedded ? (
-              <div className="text-sm text-gray-500">
-                Redirecting to SKU assignment...
+              <div className="flex items-center justify-center space-x-2 text-blue-600">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span>Switching to SKU assignment...</span>
               </div>
             ) : (
               <div className="space-y-3">
@@ -377,18 +378,20 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
             Upload all your photos first, then assign SKUs to group them into items
           </p>
         </div>
-
-        {uploadArea}
+        
+        <div className="max-w-4xl mx-auto">
+          {uploadArea}
+        </div>
 
         {/* Tips */}
-        <div className="mt-8 bg-blue-50 rounded-xl p-6">
+        <div className="mt-8 bg-blue-50 rounded-xl p-6 max-w-4xl mx-auto">
           <h3 className="font-semibold text-gray-900 mb-3">📸 Photo Upload Tips</h3>
           <ul className="text-sm text-gray-600 space-y-2">
-            <li>• Upload all photos for multiple items at once</li>
+            <li>• Upload photos for all items you want to sell</li>
             <li>• Use good lighting - natural light works best</li>
             <li>• Take photos from multiple angles for each item</li>
             <li>• Include brand labels and tags when visible</li>
-            <li>• You'll group photos by item and assign SKUs on the next page</li>
+            <li>• After upload, you'll assign SKUs to group photos by item</li>
           </ul>
         </div>
       </main>

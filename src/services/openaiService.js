@@ -1,10 +1,27 @@
 // Client-side OpenAI service that calls Netlify Functions
 import { convertToBase64, fetchImageAsBase64 } from '../utils/imageUtils';
 
-// Primary clothing analysis function
-export const analyzeClothingItem = async (imageBase64) => {
+// Primary clothing analysis function - now accepts URL or base64
+export const analyzeClothingItem = async (imageInput) => {
   try {
-    console.log('🤖 [OPENAI-CLIENT] Starting GPT-4 Vision analysis via Netlify Function...');
+    console.log('🤖 [OPENAI-CLIENT] Starting GPT-4 Vision analysis via Netlify Function...', {
+      inputType: imageInput.startsWith('data:') ? 'base64' : 'url',
+      inputLength: imageInput.length
+    });
+    
+    // Determine if input is URL or base64
+    let imageBase64;
+    if (imageInput.startsWith('http')) {
+      // It's a URL, convert to base64
+      console.log('🔄 [OPENAI-CLIENT] Converting URL to base64...');
+      imageBase64 = await fetchImageAsBase64(imageInput);
+    } else if (imageInput.startsWith('data:')) {
+      // It's already base64, extract the data part
+      imageBase64 = imageInput.split(',')[1];
+    } else {
+      // Assume it's raw base64
+      imageBase64 = imageInput;
+    }
     
     const response = await fetch('/.netlify/functions/openai-vision-analysis', {
       method: 'POST',
@@ -13,7 +30,8 @@ export const analyzeClothingItem = async (imageBase64) => {
       },
       body: JSON.stringify({
         imageBase64,
-        analysisType: 'clothing'
+        analysisType: 'clothing',
+        imageUrl: imageInput.startsWith('http') ? imageInput : undefined
       }),
     });
 
@@ -25,7 +43,12 @@ export const analyzeClothingItem = async (imageBase64) => {
     console.log('✅ [OPENAI-CLIENT] GPT-4 Vision response received');
     console.log('📊 [OPENAI-CLIENT] Parsed result:', result);
     
-    return result;
+    // Ensure the response has the expected structure
+    return {
+      success: true,
+      analysis: result.analysis || result,
+      source: 'openai-vision'
+    };
   } catch (error) {
     console.error('❌ [OPENAI-CLIENT] Vision API Error:', error);
     return {
