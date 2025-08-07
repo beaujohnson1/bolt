@@ -173,7 +173,7 @@ const GenerateListingsPage = () => {
       try {
         // Run AI analysis with timeout and retry
         console.log('🤖 [GENERATE-LISTINGS] Starting AI analysis for:', item.primaryPhoto);
-        analysisResult = await analyzeItem(item.primaryPhoto, {
+        analysisResult = await analyzeItem(item.photos, { // Pass all photos instead of just primary
           sku: item.sku,
           photos: item.photos,
           includeMarketResearch: true,

@@ -6,6 +6,12 @@ interface VisionResponse {
   fullTextAnnotation?: {
     text: string;
   };
+  textAnnotations?: Array<{
+    description: string;
+    boundingPoly?: {
+      vertices: Array<{ x: number; y: number }>;
+    };
+  }>;
 }
 
 class GoogleVisionClient {
@@ -80,10 +86,16 @@ class GoogleVisionClient {
 
       console.log('✅ [GOOGLE-VISION] OCR completed, extracted text length:', fullText.length);
       
-      return [{ fullTextAnnotation: { text: fullText } }];
+      return [{ 
+        fullTextAnnotation: { text: fullText },
+        textAnnotations: textAnnotations || []
+      }];
     } catch (error) {
       console.error('❌ [GOOGLE-VISION] OCR failed:', error);
-      return [{ fullTextAnnotation: { text: '' } }];
+      return [{ 
+        fullTextAnnotation: { text: '' },
+        textAnnotations: []
+      }];
     }
   }
 }

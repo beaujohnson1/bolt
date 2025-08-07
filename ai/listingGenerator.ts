@@ -14,6 +14,11 @@ const ListingSchema = z.object({
   keywords: z.array(z.string()).default([]),
   key_features: z.array(z.string()).default([]),
   description: z.string().optional(),
+  evidence: z.object({
+    brand: z.string().nullable().optional(),
+    size: z.string().nullable().optional()
+  }).optional(),
+  ebay_item_specifics: z.record(z.string().nullable()).optional()
 });
 
 export type Listing = z.infer<typeof ListingSchema>;
@@ -229,7 +234,7 @@ function buildTitle({
     item_type,
     fabric && !/unknown/i.test(fabric) ? fabric : null,
     color && !/unknown/i.test(color) ? color : null,
-    size ? `Size ${size}` : "Size Unknown",
+    size ? `Size ${size.toUpperCase()}` : "Size Unknown",
   ].filter(Boolean);
   return parts.join(" ");
 }

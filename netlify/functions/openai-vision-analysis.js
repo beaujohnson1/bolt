@@ -53,17 +53,27 @@ exports.handler = async (event, context) => {
       };
     }
     
-    const { imageUrl, analysisType = 'comprehensive' } = requestData;
+    const { 
+      imageUrls, 
+      imageUrl, // Legacy support
+      ocrText = '', 
+      candidates = {}, 
+      analysisType = 'enhanced_listing',
+      ebayAspects = []
+    } = requestData;
 
-    if (!imageUrl) {
-      console.error('❌ [OPENAI-FUNCTION] No imageUrl provided');
+    // Support both new array format and legacy single URL
+    const imageArray = imageUrls || (imageUrl ? [imageUrl] : []);
+    
+    if (!imageArray || imageArray.length === 0) {
+      console.error('❌ [OPENAI-FUNCTION] No image URLs provided');
       return {
         statusCode: 400,
         headers: {
           'Access-Control-Allow-Origin': '*'
         },
         body: JSON.stringify({ 
-          error: 'imageUrl is required',
+          error: 'imageUrls or imageUrl is required',
           received_keys: Object.keys(requestData)
         })
       };
@@ -82,9 +92,12 @@ exports.handler = async (event, context) => {
     }
 
     console.log('🔑 [OPENAI-FUNCTION] OpenAI API key is configured');
-    console.log('🖼️ [OPENAI-FUNCTION] Image URL type:', typeof imageUrl);
-    console.log('🖼️ [OPENAI-FUNCTION] Image URL length:', imageUrl.length);
-    console.log('🖼️ [OPENAI-FUNCTION] Image URL starts with:', imageUrl.substring(0, 50));
+    console.log('🖼️ [OPENAI-FUNCTION] Processing images:', {
+      count: imageArray.length,
+      ocrTextLength: ocrText.length,
+      hasCandidates: Object.keys(candidates).length > 0,
+      ebayAspectsCount: ebayAspects.length
+    });
 
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -94,28 +107,29 @@ exports.handler = async (event, context) => {
     
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
+      temperature: 0.1,
+      response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: "Return only valid JSON as requested." },
+        { role: "system", content: "Return only valid JSON. Do not use code fences." },
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: getAnalysisPrompt(analysisType)
+              text: getAnalysisPrompt(analysisType, ocrText, candidates, ebayAspects)
             },
-            {
+            // Send all images to the LLM
+            ...imageArray.map(url => ({
               type: "image_url",
               image_url: {
-                url: imageUrl,
-                detail: "high" // Important for clothing analysis
+                url: url,
+                detail: "high"
               }
-            }
+            }))
           ]
         }
       ],
-      max_tokens: 1500, // Increase token limit
-      temperature: 0.1,
-      response_format: { type: "json_object" }
+      max_tokens: 1500
     });
 
     console.log('✅ [OPENAI-FUNCTION] OpenAI API call successful');
@@ -123,7 +137,7 @@ exports.handler = async (event, context) => {
     
     let raw = response.choices[0]?.message?.content || "";
     
-    // Debug logging
+    // Debug logging (temporary - remove later)
     console.log("[SERVER] typeof raw:", typeof raw);
     console.log("[SERVER] raw preview:", typeof raw === "string" ? raw.slice(0, 120) : raw);
     
@@ -148,7 +162,7 @@ exports.handler = async (event, context) => {
     if (typeof raw !== "string") raw = JSON.stringify(raw);
     const clean = stripFences(raw);
     
-    // Parse on the server (critical change)
+    // Parse on the server
     let parsedAnalysis;
     try {
       parsedAnalysis = JSON.parse(clean);
@@ -206,93 +220,66 @@ exports.handler = async (event, context) => {
   }
 };
 
-function getAnalysisPrompt(analysisType) {
+function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspects = []) {
   console.log('📝 [OPENAI-FUNCTION] Generating prompt for analysis type:', analysisType);
+  console.log('📝 [OPENAI-FUNCTION] Prompt context:', {
+    ocrTextLength: ocrText.length,
+    candidatesProvided: Object.keys(candidates),
+    ebayAspectsCount: ebayAspects.length
+  });
   
-  const prompt = `You are an expert clothing and fashion item analyzer for online resale listings. Your goal is to extract MAXIMUM detail from images to create accurate, profitable listings.
+  const basePrompt = `You are an expert clothing and fashion item analyzer for eBay listings. Your goal is to extract MAXIMUM detail from images and OCR text to create accurate, profitable listings.
 
-CRITICAL BRAND & SIZE DETECTION INSTRUCTIONS:
+CRITICAL INSTRUCTIONS:
+- If you cannot verify a field from the image or OCR, return null (NOT the word "Unknown")
+- Prefer OCR text over visual guesses when available
+- Use provided CANDIDATES when they match what you see
+- Choose ONLY from allowed values when provided for eBay aspects
+- Be extremely specific with item types and descriptions
 
-1. BRAND DETECTION - Look CAREFULLY at these specific locations:
-   - Neck labels and tags (most common - look for small text on fabric labels)
-   - Care instruction labels (usually inside garment near seams)
-   - Embroidered or printed logos ANYWHERE on the item (chest, sleeves, back, pockets, hem)
-   - Text on buttons, zippers, snaps, or hardware
-   - Woven labels on seams or pockets
-   - Small brand marks that might be partially visible
-   
-   RECOGNIZE these common brands: Lululemon, Nike, Adidas, North Face, Patagonia, Under Armour, Gap, Old Navy, H&M, Zara, Uniqlo, American Eagle, Hollister, Abercrombie, Banana Republic, J.Crew, Ann Taylor, LOFT, Express, Forever 21, Target brands (Goodfellow, Universal Thread, Wild Fable), Walmart brands (Time and Tru, George), Costco brands (Kirkland), TJ Maxx brands, Farm Rio, Free People, Anthropologie, Urban Outfitters, Madewell, Everlane, Reformation, Ganni, & Other Stories, COS, Arket, Weekday
+CANDIDATES (pre-extracted from OCR):
+${JSON.stringify(candidates)}
 
-   - Letter sizes: XS, S, M, L, XL, XXL, XXXL, 1X, 2X, 3X, 4X, 5X
-   - Number sizes: 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28
-   - Kids sizes: 2T, 3T, 4T, 5T, 6, 7, 8, 10, 12, 14, 16, 18
-   - Measurements: 30x32, 32x34, etc. (waist x inseam)
-   - Bra sizes: 32A, 34B, 36C, etc.
-   - International: EU 36, UK 8, etc.
-   - Shoe sizes: 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12
+OCR_TEXT:
+${ocrText}`;
 
-3. MATERIAL & FABRIC DETECTION:
-   Look for fabric content labels showing: Cotton, Polyester, Wool, Cashmere, Silk, Linen, Rayon, Spandex, Elastane, Lycra, Modal, Bamboo, Organic Cotton, Merino Wool, etc.
+  // Add eBay aspects if provided
+  let ebayAspectsPrompt = '';
+  if (ebayAspects.length > 0) {
+    ebayAspectsPrompt = `
 
-4. STYLE & ITEM TYPE DETECTION:
-   Be SPECIFIC about item types: "Maxi Dress", "Cropped Tank Top", "High-Waisted Jeans", "Oversized Hoodie", "Midi Skirt", "Button-Down Shirt", "Wrap Dress", "Skinny Jeans", "Bomber Jacket", "Cardigan", "Blazer", "Leggings", "Sports Bra", etc.
+EBAY ITEM SPECIFICS (fill these exactly):
+${JSON.stringify(ebayAspects.slice(0, 15))}
 
-5. CONDITION ASSESSMENT:
-   - "like_new": No visible wear, tags may be attached, looks unworn
-   - "good": Minor wear, good overall condition, no stains or damage
-   - "fair": Noticeable wear but still functional, minor stains/fading acceptable
-   - "poor": Significant wear, stains, damage, or missing parts
+For each aspect:
+- If it has allowedValues, choose ONE from the list (best match)
+- If no allowedValues, provide short descriptive text
+- If you cannot determine the value, return null
+- REQUIRED aspects should be filled if at all possible`;
+  }
 
-6. COLOR DETECTION:
-   Be SPECIFIC: "Navy Blue", "Forest Green", "Burgundy", "Cream", "Charcoal Gray", "Dusty Rose", "Sage Green", "Mustard Yellow", "Coral", "Teal", etc. Avoid generic "blue" or "red".
+  const schemaPrompt = `
 
-7. KEYWORD GENERATION:
-   Generate 8-12 SPECIFIC keywords that buyers would search for:
-   - Brand name + item type (e.g., "lululemon tank", "nike hoodie")
-   - Style descriptors (e.g., "cropped", "oversized", "high waisted", "vintage")
-   - Occasion keywords (e.g., "work", "casual", "athletic", "formal", "vacation")
-   - Seasonal keywords (e.g., "summer", "winter", "spring", "fall")
-   - Fabric/material keywords (e.g., "cotton", "wool", "silk", "stretchy")
-   - Fit keywords (e.g., "slim fit", "relaxed", "fitted", "loose")
-
-EXAMINE THE IMAGE EXTREMELY CAREFULLY:
-- Zoom in mentally on ANY visible text, labels, or tags
-- Look for partially obscured brand names or size labels
-- Check for embossed or subtle branding
-- Read ALL text visible in the image, no matter how small
-- Look for style numbers, model numbers, or SKUs on tags
-
-Analyze this image and provide a detailed response in VALID JSON format only. Do not include any text before or after the JSON.
-Return this exact JSON structure:
+Return ONLY JSON matching this schema:
 {
-  "title": "Brand Name + Specific Item Type + Key Details + Size (e.g., 'Lululemon Align High-Rise Leggings Black Size 6')",
-  "brand": "EXACT brand name found on labels/tags or 'Unknown' if none visible",
-  "size": "EXACT size found on size tags or 'Unknown' if none visible",
-  "condition": "like_new/good/fair/poor",
-  "category": "clothing/shoes/accessories/electronics/jewelry/other",
-  "color": "SPECIFIC color name (e.g., 'Navy Blue', 'Forest Green', not just 'blue')",
-  "item_type": "VERY SPECIFIC item type (e.g., 'High-Rise Skinny Jeans', 'Cropped Tank Top', 'Maxi Wrap Dress')",
-  "suggested_price": realistic_price_based_on_brand_and_condition,
-  "confidence": confidence_score_0_to_1,
-  "key_features": ["specific material/fabric", "specific style details", "notable design elements", "functional features"],
-  "keywords": ["brand + item", "style descriptors", "occasion keywords", "seasonal terms", "material keywords", "fit descriptors", "color + item", "searchable terms"],
-  "model_number": "EXACT style/model number from tags or 'Unknown' if none visible",
-  "description": "Professional 3-4 sentence description highlighting key selling points, condition, and appeal to buyers",
-  "material": "fabric content if visible on care labels",
-  "style_details": "specific style elements like 'high-waisted', 'cropped', 'oversized', 'fitted', etc.",
-  "season": "appropriate season for this item",
-  "occasion": "when/where this would be worn (casual, work, athletic, formal, etc.)"
+  "title": string,
+  "brand": string|null,
+  "size": string|null,
+  "item_type": string,
+  "color": string|null,
+  "condition": "new"|"like_new"|"good"|"fair"|"poor",
+  "keywords": string[],
+  "key_features": string[],
+  "suggested_price": number,
+  "description": string,
+  "evidence": {
+    "brand": "ocr|vision|null",
+    "size": "ocr|vision|null"
+  }${ebayAspects.length > 0 ? ',\n  "ebay_item_specifics": { [aspectName]: value|null }' : ''}
 }
 
-IMPORTANT: 
-- EXAMINE EVERY VISIBLE TEXT, LABEL, AND TAG in the image
-- Be conservative with pricing but consider brand value (Lululemon $40-80, Nike $25-60, Gap $15-35, etc.)
-- If you cannot clearly see brand/size, use "Unknown" - do not guess
-- Be EXTREMELY specific with item types, colors, and style details
-- Generate keywords that real buyers would actually search for
-- Return ONLY the JSON object, no other text
-- Focus on details that increase selling potential and buyer confidence`;
+Do NOT include markdown or code fences.`;
+
+  const fullPrompt = basePrompt + ebayAspectsPrompt + schemaPrompt;
 
   console.log('✅ [OPENAI-FUNCTION] Prompt generated successfully');
-  return prompt;
-}

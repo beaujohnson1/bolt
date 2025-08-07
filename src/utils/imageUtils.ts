@@ -152,3 +152,64 @@ export const processImagesWithEnhancement = async (imageFiles: File[]): Promise<
   
   return enhancedFiles;
 };
+
+/**
+ * Extract tag-specific text from Google Vision textAnnotations
+ * Filters for text blocks that likely contain size, brand, or other tag information
+ */
+export const extractTagText = (textAnnotations: any[]): string[] => {
+  try {
+    console.log('🏷️ [TAG-EXTRACT] Processing text annotations for tag detection...');
+    
+    if (!Array.isArray(textAnnotations) || textAnnotations.length === 0) {
+      console.log('⚠️ [TAG-EXTRACT] No text annotations provided');
+      return [];
+    }
+
+    // Filter for text blocks that likely contain tag information
+    const tagBlocks = textAnnotations
+      .filter(annotation => {
+        const text = annotation.description || '';
+        const isTagLike = /size|s|m|l|xl|xxl|waist|inseam|rn|brand|made in|care|wash|cotton|polyester|spandex|elastane|model|style/i.test(text);
+        return isTagLike && text.length > 1; // Exclude single characters
+      })
+      .slice(0, 8) // Limit to top 8 tag-like blocks
+      .map(annotation => annotation.description);
+
+    console.log('✅ [TAG-EXTRACT] Found tag-like text blocks:', tagBlocks.length);
+    console.log('📋 [TAG-EXTRACT] Tag texts:', tagBlocks);
+    
+    return tagBlocks;
+  } catch (error) {
+    console.error('❌ [TAG-EXTRACT] Error extracting tag text:', error);
+    return [];
+  }
+};
+
+/**
+ * Simulate cropping and re-OCR for tag regions
+ * For now, this returns the filtered tag text without actual image cropping
+ * TODO: Implement actual image cropping and re-OCR for better accuracy
+ */
+export const cropAndReocr = async (imageUrl: string, tagBlocks: any[]): Promise<string[]> => {
+  try {
+    console.log('✂️ [CROP-REOCR] Simulating crop and re-OCR for tag blocks...');
+    
+    // For now, return the descriptions from the tag blocks
+    // In a full implementation, this would:
+    // 1. Crop the image based on bounding boxes
+    // 2. Re-run OCR on each cropped region
+    // 3. Return the enhanced text
+    
+    const tagTexts = tagBlocks
+      .filter(block => block && block.description)
+      .map(block => block.description)
+      .slice(0, 4); // Limit to 4 as specified
+    
+    console.log('✅ [CROP-REOCR] Extracted tag texts:', tagTexts);
+    return tagTexts;
+  } catch (error) {
+    console.error('❌ [CROP-REOCR] Error in crop and re-OCR:', error);
+    return [];
+  }
+};
