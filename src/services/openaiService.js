@@ -58,6 +58,31 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     
     const response = await fetch('/.netlify/functions/openai-vision-analysis', {
       method: 'POST',
+  // Handle server response with new ok/error structure
+  const handleServerResponse = async (response) => {
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ [OPENAI-CLIENT] Server response not ok:', response.status, errorText);
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const json = await response.json();
+    console.log('📥 [OPENAI-CLIENT] Server response:', { ok: json.ok, hasData: !!json.data, hasError: !!json.error });
+      const result = await handleServerResponse(response);
+        success: false,
+        error: json.error || 'AI analysis validation failed',
+        issues: json.issues || [],
+        data: { __needsAttention: true } // Flag for mapAIToListing
+      };
+    }
+
+    return {
+      success: true,
+      data: json.data,
+      usage: json.usage
+    };
+  };
+
       headers: {
         'Content-Type': 'application/json',
       },
@@ -124,19 +149,21 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
         size: nullIfUnknown(ai.size)
       });
       console.log('🏗️ [POST-PROCESS] Rebuilt title:', newTitle);
-      ai.title = newTitle;
-    }
-    
-    // Optional coercions/guards
-    if (isStr(ai.suggested_price)) {
-      const parsed = parseFloat(safeTrim(ai.suggested_price));
-      ai.suggested_price = isNaN(parsed) ? 25 : parsed;
-    }
-    if (!safeTrim(ai.title)) {
-      throw new Error("AI payload missing title");
-    }
-    
-    console.log('✅ [OPENAI-CLIENT] Enhanced analysis completed successfully');
+      const payload = await handleServerResponse(response);
+      
+      if (!payload.success) {
+        // Server validation failed - return the flagged data for "needs attention"
+        console.log('🚨 [OPENAI-CLIENT] Server validation failed, flagging for manual review');
+        return {
+          success: true, // Don't throw - let the UI handle it
+          analysis: payload.data, // Contains __needsAttention flag
+          source: 'openai-vision-enhanced',
+          validationError: payload.error,
+          validationIssues: payload.issues
+        };
+      }
+      
+      const ai = payload.data;
     console.log('📊 [OPENAI-CLIENT] Final AI data:', {
       title: ai.title,
       brand: ai.brand,

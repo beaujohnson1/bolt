@@ -9,6 +9,7 @@ import { useAIAnalysis } from '../hooks/useAIAnalysis';
 import { mapAIToListing } from '../ai/mapAIToListing';
 import { coerceAI } from '../ai/schema';
 import { normalizeCategory, normalizeCondition } from '../utils/itemUtils';
+import { sTrim } from '../utils/strings';
 
 interface SKUGroup {
   sku: string;
@@ -200,6 +201,32 @@ const GenerateListingsPage = () => {
         try {
           const validatedAI = coerceAI(aiData);
           sanitizedData = mapAIToListing(validatedAI);
+          
+          // Add verification log to prove the value path
+          console.log('[VERIFY-LISTING]', {
+            title: sTrim(sanitizedData.title),
+            price: sanitizedData.suggested_price,
+            featuresCount: sanitizedData.key_features?.length ?? 0,
+            keywordsCount: sanitizedData.keywords?.length ?? 0,
+            from: 'server-validated',
+            hasNeedsAttention: !!sanitizedData.needsAttention
+          });
+          
+          // Check if this is flagged for manual review
+          if (sanitizedData.needsAttention) {
+            console.log('🚨 [GENERATE-LISTINGS] AI data flagged for manual review');
+            setGeneratedItems(prev => prev.map(i => 
+              i.sku === item.sku 
+                ? { 
+                    ...i, 
+                    status: 'needs_attention',
+                    generationError: 'AI analysis requires manual review - please edit the details'
+                  }
+                : i
+            ));
+            return; // Exit early without creating database record
+          }
+          
         } catch (mapError) {
           console.error('❌ [GENERATE-LISTINGS] AI data mapping failed:', mapError);
           throw new Error(`AI data mapping failed: ${mapError.message}`);

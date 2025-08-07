@@ -1,4 +1,49 @@
 const OpenAI = require('openai');
+const { z } = require('zod');
+
+// Define the expected AI response schema
+const AiListing = z.object({
+  title: z.string().min(3).max(80),
+  brand: z.string().nullable().optional(),
+  size: z.string().nullable().optional(),
+  condition: z.enum(['new', 'like_new', 'good', 'fair', 'poor']).optional().default('good'),
+  category: z.string().optional().default('clothing'),
+  color: z.string().nullable().optional(),
+  item_type: z.string().min(2),
+  suggested_price: z.number().positive().optional(),
+  confidence: z.number().min(0).max(1).optional().default(0.5),
+  key_features: z.array(z.string()).optional().default([]),
+  keywords: z.array(z.string()).optional().default([]),
+  model_number: z.string().nullable().optional(),
+  description: z.string().optional().default(''),
+  material: z.string().nullable().optional(),
+  style_details: z.string().nullable().optional(),
+  season: z.string().nullable().optional(),
+  occasion: z.string().nullable().optional(),
+  evidence: z.object({
+    brand: z.enum(['ocr', 'vision', 'null']).optional(),
+    size: z.enum(['ocr', 'vision', 'null']).optional()
+  }).optional(),
+  ebay_item_specifics: z.record(z.string().nullable()).optional()
+});
+
+// Strip markdown code fences if present
+const stripFences = (s) => {
+  const str = String(s || '');
+  return str.replace(/^```(?:json)?\s*/i, '').replace(/```$/i, '').trim();
+};
+
+// Safe JSON parsing with fence stripping
+function safeParseJson(maybeJson) {
+  try {
+    const cleaned = stripFences(maybeJson);
+    return JSON.parse(cleaned);
+  } catch (parseError) {
+    console.error('❌ [JSON-PARSE] Failed to parse JSON:', parseError);
+    console.log('📝 [JSON-PARSE] Raw content:', sSub(cleaned || maybeJson, 0, 200));
+    return null;
+  }
+}
 
 // Helper function to strip markdown code fences
 function stripFences(s) {
@@ -185,9 +230,9 @@ exports.handler = async (event, context) => {
     // Parse on the server
     let parsedAnalysis;
     try {
-      parsedAnalysis = JSON.parse(clean);
+      parsedAnalysis = safeParseJson(clean);
       console.log('✅ [OPENAI-FUNCTION] Successfully parsed JSON on server');
-      console.log('📊 [OPENAI-FUNCTION] Parsed keys:', Object.keys(parsedAnalysis));
+      console.log('📊 [OPENAI-FUNCTION] Parsed keys:', parsedAnalysis ? Object.keys(parsedAnalysis) : 'null');
     } catch (parseError) {
       console.error('❌ [OPENAI-FUNCTION] Failed to parse JSON on server:', parseError);
       console.log('📝 [OPENAI-FUNCTION] Raw content that failed to parse:', sSub(clean, 0, 200));
@@ -202,6 +247,44 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // Validate the parsed response against our schema
+    if (!parsedAnalysis) {
+      console.error('❌ [OPENAI-FUNCTION] Parsed analysis is null');
+      return {
+        statusCode: 200,
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({
+          ok: false,
+          error: 'AI_JSON_PARSE_FAILED',
+          message: 'Could not parse AI response as valid JSON'
+        })
+      };
+    }
+
+    console.log('🔍 [OPENAI-FUNCTION] Validating AI response against schema...');
+    const validated = AiListing.safeParse(parsedAnalysis);
+    
+    if (!validated.success) {
+      console.error('❌ [OPENAI-FUNCTION] AI response validation failed:', validated.error.errors);
+      return {
+        statusCode: 200,
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({
+          ok: false,
+          error: 'AI_JSON_VALIDATION_FAILED',
+          message: 'AI response does not match expected schema',
+          issues: validated.error.errors.map(e => ({ 
+            path: e.path.join('.'), 
+            message: e.message,
+            received: e.received 
+          })),
+          raw_data: parsedAnalysis
+        })
+      };
+    }
+
+    console.log('✅ [OPENAI-FUNCTION] AI response validated successfully');
+    console.log('📊 [OPENAI-FUNCTION] Validated data keys:', Object.keys(validated.data));
 
     return {
       statusCode: 200,
@@ -211,7 +294,7 @@ exports.handler = async (event, context) => {
       },
       body: JSON.stringify({
         ok: true,
-        data: parsedAnalysis,
+        data: validated.data,
         usage: response.usage
       })
     };

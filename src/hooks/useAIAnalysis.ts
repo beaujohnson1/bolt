@@ -58,6 +58,11 @@ export const useAIAnalysis = () => {
       
       if (!result.success) {
         console.error('❌ [AI-ANALYSIS] OpenAI service returned unsuccessful result:', result.error);
+        // Check if this is a validation failure from server
+        if (result.error === 'AI_JSON_VALIDATION_FAILED') {
+          console.error('❌ [AI-ANALYSIS] Server-side validation failed:', result.issues);
+          throw new Error(`AI response validation failed: ${result.issues?.map(i => i.message).join(', ') || 'Invalid schema'}`);
+        }
         throw new Error(result.error || 'OpenAI analysis returned unsuccessful result');
       }
 

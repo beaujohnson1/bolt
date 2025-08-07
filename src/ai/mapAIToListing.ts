@@ -1,5 +1,6 @@
 import { isStr, safeTrim, nullIfUnknown, toStr } from '../utils/strings';
 import { buildTitle } from '../utils/itemUtils';
+import { buildTitle } from '../utils/itemUtils';
 
 type RawAI = {
   title?: unknown; 
@@ -16,10 +17,32 @@ type RawAI = {
   evidence?: unknown;
   ebay_item_specifics?: unknown;
   confidence?: unknown;
+  __needsAttention?: boolean;
 };
 
 export function mapAIToListing(ai: RawAI) {
   console.log('🔄 [AI-MAPPER] Sanitizing AI payload before UI use...');
+  
+  // Check if this is a flagged "needs attention" response
+  if (!ai || ai.__needsAttention) {
+    console.log('🚨 [AI-MAPPER] AI data flagged for manual review');
+    return {
+      needsAttention: true,
+      title: "Needs Manual Review (AI Analysis Failed)",
+      description: "AI could not confidently analyze this item. Please review and edit manually.",
+      brand: null,
+      size: null,
+      color: null,
+      item_type: "Item",
+      condition: "good",
+      suggested_price: 25,
+      keywords: [],
+      key_features: ["manual review required"],
+      confidence: 0.1,
+      evidence: {},
+      ebay_item_specifics: {}
+    };
+  }
   
   // strings (nullable Unknown collapsed to null)
   const brand = nullIfUnknown(ai.brand);

@@ -18,7 +18,8 @@ export const AiSchema = z.object({
     size: z.string().optional()
   }).optional(),
   ebay_item_specifics: z.record(z.string().nullable()).optional(),
-  confidence: z.number().optional()
+  confidence: z.number().optional(),
+  __needsAttention: z.boolean().optional()
 }).passthrough();
 
 export function coerceAI(raw: unknown) {
