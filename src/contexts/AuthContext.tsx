@@ -58,53 +58,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('📧 [AUTH] User email:', supabaseUser.email);
       console.log('🖼️ [AUTH] Avatar URL:', supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture);
 
-      const userData = {
-        id: supabaseUser.id,
-        email: supabaseUser.email || '',
-        name: userName,
-        avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
-        subscription_plan: 'free',
-        subscription_status: 'active',
-        listings_used: 0,
-        listings_limit: 999,
-        monthly_revenue: 0,
-        total_sales: 0,
-        notification_preferences: { email: true, push: true },
-        timezone: 'America/New_York',
-        is_active: true,
-        updated_at: new Date().toISOString()
-      };
-
-      console.log('📤 [AUTH] Directly upserting user profile (bypassing select)...');
-      console.log('📊 [AUTH] User data to upsert:', JSON.stringify(userData, null, 2));
-
+      console.log('📤 [AUTH] Calling create_user_profile RPC function...');
+      
       const { data: upsertedUser, error: upsertError } = await withTimeout(
-        supabase
-          .from('users')
-          .upsert([userData], {
-            onConflict: 'id'
-          })
-          .select()
-          .single(),
+        supabase.rpc('create_user_profile', {
+          user_id: supabaseUser.id,
+          user_email: supabaseUser.email || '',
+          user_name: userName,
+          user_avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null
+        }),
         PROFILE_CREATE_TIMEOUT,
-        'Database upsert operation timed out while creating/updating user profile'
+        'RPC create_user_profile operation timed out while creating/updating user profile'
       );
 
-      console.log('📥 [AUTH] Upsert result:', { upsertedUser, upsertError });
+      console.log('📥 [AUTH] RPC result:', { upsertedUser, upsertError });
 
       if (upsertError) {
-        console.error('❌ [AUTH] Error upserting user profile:', upsertError);
+        console.error('❌ [AUTH] Error calling create_user_profile RPC:', upsertError);
         console.error('❌ [AUTH] Error details:', {
           code: upsertError.code,
           message: upsertError.message,
           details: upsertError.details,
           hint: upsertError.hint
         });
-        console.error('❌ [AUTH] Data that failed to upsert:', JSON.stringify(userData, null, 2));
+        console.error('❌ [AUTH] RPC parameters that failed:', {
+          user_id: supabaseUser.id,
+          user_email: supabaseUser.email,
+          user_name: userName,
+          user_avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture
+        });
         return null;
       }
 
-      console.log('✅ [AUTH] User profile upserted successfully:', upsertedUser);
+      console.log('✅ [AUTH] User profile created/updated successfully via RPC:', upsertedUser);
       console.log('🔧 [AUTH] Profile data includes listing limit:', upsertedUser.listings_limit);
       
       return upsertedUser;
