@@ -50,8 +50,6 @@ export interface Item {
   item_type?: string;
   category_path?: string;
   weight_oz?: number;
-  price_range_min?: number;
-  price_range_max?: number;
   final_price?: number;
   ai_detected_category?: string;
   ai_detected_brand?: string;

@@ -134,4 +134,3 @@ export const getItemSpecifics = (item: { brand?: string; size?: string; color?: 
   if (item.color) specifics.push(`Color: ${item.color}`);
   if (item.model_number) specifics.push(`Model: ${item.model_number}`);
   return specifics.join(', ') || '-';
-};

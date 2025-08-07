@@ -42,7 +42,6 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
           )
         `)
         .eq('user_id', authUser.id)
-        .not('sku', 'is', null) // Only items with assigned SKUs
         .order('created_at', { ascending: false });
 
       if (fetchError) {
@@ -392,7 +391,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
             No Items Ready for Listing
           </h3>
           <p className={`mb-4 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Upload and process some items first, then assign SKUs to see them here.
+            Upload and process some items first to see them here.
           </p>
           <button
             onClick={fetchItemsReadyForListing}
