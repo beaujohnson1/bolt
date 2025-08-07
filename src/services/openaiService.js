@@ -103,7 +103,7 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
 
     // Never save literal "Unknown"
     for (const k of ["brand", "size", "color"]) {
-      const value = safeTrim(toStr(ai[k]));
+      const value = safeTrim(ai[k]);
       if (value && /unknown/i.test(value)) {
         console.log(`🔄 [POST-PROCESS] Removing "Unknown" from ${k}:`, ai[k]);
         ai[k] = null;
@@ -111,10 +111,10 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     }
 
     // Rebuild clean title
-    const hasBrand = safeTrim(toStr(ai.brand));
-    const hasItemType = safeTrim(toStr(ai.item_type));
-    const hasColor = safeTrim(toStr(ai.color));
-    const hasSize = safeTrim(toStr(ai.size));
+    const hasBrand = safeTrim(ai.brand);
+    const hasItemType = safeTrim(ai.item_type);
+    const hasColor = safeTrim(ai.color);
+    const hasSize = safeTrim(ai.size);
     
     if (hasBrand || hasItemType || hasColor || hasSize) {
       const newTitle = buildTitle({
@@ -129,10 +129,10 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     
     // Optional coercions/guards
     if (isStr(ai.suggested_price)) {
-      const parsed = parseFloat(safeTrim(toStr(ai.suggested_price)));
+      const parsed = parseFloat(safeTrim(ai.suggested_price));
       ai.suggested_price = isNaN(parsed) ? 25 : parsed;
     }
-    if (!safeTrim(toStr(ai.title))) {
+    if (!safeTrim(ai.title)) {
       throw new Error("AI payload missing title");
     }
     

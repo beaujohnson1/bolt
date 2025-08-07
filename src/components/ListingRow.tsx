@@ -139,12 +139,12 @@ const ListingRow: React.FC<ListingRowProps> = ({
             <div
               onClick={() => item.title && setEditingTitle(true)}
               className={`text-sm ${
-                safeTrim(item.title)
+                item.title && safeTrim(item.title)
                   ? 'text-gray-900 cursor-pointer hover:text-blue-600' 
                   : 'text-gray-400 italic'
               }`}
             >
-              {safeTrim(item.title) || 'Click Generate to create title'}
+              {item.title && safeTrim(item.title) || 'Click Generate to create title'}
             </div>
           )}
         </div>

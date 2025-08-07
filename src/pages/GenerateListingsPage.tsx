@@ -197,8 +197,13 @@ const GenerateListingsPage = () => {
         console.log('✅ [GENERATE-LISTINGS] AI analysis successful, sanitizing data...');
         
         // Validate and sanitize AI payload once before UI uses it
-        const validatedAI = coerceAI(aiData);
-        sanitizedData = mapAIToListing(validatedAI);
+        try {
+          const validatedAI = coerceAI(aiData);
+          sanitizedData = mapAIToListing(validatedAI);
+        } catch (mapError) {
+          console.error('❌ [GENERATE-LISTINGS] AI data mapping failed:', mapError);
+          throw new Error(`AI data mapping failed: ${mapError.message}`);
+        }
         console.log('✅ [GENERATE-LISTINGS] AI data sanitized successfully');
         
       } catch (aiError) {

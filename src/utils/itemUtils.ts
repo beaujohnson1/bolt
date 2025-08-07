@@ -115,7 +115,7 @@ export const formatDate = (dateString: string): string => {
 };
 // Get category path for eBay-style hierarchy
 export const getCategoryPath = (category: string): string => {
-  const safeCategory = safeTrim(toStr(category));
+  const safeCategory = safeTrim(category);
   const categoryPaths: { [key: string]: string } = {
     'clothing': 'Clothing, Shoes & Accessories > Clothing',
     'shoes': 'Clothing, Shoes & Accessories > Shoes',

@@ -113,7 +113,7 @@ exports.handler = async (event, context) => {
     console.log('🔑 [OPENAI-FUNCTION] OpenAI API key is configured');
     console.log('🖼️ [OPENAI-FUNCTION] Processing images:', {
       count: imageArray.length,
-      ocrTextLength: safeTrim(ocrText).length,
+      ocrTextLength: toStr(ocrText).length,
       hasCandidates: Object.keys(candidates).length > 0,
       ebayAspectsCount: Array.isArray(ebayAspects) ? ebayAspects.length : 0,
       hasKnownFields: Object.keys(knownFields).length > 0
