@@ -134,4 +134,125 @@ export const getItemSpecifics = (item: { brand?: string; size?: string; color?: 
   if (item.color) specifics.push(`Color: ${item.color}`);
   if (item.model_number) specifics.push(`Model: ${item.model_number}`);
   return specifics.join(', ') || '-';
-}
+};
+
+// Known brands list for pre-extraction
+const KNOWN_BRANDS = [
+  'Lululemon', 'Nike', 'Adidas', 'North Face', 'Patagonia', 'Under Armour', 
+  'Gap', 'Old Navy', 'H&M', 'Zara', 'Uniqlo', 'American Eagle', 'Hollister', 
+  'Abercrombie', 'Banana Republic', 'J.Crew', 'Ann Taylor', 'LOFT', 'Express', 
+  'Forever 21', 'Farm Rio', 'Free People', 'Anthropologie', 'Urban Outfitters', 
+  'Madewell', 'Everlane', 'Reformation', 'Ganni', 'COS', 'Arket', 'Weekday',
+  'Target', 'Walmart', 'Costco', 'Kirkland', 'Goodfellow', 'Universal Thread',
+  'Wild Fable', 'Time and Tru', 'George', 'Champion', 'Hanes', 'Fruit of the Loom',
+  'Calvin Klein', 'Tommy Hilfiger', 'Ralph Lauren', 'Polo', 'Lacoste', 'Hugo Boss',
+  'Gucci', 'Prada', 'Louis Vuitton', 'Chanel', 'Versace', 'Armani', 'Burberry'
+];
+
+/**
+ * Extract size from OCR text using deterministic patterns
+ * @param ocrText - Raw OCR text from clothing tags/labels
+ * @returns Extracted size or null if not found
+ */
+export const extractSize = (ocrText: string): string | null => {
+  if (!ocrText) return null;
+  
+  try {
+    const s = ocrText.replace(/\s+/g, " ").toUpperCase();
+    
+    // Alpha sizes (most common)
+    const alpha = s.match(/\b(XXXS|XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL)\b/);
+    if (alpha) {
+      console.log('✅ [SIZE-EXTRACT] Found alpha size:', alpha[1]);
+      return alpha[1];
+    }
+    
+    // Waist x Length (jeans/pants)
+    const wxl = s.match(/\b(?:W)?(\d{2})\s*[-xX\/]\s*(?:L)?(\d{2})\b/);
+    if (wxl) {
+      const size = `${wxl[1]}x${wxl[2]}`;
+      console.log('✅ [SIZE-EXTRACT] Found waist x length size:', size);
+      return size;
+    }
+    
+    // Size label format
+    const labeled = s.match(/SIZE[:\s-]*([A-Z0-9]{1,4})\b/);
+    if (labeled) {
+      console.log('✅ [SIZE-EXTRACT] Found labeled size:', labeled[1]);
+      return labeled[1];
+    }
+    
+    // Dress/numeric sizes
+    const dress = s.match(/\b(0|00|2|4|6|8|10|12|14|16|18|20|22|24)\b/);
+    if (dress) {
+      console.log('✅ [SIZE-EXTRACT] Found numeric size:', dress[1]);
+      return dress[1];
+    }
+    
+    console.log('ℹ️ [SIZE-EXTRACT] No size pattern found in OCR text');
+    return null;
+  } catch (error) {
+    console.error('❌ [SIZE-EXTRACT] Error extracting size:', error);
+    return null;
+  }
+};
+
+/**
+ * Extract brand from OCR text using known brand list
+ * @param ocrText - Raw OCR text from clothing tags/labels
+ * @param brands - Array of known brand names to search for
+ * @returns Extracted brand or null if not found
+ */
+export const extractBrand = (ocrText: string, brands: string[] = KNOWN_BRANDS): string | null => {
+  if (!ocrText) return null;
+  
+  try {
+    const s = ocrText.toUpperCase();
+    
+    // Find exact brand matches (case-insensitive)
+    const hit = brands.find(brand => s.includes(brand.toUpperCase()));
+    
+    if (hit) {
+      console.log('✅ [BRAND-EXTRACT] Found brand in OCR:', hit);
+      return hit;
+    }
+    
+    console.log('ℹ️ [BRAND-EXTRACT] No known brand found in OCR text');
+    return null;
+  } catch (error) {
+    console.error('❌ [BRAND-EXTRACT] Error extracting brand:', error);
+    return null;
+  }
+};
+
+/**
+ * Build clean title from extracted components
+ * @param components - Object with brand, item_type, color, size, etc.
+ * @returns Formatted title string
+ */
+export const buildTitle = (components: {
+  brand?: string | null;
+  item_type: string;
+  color?: string | null;
+  size?: string | null;
+  gender?: string | null;
+  fabric?: string | null;
+}): string => {
+  const parts = [
+    components.brand && components.brand.trim(),
+    components.gender && /men|women|kid/i.test(components.gender) ? `${cap(components.gender)}'s` : null,
+    components.item_type,
+    components.fabric && !/unknown/i.test(components.fabric) ? components.fabric : null,
+    components.color && !/unknown/i.test(components.color) ? components.color : null,
+    components.size ? `Size ${components.size.toUpperCase()}` : "Size Unknown",
+  ].filter(Boolean);
+  
+  const title = parts.join(" ");
+  console.log('🏗️ [BUILD-TITLE] Built title:', title);
+  return title;
+};
+
+// Helper function to capitalize first letter
+const cap = (s: string): string => {
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+};
