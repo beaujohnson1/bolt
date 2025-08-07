@@ -210,7 +210,6 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
   const [assigningSkus, setAssigningSkus] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [customSku, setCustomSku] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -251,57 +250,6 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
       setSelectedItemIds(itemsToSku.map(item => item.id));
     }
   };
-
-  const handleDeleteSelectedItems = async () => {
-    if (selectedItemIds.length === 0) {
-      alert('Please select at least one item to delete.');
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${selectedItemIds.length} item${selectedItemIds.length > 1 ? 's' : ''}? This action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    setIsDeleting(true);
-
-    try {
-      console.log('🗑️ [SKU] Deleting selected items...', selectedItemIds);
-
-      // Delete items from database (listings will be auto-deleted due to CASCADE)
-      const { error } = await supabase
-        .from('items')
-        .delete()
-        .in('id', selectedItemIds);
-
-      if (error) {
-        console.error('❌ [SKU] Error deleting items:', error);
-        throw error;
-      }
-
-      console.log('✅ [SKU] Items deleted successfully');
-
-      // Update user's listing count
-      if (user) {
-        const newListingsUsed = Math.max(0, user.listings_used - selectedItemIds.length);
-        await updateUser({ listings_used: newListingsUsed });
-      }
-
-      // Clear selections and refresh
-      setSelectedItemIds([]);
-      await loadItems();
-
-      alert(`Successfully deleted ${selectedItemIds.length} item${selectedItemIds.length > 1 ? 's' : ''}.`);
-
-    } catch (error) {
-      console.error('❌ [SKU] Error deleting items:', error);
-      alert(`Failed to delete items: ${error.message}`);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   const handleAssignSkus = async () => {
     if (selectedItemIds.length === 0) {
       alert('Please select items to assign SKUs to.');
@@ -314,6 +262,14 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
     }
     
     setAssigningSkus(true);
+    
+    console.log('🔍 [SKU-DEBUG] Starting SKU assignment process:', {
+      selectedItemIds,
+      customSku,
+      selectedCount: selectedItemIds.length,
+      timestamp: new Date().toISOString()
+    });
+
     try {
       const selectedItems = itemsToSku.filter(item => selectedItemIds.includes(item.id));
       
@@ -330,13 +286,61 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
         };
       });
 
+      console.log('📋 [SKU-DEBUG] Generated SKU assignments:', updates);
+
       for (const update of updates) {
-        const { error } = await supabase
+        console.log('📝 [SKU-DEBUG] Processing assignment:', update);
+        console.log('📊 [SKU-DEBUG] Update data details:', {
+          itemId: update.id,
+          skuValue: update.sku,
+          skuType: typeof update.sku,
+          skuLength: update.sku?.length,
+          isValidUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(update.id)
+        });
+        
+        // Log the exact Supabase query being executed
+        console.log('🔍 [SKU-DEBUG] Executing Supabase update:', {
+          table: 'items',
+          updateData: { sku: update.sku, status: update.status },
+          whereClause: { id: update.id },
+          userId: authUser?.id
+        });
+        
+        const { data, error } = await supabase
           .from('items')
           .update({ sku: update.sku, status: update.status })
-          .eq('id', update.id);
+          .eq('id', update.id)
+          .select(); // Keep select to see what gets updated
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ [SKU-DEBUG] Supabase update failed:', {
+            error,
+            errorCode: error.code,
+            errorMessage: error.message,
+            errorDetails: error.details,
+            errorHint: error.hint,
+            itemId: update.id,
+            skuValue: update.sku,
+            supabaseUrl: supabase.supabaseUrl,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Log additional debugging info
+          console.error('❌ [SKU-DEBUG] Request details:', {
+            method: 'PATCH',
+            url: `${supabase.supabaseUrl}/rest/v1/items?id=eq.${update.id}`,
+            headers: 'Authorization, Content-Type, Prefer',
+            body: JSON.stringify({ sku: update.sku, status: update.status })
+          });
+          
+          throw error;
+        }
+
+        console.log('✅ [SKU-DEBUG] Item updated successfully:', {
+          itemId: update.id,
+          updatedData: data,
+          skuAssigned: update.sku
+        });
       }
 
       // Refresh the items list to remove assigned items
@@ -352,11 +356,36 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
       setSelectedItemIds([]);
       setCustomSku('');
       
+      console.log('🎉 [SKU-DEBUG] All SKU assignments completed successfully');
       alert(`SKUs assigned successfully to ${updates.length} item${updates.length > 1 ? 's' : ''}!`);
       setActiveTab('generate'); // Move to Generate Listings tab
     } catch (error) {
-      console.error('Error assigning SKUs:', error);
-      alert('Failed to assign SKUs. Please try again.');
+      console.error('❌ [SKU-DEBUG] Critical error during SKU assignment:', {
+        error,
+        errorName: error.name,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        selectedItemIds,
+        customSku,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Provide user-friendly error messages based on error type
+      let userMessage = 'Failed to assign SKUs. ';
+      
+      if (error.message?.includes('column') || error.message?.includes('sku')) {
+        userMessage += 'Database schema issue - the SKU column may not exist. Please contact support.';
+      } else if (error.message?.includes('permission') || error.message?.includes('policy')) {
+        userMessage += 'Permission denied - please try signing out and back in.';
+      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        userMessage += 'Network error - please check your connection and try again.';
+      } else if (error.code === 'PGRST116') {
+        userMessage += 'Item not found - it may have been deleted.';
+      } else {
+        userMessage += `Error: ${error.message}. Please try again or contact support.`;
+      }
+      
+      alert(userMessage);
     } finally {
       setAssigningSkus(false);
     }
@@ -456,45 +485,25 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
               </div>
             </div>
             
-            <div className="flex gap-3">
-              <button
-                onClick={handleDeleteSelectedItems}
-                disabled={isDeleting || selectedItemIds.length === 0}
-                className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
-              >
-                {isDeleting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    <span>Deleting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-5 h-5" />
-                    <span>Delete Selected ({selectedItemIds.length})</span>
-                  </>
-                )}
-              </button>
-              
-              <button
-                onClick={handleAssignSkus}
-                disabled={assigningSkus || selectedItemIds.length === 0 || !customSku.trim()}
-                className="flex-1 bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
-              >
-                {assigningSkus ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    <span>Assigning SKUs...</span>
-                  </>
-                ) : (
-                  <>
-                    <Package className="w-5 h-5" />
-                    <span>
-                      Assign SKU to {selectedItemIds.length} Selected Item{selectedItemIds.length !== 1 ? 's' : ''}
-                    </span>
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              onClick={handleAssignSkus}
+              disabled={assigningSkus || selectedItemIds.length === 0 || !customSku.trim()}
+              className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
+            >
+              {assigningSkus ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Assigning SKUs...</span>
+                </>
+              ) : (
+                <>
+                  <Package className="w-5 h-5" />
+                  <span>
+                    Assign SKU to {selectedItemIds.length} Selected Item{selectedItemIds.length !== 1 ? 's' : ''}
+                  </span>
+                </>
+              )}
+            </button>
           </>
         ) : (
           <div className="text-center py-8">
