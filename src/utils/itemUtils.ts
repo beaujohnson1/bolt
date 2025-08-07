@@ -80,6 +80,7 @@ export const normalizeCategory = (category: string): string => {
  * @param item - Item object with brand, category, size properties
  * @returns Generated SKU string
  */
+}
 export const generateSKU = (item: { brand?: string; category?: string; size?: string }): string => {
   try {
     const brand = item.brand || 'UNK';
