@@ -42,53 +42,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔍 [AUTH] Starting fetchUserProfile for user:', supabaseUser.id);
       
-      // First, try to fetch existing user profile
-      console.log('🔍 [AUTH] Checking for existing user profile...');
-      const { data: existingUser, error: fetchError } = await withTimeout(
-        supabase
-          .from('users')
-          .select('*')
-          .eq('id', supabaseUser.id)
-          .single(),
-        PROFILE_FETCH_TIMEOUT,
-        'User profile fetch timed out'
-      );
-      
-      if (existingUser && !fetchError) {
-        console.log('✅ [AUTH] Found existing user profile:', existingUser);
-        return existingUser;
-      }
-      
-      // If user doesn't exist or fetch failed, create a minimal profile
-      console.log('📝 [AUTH] Creating new user profile...');
+      // Use RPC function to create or retrieve user profile (bypasses RLS)
+      console.log('🔍 [AUTH] Using RPC function to create/retrieve user profile...');
       const userName = 
         supabaseUser.user_metadata?.full_name || 
         supabaseUser.user_metadata?.name || 
         supabaseUser.email?.split('@')[0] || 
         'User';
       
-      const { data: newUser, error: insertError } = await withTimeout(
-        supabase
-          .from('users')
-          .insert({
-            id: supabaseUser.id,
-            email: supabaseUser.email || '',
-            name: userName,
-            avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
-            subscription_plan: 'free',
-            subscription_status: 'active',
-            listings_used: 0,
-            listings_limit: 999,
-            is_active: true
-          })
-          .select()
-          .single(),
-        PROFILE_CREATE_TIMEOUT,
-        'User profile creation timed out'
+      const { data: userProfile, error: rpcError } = await withTimeout(
+        supabase.rpc('create_user_profile', {
+          user_avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
+          user_email: supabaseUser.email || '',
+          user_id: supabaseUser.id,
+          user_name: userName
+        }),
+        PROFILE_FETCH_TIMEOUT,
+        'RPC create_user_profile operation timed out while creating/updating user profile'
       );
 
-      if (insertError) {
-        console.error('❌ [AUTH] Error creating user profile:', insertError);
+      if (rpcError) {
+        console.error('❌ [AUTH] Error details:', rpcError.message);
+        console.error('❌ [AUTH] RPC parameters that failed:', {
+          user_id: supabaseUser.id,
+          user_email: supabaseUser.email || '',
+          user_name: userName,
+          user_avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null
+        });
+        throw rpcError;
+      }
+
+      if (!userProfile) {
+        console.error('❌ [AUTH] RPC function returned no data');
         // If insert fails, return a minimal user object to prevent auth blocking
         return {
           id: supabaseUser.id,
@@ -105,8 +90,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } as AppUser;
       }
 
-      console.log('✅ [AUTH] User profile created successfully:', newUser);
-      return newUser;
+      console.log('✅ [AUTH] User profile created/retrieved successfully:', userProfile);
+      return userProfile;
       
     } catch (error) {
       console.error('❌ [AUTH] Unexpected error in fetchUserProfile:', error);
