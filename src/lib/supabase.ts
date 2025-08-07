@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://kstmyodjnckgoosidsbb.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzdG15b2RqbmNrZ29vc2lkc2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQxMDM5MTMsImV4cCI6MjA2OTY3OTkxM30.5OsVbf1uCWZnkH5tgVL6ZJAoLvJIyEJzdscyR_g2k0Y';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://kstmyodjnckgoosidsbb.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzdG15b2RqbmNrZ29vc2lkc2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQxMDM5MTMsImV4cCI6MjA2OTY3OTkxM30.5OsVbf1uCWZnkH5tgVL6ZJAoLvJIyEJzdscyR_g2k0Y';
 
-// Using secure hardcoded values from new Supabase project
-// Old exposed credentials have been replaced
+// Check for required environment variables
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables. Please check your .env file.');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
