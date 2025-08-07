@@ -415,7 +415,7 @@ const GenerateListingsPage = () => {
     // Debug the AI response
     debugAIResponse(aiAnalysis);
     
-    // Try all possible field name variations
+    // Try all possible field name variations with enhanced eBay integration
     const title = aiAnalysis?.title || 
                   aiAnalysis?.suggested_title || 
                   aiAnalysis?.name || 
@@ -425,7 +425,9 @@ const GenerateListingsPage = () => {
                   aiAnalysis?.listing_title ||
                   generateFallbackTitle(aiAnalysis);
     
-    const rawPrice = aiAnalysis?.price || 
+    // Use market research price if available, otherwise AI price
+    const rawPrice = aiAnalysis?.suggested_price || // Market research price
+                     aiAnalysis?.price || 
                      aiAnalysis?.suggested_price || 
                      aiAnalysis?.estimated_price || 
                      aiAnalysis?.estimatedPrice || 
@@ -439,10 +441,21 @@ const GenerateListingsPage = () => {
     const brand = aiAnalysis?.brand || 'Unknown Brand';
     const size = aiAnalysis?.size || 'Unknown';
     const condition = aiAnalysis?.condition || 'Good';
-    const category = aiAnalysis?.category || aiAnalysis?.item_type || 'Clothing';
+    const category = aiAnalysis?.recommended_category?.categoryName || 
+                    aiAnalysis?.category || 
+                    aiAnalysis?.item_type || 
+                    'Clothing';
     const color = aiAnalysis?.color || 'Multi-Color';
     const material = aiAnalysis?.material || 'Mixed Materials';
-    const keywords = aiAnalysis?.keywords || [];
+    
+    // Enhanced keywords from multiple sources
+    const keywords = [
+      ...(aiAnalysis?.keywords || []),
+      ...(aiAnalysis?.ai_suggested_keywords || []),
+      ...(aiAnalysis?.key_features || [])
+    ].filter((keyword, index, array) => 
+      keyword && array.indexOf(keyword) === index // Remove duplicates
+    ).slice(0, 10); // Limit to 10 keywords
     
     const description = generateListingDescription({
       title, brand, size, condition, category, color, material, keywords
@@ -457,6 +470,10 @@ const GenerateListingsPage = () => {
       Category: category
     };
     
+    // Use eBay category data if available
+    const categoryPath = aiAnalysis?.recommended_category?.categoryPath || getCategoryPath(category);
+    const categoryId = aiAnalysis?.recommended_category?.categoryId || getCategoryId(category);
+    
     const extractedData = {
       title,
       description,
@@ -469,9 +486,12 @@ const GenerateListingsPage = () => {
       material,
       keywords,
       item_specifics: itemSpecifics,
-      categoryPath: getCategoryPath(category),
-      categoryId: getCategoryId(category),
-      confidence: aiAnalysis?.confidence || 0.8
+      categoryPath,
+      categoryId,
+      confidence: aiAnalysis?.market_confidence || aiAnalysis?.confidence || 0.8,
+      // Add eBay-specific data
+      market_research: aiAnalysis?.marketResearch || null,
+      category_analysis: aiAnalysis?.categoryAnalysis || null
     };
     
     console.log('📋 [EXTRACT] Final extracted data:', extractedData);

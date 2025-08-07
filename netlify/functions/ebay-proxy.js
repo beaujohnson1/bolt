@@ -1,11 +1,39 @@
 // eBay API Proxy Function for Netlify
 // This function acts as a proxy to bypass CORS restrictions when calling eBay APIs
 
+// XML parsing utility for Trading API responses
+const parseXMLResponse = (xmlString) => {
+  try {
+    // Simple XML parsing - in production, use a proper XML parser library
+    // For now, we'll just pass through the XML and let the client handle it
+    return xmlString;
+  } catch (error) {
+    console.error('❌ [EBAY-PROXY] XML parsing error:', error);
+    return xmlString;
+  }
+};
+
+// Determine content type based on request
+const getContentType = (url, headers) => {
+  // Trading API uses XML
+  if (url.includes('/ws/api/eBayAPI.dll')) {
+    return 'text/xml';
+  }
+  
+  // Browse API and Finding API use JSON
+  if (url.includes('/buy/browse/') || url.includes('/services/search/')) {
+    return 'application/json';
+  }
+  
+  // Default to JSON
+  return 'application/json';
+};
+
 exports.handler = async (event, context) => {
   // Handle CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-EBAY-API-COMPATIBILITY-LEVEL, X-EBAY-API-DEV-NAME, X-EBAY-API-APP-NAME, X-EBAY-API-CERT-NAME, X-EBAY-API-CALL-NAME, X-EBAY-API-SITEID, X-EBAY-C-MARKETPLACE-ID',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-EBAY-API-COMPATIBILITY-LEVEL, X-EBAY-API-DEV-NAME, X-EBAY-API-APP-NAME, X-EBAY-API-CERT-NAME, X-EBAY-API-CALL-NAME, X-EBAY-API-SITEID, X-EBAY-C-MARKETPLACE-ID, X-EBAY-API-REQUEST-ENCODING',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
   };
 
@@ -56,16 +84,24 @@ exports.handler = async (event, context) => {
       method,
       hasBody: !!requestBody,
       headerCount: Object.keys(requestHeaders).length,
-      bodyType: typeof requestBody
+      bodyType: typeof requestBody,
+      isXmlRequest: url.includes('/ws/api/eBayAPI.dll'),
+      contentType: requestHeaders['Content-Type']
     });
+
+    // Determine expected response content type
+    const expectedContentType = getContentType(url, requestHeaders);
+    console.log('📋 [EBAY-PROXY] Expected response type:', expectedContentType);
 
     // Forward the request to eBay API
     const response = await fetch(url, {
       method,
       headers: {
         ...requestHeaders,
-        // Remove any browser-specific headers that might cause issues
-        'User-Agent': 'EasyFlip-Proxy/1.0'
+        // Add proxy-specific headers
+        'User-Agent': 'EasyFlip-Proxy/1.0',
+        // Ensure proper encoding for Trading API
+        'Accept-Encoding': 'gzip, deflate'
       },
       body: (method === 'GET' || method === 'HEAD') ? undefined : 
             requestBody ? (typeof requestBody === 'string' ? requestBody : JSON.stringify(requestBody)) : undefined
@@ -75,25 +111,35 @@ exports.handler = async (event, context) => {
       status: response.status,
       statusText: response.statusText,
       ok: response.ok,
-      contentType: response.headers.get('Content-Type')
+      contentType: response.headers.get('Content-Type'),
+      isXmlResponse: response.headers.get('Content-Type')?.includes('xml')
     });
 
     // Get response data
     const responseText = await response.text();
     console.log('📄 [EBAY-PROXY] Response details:', {
       textLength: responseText.length,
-      firstChars: responseText.substring(0, 100)
+      firstChars: responseText.substring(0, 100),
+      isXml: responseText.trim().startsWith('<?xml')
     });
     
     let responseData;
+    const responseContentType = response.headers.get('Content-Type') || '';
     
-    try {
-      responseData = JSON.parse(responseText);
-      console.log('✅ [EBAY-PROXY] Successfully parsed JSON response');
-    } catch (parseError) {
-      // If it's not JSON, return as text
+    // Handle XML responses (Trading API)
+    if (responseContentType.includes('xml') || responseText.trim().startsWith('<?xml')) {
+      console.log('📄 [EBAY-PROXY] Handling XML response from Trading API');
       responseData = responseText;
-      console.log('⚠️ [EBAY-PROXY] Response is not JSON, returning as text:', parseError.message);
+    } else {
+      // Handle JSON responses (Browse API, Finding API)
+      try {
+        responseData = JSON.parse(responseText);
+        console.log('✅ [EBAY-PROXY] Successfully parsed JSON response');
+      } catch (parseError) {
+        // If it's not JSON, return as text
+        responseData = responseText;
+        console.log('⚠️ [EBAY-PROXY] Response is not JSON, returning as text:', parseError.message);
+      }
     }
 
     // Return the response with CORS headers
@@ -101,7 +147,7 @@ exports.handler = async (event, context) => {
       statusCode: response.status,
       headers: {
         ...headers,
-        'Content-Type': response.headers.get('Content-Type') || 'application/json'
+        'Content-Type': response.headers.get('Content-Type') || expectedContentType
       },
       body: typeof responseData === 'string' ? responseData : JSON.stringify(responseData)
     };

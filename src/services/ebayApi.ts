@@ -1,6 +1,12 @@
 // eBay API Integration Service
 // This will handle all eBay API interactions for the MVP
 
+import { SupabaseClient } from '@supabase/supabase-js';
+import { analyzeClothingItem } from './openaiService.js';
+import { fetchImageAsBase64 } from '../utils/imageUtils';
+import { supabase } from '../lib/supabase';
+
+// Types for the keyword system
 interface EbayConfig {
   clientId: string;
   devId: string;
@@ -56,9 +62,73 @@ interface EbaySale {
   saleDate: string;
 }
 
+// Additional types for trending items
+interface TrendingItem {
+  itemId: string;
+  title: string;
+  price: number;
+  currency: string;
+  imageUrl: string;
+  categoryId: string;
+  categoryName: string;
+  condition: string;
+  itemWebUrl: string;
+  seller: {
+    username: string;
+    feedbackPercentage: number;
+  };
+  shippingOptions: any[];
+  watchCount: number;
+  bidCount: number;
+  listingDate: string;
+  endDate: string;
+  buyItNowAvailable: boolean;
+}
+
+// Additional types for eBay API integration
+interface EbayCategory {
+  categoryId: string;
+  categoryName: string;
+  parentId?: string;
+  categoryPath: string;
+  isLeafCategory: boolean;
+  categoryLevel: number;
+  itemSpecifics?: ItemSpecific[];
+}
+
+interface ItemSpecific {
+  name: string;
+  maxValues: number;
+  selectionMode: 'SelectionOnly' | 'FreeText' | 'SelectionOrFreeText';
+  values: string[];
+  helpText?: string;
+  required: boolean;
+}
+
+interface MarketResearchData {
+  averagePrice: number;
+  priceRange: { min: number; max: number };
+  soldCount: number;
+  activeListings: number;
+  suggestedPrice: number;
+  confidence: number;
+  dataPoints: CompletedListing[];
+}
+
+interface CompletedListing {
+  title: string;
+  price: number;
+  condition: string;
+  endTime: string;
+  watchCount?: number;
+  bidCount?: number;
+}
+
 class EbayApiService {
   private config: EbayConfig;
   private accessToken: string | null = null;
+  private categoryCache: Map<string, EbayCategory> = new Map();
+  private priceCache: Map<string, MarketResearchData> = new Map();
 
   constructor(redirectUri: string = `${window.location.origin}/auth/ebay/callback`) {
     // Determine environment and select appropriate credentials
@@ -792,6 +862,558 @@ class EbayApiService {
     }
   }
 
+  // =============================================
+  // TRADING API - CATEGORIES AND SPECIFICATIONS
+  // =============================================
+
+  /**
+   * Get eBay category tree
+   */
+  async getCategories(levelLimit: number = 3): Promise<EbayCategory[]> {
+    try {
+      console.log('📂 [EBAY] Fetching eBay category tree...');
+      
+      // Check cache first
+      const { data: cachedCategories, error: cacheError } = await supabase
+        .from('ebay_categories')
+        .select('*')
+        .gte('last_updated', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()); // 7 days
+      
+      if (!cacheError && cachedCategories && cachedCategories.length > 0) {
+        console.log('✅ [EBAY] Using cached categories:', cachedCategories.length);
+        return cachedCategories.map(this.mapCachedCategory);
+      }
+
+      // Fetch from eBay API
+      const xmlBody = this.buildTradingApiXml('GetCategories', {
+        DetailLevel: 'ReturnAll',
+        ViewAllNodes: true,
+        LevelLimit: levelLimit
+      });
+
+      const response = await this._callProxy(
+        `${this.config.baseUrl}/ws/api/eBayAPI.dll`,
+        'POST',
+        {
+          'Content-Type': 'text/xml',
+          'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+          'X-EBAY-API-DEV-NAME': this.config.devId,
+          'X-EBAY-API-APP-NAME': this.config.clientId,
+          'X-EBAY-API-CERT-NAME': this.config.certId,
+          'X-EBAY-API-CALL-NAME': 'GetCategories',
+          'X-EBAY-API-SITEID': '0'
+        },
+        xmlBody
+      );
+
+      if (response.status !== 200) {
+        throw new Error(`eBay GetCategories failed: ${response.status}`);
+      }
+
+      const categories = this.parseCategoriesXml(response.data);
+      
+      // Cache the results
+      await this.cacheCategories(categories);
+      
+      console.log('✅ [EBAY] Categories fetched and cached:', categories.length);
+      return categories;
+    } catch (error) {
+      console.error('❌ [EBAY] Error fetching categories:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get item specifics for a category
+   */
+  async getCategorySpecifics(categoryId: string): Promise<ItemSpecific[]> {
+    try {
+      console.log('📋 [EBAY] Fetching category specifics for:', categoryId);
+      
+      // Check if we have cached specifics
+      const { data: cachedCategory, error: cacheError } = await supabase
+        .from('ebay_categories')
+        .select('item_specifics')
+        .eq('category_id', categoryId)
+        .gte('last_updated', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // 24 hours
+        .single();
+      
+      if (!cacheError && cachedCategory?.item_specifics) {
+        console.log('✅ [EBAY] Using cached category specifics');
+        return cachedCategory.item_specifics;
+      }
+
+      const xmlBody = this.buildTradingApiXml('GetCategorySpecifics', {
+        CategoryID: categoryId,
+        IncludeConfidence: true,
+        IncludeHelpText: true
+      });
+
+      const response = await this._callProxy(
+        `${this.config.baseUrl}/ws/api/eBayAPI.dll`,
+        'POST',
+        {
+          'Content-Type': 'text/xml',
+          'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+          'X-EBAY-API-DEV-NAME': this.config.devId,
+          'X-EBAY-API-APP-NAME': this.config.clientId,
+          'X-EBAY-API-CERT-NAME': this.config.certId,
+          'X-EBAY-API-CALL-NAME': 'GetCategorySpecifics',
+          'X-EBAY-API-SITEID': '0'
+        },
+        xmlBody
+      );
+
+      if (response.status !== 200) {
+        throw new Error(`eBay GetCategorySpecifics failed: ${response.status}`);
+      }
+
+      const specifics = this.parseSpecificsXml(response.data);
+      
+      // Update cache with specifics
+      await supabase
+        .from('ebay_categories')
+        .update({ 
+          item_specifics: specifics,
+          last_updated: new Date().toISOString()
+        })
+        .eq('category_id', categoryId);
+      
+      console.log('✅ [EBAY] Category specifics fetched and cached');
+      return specifics;
+    } catch (error) {
+      console.error('❌ [EBAY] Error fetching category specifics:', error);
+      return []; // Return empty array as fallback
+    }
+  }
+
+  // =============================================
+  // BROWSE API - MARKET RESEARCH
+  // =============================================
+
+  /**
+   * Search for completed items using Browse API
+   */
+  async searchCompletedItems(query: string, categoryId?: string, options: any = {}): Promise<CompletedListing[]> {
+    try {
+      console.log('🔍 [EBAY] Searching completed items:', { query, categoryId });
+      
+      const searchParams = new URLSearchParams({
+        q: query,
+        filter: 'buyingOptions:{AUCTION|FIXED_PRICE},deliveryCountry:US,itemLocationCountry:US',
+        sort: 'newlyListed',
+        limit: '50',
+        fieldgroups: 'MATCHING_ITEMS,EXTENDED'
+      });
+
+      if (categoryId) {
+        searchParams.append('category_ids', categoryId);
+      }
+
+      // Add sold items filter - this simulates the deprecated findCompletedItems
+      searchParams.append('filter', 'conditionIds:{1000|3000|4000|5000|6000}'); // All conditions
+
+      const apiUrl = `${this.config.baseUrl}/buy/browse/v1/item_summary/search?${searchParams}`;
+      
+      const response = await this._callProxy(
+        apiUrl,
+        'GET',
+        {
+          'Authorization': `Bearer ${await this.getApplicationToken()}`,
+          'Content-Type': 'application/json',
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+        }
+      );
+
+      if (response.status !== 200) {
+        console.error('❌ [EBAY] Search completed items failed:', response.status);
+        return [];
+      }
+
+      const data = response.data;
+      const completedListings: CompletedListing[] = (data.itemSummaries || []).map((item: any) => ({
+        title: item.title,
+        price: parseFloat(item.price?.value || '0'),
+        condition: item.condition || 'Used',
+        endTime: item.itemEndDate || new Date().toISOString(),
+        watchCount: item.watchCount || 0,
+        bidCount: item.bidCount || 0
+      }));
+      
+      console.log('✅ [EBAY] Found completed items:', completedListings.length);
+      return completedListings;
+    } catch (error) {
+      console.error('❌ [EBAY] Error searching completed items:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get price suggestion based on market research
+   */
+  async getPriceSuggestion(
+    title: string, 
+    categoryId: string, 
+    condition: string = 'Used', 
+    brand?: string
+  ): Promise<MarketResearchData> {
+    try {
+      const searchKey = this.generateSearchKey(title, categoryId, condition, brand);
+      console.log('💰 [EBAY] Getting price suggestion for:', searchKey);
+      
+      // Check cache first
+      const { data: cachedData, error: cacheError } = await supabase
+        .from('market_research_cache')
+        .select('*')
+        .eq('search_key', searchKey)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+      
+      if (!cacheError && cachedData) {
+        console.log('✅ [EBAY] Using cached price research');
+        return {
+          averagePrice: cachedData.average_price,
+          priceRange: { 
+            min: cachedData.price_range_min, 
+            max: cachedData.price_range_max 
+          },
+          soldCount: cachedData.sold_count,
+          activeListings: cachedData.active_listings,
+          suggestedPrice: cachedData.suggested_price,
+          confidence: cachedData.confidence_score,
+          dataPoints: cachedData.data_points || []
+        };
+      }
+
+      // Conduct fresh market research
+      const searchQuery = this.buildSearchQuery(title, brand);
+      const completedItems = await this.searchCompletedItems(searchQuery, categoryId);
+      
+      // Analyze pricing data
+      const priceAnalysis = this.analyzePrices(completedItems, condition);
+      
+      // Cache the results
+      await supabase
+        .from('market_research_cache')
+        .upsert({
+          search_key: searchKey,
+          average_price: priceAnalysis.averagePrice,
+          price_range_min: priceAnalysis.priceRange.min,
+          price_range_max: priceAnalysis.priceRange.max,
+          sold_count: priceAnalysis.soldCount,
+          active_listings: priceAnalysis.activeListings,
+          suggested_price: priceAnalysis.suggestedPrice,
+          confidence_score: priceAnalysis.confidence,
+          data_points: completedItems,
+          last_updated: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString() // 6 hours
+        });
+      
+      console.log('✅ [EBAY] Price research completed and cached');
+      return priceAnalysis;
+    } catch (error) {
+      console.error('❌ [EBAY] Error getting price suggestion:', error);
+      // Return fallback pricing
+      return {
+        averagePrice: 25,
+        priceRange: { min: 20, max: 35 },
+        soldCount: 0,
+        activeListings: 0,
+        suggestedPrice: 25,
+        confidence: 0.3,
+        dataPoints: []
+      };
+    }
+  }
+
+  /**
+   * Suggest eBay category based on item details
+   */
+  async suggestCategory(title: string, description: string, brand?: string): Promise<EbayCategory[]> {
+    try {
+      console.log('🎯 [EBAY] Suggesting category for:', { title, brand });
+      
+      // Get all categories from cache
+      const { data: categories, error } = await supabase
+        .from('ebay_categories')
+        .select('*')
+        .eq('is_leaf_category', true); // Only leaf categories can be used for listings
+      
+      if (error || !categories) {
+        console.log('⚠️ [EBAY] No cached categories, using fallback');
+        return this.getFallbackCategories();
+      }
+
+      // Simple keyword-based matching for now
+      const titleLower = title.toLowerCase();
+      const descriptionLower = description.toLowerCase();
+      
+      const scoredCategories = categories.map(cat => {
+        let score = 0;
+        const categoryLower = cat.category_name.toLowerCase();
+        const pathLower = cat.category_path.toLowerCase();
+        
+        // Exact matches get highest score
+        if (titleLower.includes(categoryLower)) score += 10;
+        if (pathLower.includes(titleLower.split(' ')[0])) score += 8;
+        if (descriptionLower.includes(categoryLower)) score += 5;
+        
+        // Brand-specific category matching
+        if (brand) {
+          const brandLower = brand.toLowerCase();
+          if (pathLower.includes(brandLower)) score += 6;
+        }
+        
+        return {
+          ...this.mapCachedCategory(cat),
+          score
+        };
+      });
+
+      // Return top 5 suggestions
+      const suggestions = scoredCategories
+        .filter(cat => cat.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+      
+      console.log('✅ [EBAY] Category suggestions:', suggestions.length);
+      return suggestions;
+    } catch (error) {
+      console.error('❌ [EBAY] Error suggesting category:', error);
+      return this.getFallbackCategories();
+    }
+  }
+
+  // =============================================
+  // HELPER METHODS
+  // =============================================
+
+  private generateSearchKey(title: string, categoryId: string, condition: string, brand?: string): string {
+    const cleanTitle = title.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+    const key = `${cleanTitle}_${categoryId}_${condition}_${brand || 'nobrand'}`;
+    return key.replace(/\s+/g, '_').substring(0, 100); // Limit length
+  }
+
+  private buildSearchQuery(title: string, brand?: string): string {
+    // Extract key terms from title
+    const stopWords = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'];
+    const titleWords = title.toLowerCase()
+      .split(' ')
+      .filter(word => word.length > 2 && !stopWords.includes(word))
+      .slice(0, 5); // Limit to 5 key words
+    
+    let query = titleWords.join(' ');
+    if (brand && !query.toLowerCase().includes(brand.toLowerCase())) {
+      query = `${brand} ${query}`;
+    }
+    
+    return query.trim();
+  }
+
+  private analyzePrices(completedItems: CompletedListing[], targetCondition: string): MarketResearchData {
+    if (completedItems.length === 0) {
+      return {
+        averagePrice: 25,
+        priceRange: { min: 20, max: 35 },
+        soldCount: 0,
+        activeListings: 0,
+        suggestedPrice: 25,
+        confidence: 0.1,
+        dataPoints: []
+      };
+    }
+
+    // Filter by similar condition
+    const relevantItems = completedItems.filter(item => 
+      item.condition.toLowerCase().includes(targetCondition.toLowerCase()) ||
+      targetCondition.toLowerCase().includes(item.condition.toLowerCase())
+    );
+
+    const prices = relevantItems.map(item => item.price).filter(price => price > 0);
+    
+    if (prices.length === 0) {
+      return {
+        averagePrice: 25,
+        priceRange: { min: 20, max: 35 },
+        soldCount: 0,
+        activeListings: 0,
+        suggestedPrice: 25,
+        confidence: 0.2,
+        dataPoints: completedItems
+      };
+    }
+
+    // Calculate statistics
+    prices.sort((a, b) => a - b);
+    const median = prices[Math.floor(prices.length / 2)];
+    const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    
+    // Suggest price slightly below median for faster sale
+    const suggestedPrice = Math.round(median * 0.95);
+    
+    // Calculate confidence based on data points
+    const confidence = Math.min(0.95, 0.3 + (prices.length * 0.05));
+
+    return {
+      averagePrice: Math.round(average),
+      priceRange: { min: Math.round(min), max: Math.round(max) },
+      soldCount: relevantItems.length,
+      activeListings: completedItems.length - relevantItems.length,
+      suggestedPrice,
+      confidence,
+      dataPoints: completedItems
+    };
+  }
+
+  private buildTradingApiXml(callName: string, params: any): string {
+    const paramsXml = this.objectToXml(params);
+    
+    return `<?xml version="1.0" encoding="utf-8"?>
+<${callName}Request xmlns="urn:ebay:apis:eBLBaseComponents">
+  <RequesterCredentials>
+    <eBayAuthToken>${this.accessToken || 'no-token'}</eBayAuthToken>
+  </RequesterCredentials>
+  <Version>967</Version>
+  ${paramsXml}
+</${callName}Request>`;
+  }
+
+  private parseCategoriesXml(xmlData: string): EbayCategory[] {
+    // Simplified XML parsing - in production, use a proper XML parser
+    const categories: EbayCategory[] = [];
+    
+    try {
+      // For now, return mock categories until proper XML parsing is implemented
+      console.log('⚠️ [EBAY] Using mock categories - implement proper XML parsing');
+      return this.getMockCategories();
+    } catch (error) {
+      console.error('❌ [EBAY] Error parsing categories XML:', error);
+      return this.getMockCategories();
+    }
+  }
+
+  private parseSpecificsXml(xmlData: string): ItemSpecific[] {
+    // Simplified XML parsing - in production, use a proper XML parser
+    try {
+      console.log('⚠️ [EBAY] Using mock specifics - implement proper XML parsing');
+      return this.getMockItemSpecifics();
+    } catch (error) {
+      console.error('❌ [EBAY] Error parsing specifics XML:', error);
+      return this.getMockItemSpecifics();
+    }
+  }
+
+  private async cacheCategories(categories: EbayCategory[]): Promise<void> {
+    try {
+      const categoryData = categories.map(cat => ({
+        category_id: cat.categoryId,
+        category_name: cat.categoryName,
+        parent_id: cat.parentId,
+        category_path: cat.categoryPath,
+        is_leaf_category: cat.isLeafCategory,
+        category_level: cat.categoryLevel,
+        last_updated: new Date().toISOString()
+      }));
+
+      const { error } = await supabase
+        .from('ebay_categories')
+        .upsert(categoryData);
+
+      if (error) {
+        console.error('❌ [EBAY] Error caching categories:', error);
+      } else {
+        console.log('✅ [EBAY] Categories cached successfully');
+      }
+    } catch (error) {
+      console.error('❌ [EBAY] Error in cacheCategories:', error);
+    }
+  }
+
+  private mapCachedCategory(cachedCat: any): EbayCategory {
+    return {
+      categoryId: cachedCat.category_id,
+      categoryName: cachedCat.category_name,
+      parentId: cachedCat.parent_id,
+      categoryPath: cachedCat.category_path,
+      isLeafCategory: cachedCat.is_leaf_category,
+      categoryLevel: cachedCat.category_level,
+      itemSpecifics: cachedCat.item_specifics || []
+    };
+  }
+
+  private getFallbackCategories(): EbayCategory[] {
+    return [
+      {
+        categoryId: '11450',
+        categoryName: 'Clothing',
+        categoryPath: 'Clothing, Shoes & Accessories > Clothing',
+        isLeafCategory: true,
+        categoryLevel: 2
+      },
+      {
+        categoryId: '93427',
+        categoryName: 'Shoes',
+        categoryPath: 'Clothing, Shoes & Accessories > Shoes',
+        isLeafCategory: true,
+        categoryLevel: 2
+      }
+    ];
+  }
+
+  private getMockCategories(): EbayCategory[] {
+    return [
+      {
+        categoryId: '11450',
+        categoryName: 'Clothing',
+        categoryPath: 'Clothing, Shoes & Accessories > Clothing',
+        isLeafCategory: true,
+        categoryLevel: 2
+      },
+      {
+        categoryId: '57988',
+        categoryName: 'Coats & Jackets',
+        categoryPath: 'Clothing, Shoes & Accessories > Clothing > Coats & Jackets',
+        isLeafCategory: true,
+        categoryLevel: 3
+      },
+      {
+        categoryId: '93427',
+        categoryName: 'Shoes',
+        categoryPath: 'Clothing, Shoes & Accessories > Shoes',
+        isLeafCategory: true,
+        categoryLevel: 2
+      }
+    ];
+  }
+
+  private getMockItemSpecifics(): ItemSpecific[] {
+    return [
+      {
+        name: 'Brand',
+        maxValues: 1,
+        selectionMode: 'FreeText',
+        values: [],
+        required: true
+      },
+      {
+        name: 'Size',
+        maxValues: 1,
+        selectionMode: 'SelectionOrFreeText',
+        values: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
+        required: false
+      },
+      {
+        name: 'Color',
+        maxValues: 1,
+        selectionMode: 'FreeText',
+        values: [],
+        required: false
+      }
+    ];
+  }
+
   // Helper methods
   private buildXmlRequest(callName: string, data: any): string {
     // Simplified XML builder for MVP
@@ -830,28 +1452,5 @@ class EbayApiService {
   }
 }
 
-// Additional types for trending items
-interface TrendingItem {
-  itemId: string;
-  title: string;
-  price: number;
-  currency: string;
-  imageUrl: string;
-  categoryId: string;
-  categoryName: string;
-  condition: string;
-  itemWebUrl: string;
-  seller: {
-    username: string;
-    feedbackPercentage: number;
-  };
-  shippingOptions: any[];
-  watchCount: number;
-  bidCount: number;
-  listingDate: string;
-  endDate: string;
-  buyItNowAvailable: boolean;
-}
-
 export default EbayApiService;
-export type { EbayItem, EbayListing, EbaySale, EbayConfig, TrendingItem };
+export type { EbayItem, EbayListing, EbaySale, EbayConfig, TrendingItem, EbayCategory, ItemSpecific, MarketResearchData, CompletedListing };

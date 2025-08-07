@@ -1,20 +1,33 @@
 import { useState } from 'react';
 import { analyzeClothingItem } from '../services/openaiService.js';
+import EbayApiService from '../services/ebayApi';
+import EbayCategoryManager from '../services/EbayCategoryManager';
+import EbayMarketResearch from '../services/EbayMarketResearch';
+import { supabase } from '../lib/supabase';
 
 interface AnalysisOptions {
   sku?: string;
   photos?: string[];
+  includeMarketResearch?: boolean;
+  includeCategoryAnalysis?: boolean;
 }
 
 interface AnalysisResult {
   success: boolean;
   data?: any;
   error?: string;
+  marketResearch?: any;
+  categoryAnalysis?: any;
 }
 
 export const useAIAnalysis = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  
+  // Initialize eBay services
+  const ebayService = new EbayApiService();
+  const categoryManager = new EbayCategoryManager(ebayService, supabase);
+  const marketResearch = new EbayMarketResearch(ebayService, supabase);
 
   const analyzeItem = async (imageUrl: string, options: AnalysisOptions = {}): Promise<AnalysisResult> => {
     setIsAnalyzing(true);
@@ -36,6 +49,57 @@ export const useAIAnalysis = () => {
         success: true,
         data: result.analysis || result.data
       };
+      // Step 2: Enhanced eBay integration (if requested)
+      let marketResearchData = null;
+      let categoryAnalysisData = null;
+
+      if (options.includeMarketResearch && aiData.title) {
+        try {
+          console.log('💰 [AI-ANALYSIS] Conducting market research...');
+          marketResearchData = await marketResearch.getPriceSuggestion(
+            aiData.title,
+            '11450', // Default to clothing category
+            aiData.condition || 'good',
+            aiData.brand
+          );
+          console.log('✅ [AI-ANALYSIS] Market research complete');
+        } catch (error) {
+          console.error('❌ [AI-ANALYSIS] Market research failed:', error);
+        }
+      }
+
+      if (options.includeCategoryAnalysis && aiData.title) {
+        try {
+          console.log('🎯 [AI-ANALYSIS] Analyzing category suggestions...');
+          const categoryOptions = await categoryManager.suggestCategory(
+            aiData.title,
+            aiData.description || '',
+            { brand: aiData.brand }
+          );
+          
+          categoryAnalysisData = {
+            suggestions: categoryOptions,
+            recommended: categoryOptions[0] || null
+          };
+          console.log('✅ [AI-ANALYSIS] Category analysis complete');
+        } catch (error) {
+          console.error('❌ [AI-ANALYSIS] Category analysis failed:', error);
+        }
+      }
+
+      // Step 3: Combine all analysis results
+      const enhancedData = {
+        ...aiData,
+        // Override price with market research if available
+        suggested_price: marketResearchData?.suggestedPrice || aiData.suggested_price || aiData.price || 25,
+        price_range: marketResearchData?.priceRange || { min: 20, max: 35 },
+        // Add category information
+        recommended_category: categoryAnalysisData?.recommended || null,
+        category_options: categoryAnalysisData?.suggestions || [],
+        // Add market insights
+        market_confidence: marketResearchData?.confidence || 0.5,
+        sold_count: marketResearchData?.soldCount || 0
+      };
 
     } catch (error) {
       console.error('❌ [AI-ANALYSIS] Analysis failed:', error);
@@ -43,7 +107,9 @@ export const useAIAnalysis = () => {
       
       return {
         success: false,
-        error: error.message
+        data: enhancedData,
+        marketResearch: marketResearchData,
+        categoryAnalysis: categoryAnalysisData
       };
     } finally {
       setIsAnalyzing(false);
@@ -62,11 +128,15 @@ export const useAIAnalysis = () => {
       // Process items sequentially to avoid rate limits
       for (const item of items) {
         try {
-          const result = await analyzeItem(item.imageUrl, item.options);
+          const result = await analyzeItem(item.imageUrl, {
+            ...item.options,
+            includeMarketResearch: true,
+            includeCategoryAnalysis: true
+          });
           results.push(result);
           
           // Add delay between requests
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Increased delay for eBay API
         } catch (error) {
           results.push({
             success: false,
@@ -91,6 +161,10 @@ export const useAIAnalysis = () => {
     analyzeItem,
     analyzeBatch,
     isAnalyzing,
-    analysisError
+    analysisError,
+    // Expose eBay services for direct use
+    ebayService,
+    categoryManager,
+    marketResearch
   };
 };
