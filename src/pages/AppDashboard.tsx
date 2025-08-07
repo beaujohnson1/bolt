@@ -1319,7 +1319,7 @@ const AppDashboard = () => {
       // Update local state to remove the deleted listing
       setAllListings(prevListings => 
         prevListings.filter(listing => listing.id !== listingId)
-      )
+      );
 
       // Update dashboard stats
       setDashboardStats(prevStats => ({
@@ -1862,7 +1862,44 @@ const AppDashboard = () => {
                     }`}>
                       {msg.typing ? (
                         <div className="flex items-center space-x-1">
-            <GenerateListingsTable isDarkMode={isDarkMode} />
+                          <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        </div>
+                      ) : (
+                        msg.text
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+              
+              {/* Chat Input */}
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={currentMessage}
+                  onChange={(e) => setCurrentMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask your AI coach anything..."
+                  className="flex-1 p-3 rounded-lg bg-white/10 dark:bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!currentMessage.trim()}
+                  className="bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white p-3 rounded-lg transition-opacity"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      case 'listings':
+        return (
+          <div className="space-y-6">
+            <GenerateListingsTable isDarkMode={true} />
           </div>
         );
       default:
