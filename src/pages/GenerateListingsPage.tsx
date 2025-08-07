@@ -131,8 +131,8 @@ const GenerateListingsPage = () => {
           title: existingItem?.title || '',
           description: existingItem?.description || '',
           price: existingItem?.suggested_price || 0,
-          category: existingItem?.category || '',
-          condition: existingItem?.condition || '',
+          category: existingItem?.category || 'other',
+          condition: existingItem?.condition || 'good',
           brand: existingItem?.brand,
           size: existingItem?.size,
           color: existingItem?.color,
@@ -495,114 +495,6 @@ const GenerateListingsPage = () => {
     }
   };
 
-  // Extract listing data from AI analysis
-  const extractListingDataFromAI = (aiAnalysis: any, marketResearch?: any, categoryAnalysis?: any) => {
-    console.log('📊 [EXTRACT] Processing AI analysis:', aiAnalysis);
-    
-    // Handle null or undefined aiAnalysis
-    if (!aiAnalysis) {
-      console.log('⚠️ [EXTRACT] No AI analysis data provided, using fallback');
-      throw new Error('No AI analysis data provided');
-    }
-    
-    // Use safe string operations for all field extractions
-    const rawTitle = aiAnalysis?.title || 
-                     aiAnalysis?.suggested_title || 
-                     aiAnalysis?.name || 
-                     aiAnalysis?.itemName || 
-                     aiAnalysis?.item_name || 
-                     aiAnalysis?.product_name || 
-                     aiAnalysis?.listing_title;
-    
-    const title = safeTrim(rawTitle) || buildTitle({
-      brand: normUnknown(aiAnalysis?.brand),
-      item_type: safeTrim(aiAnalysis?.item_type) || 'Item',
-      color: normUnknown(aiAnalysis?.color),
-      size: normUnknown(aiAnalysis?.size)
-    });
-    
-    // Use market research price if available, otherwise AI price, otherwise fallback
-    const rawPrice = marketResearch?.suggestedPrice || 
-                     aiAnalysis?.suggested_price || 
-                     aiAnalysis?.price || 
-                     aiAnalysis?.estimated_price || 
-                     aiAnalysis?.estimatedPrice || 
-                     aiAnalysis?.suggestedPrice || 
-                     aiAnalysis?.market_price || 
-                     aiAnalysis?.listing_price;
-    
-    const price = safeNumber(rawPrice, 25);
-    
-    const brand = normUnknown(aiAnalysis?.brand || aiAnalysis?.detected_brand);
-    const size = normUnknown(aiAnalysis?.size);
-    const condition = safeTrim(aiAnalysis?.condition || aiAnalysis?.detected_condition) || 'good';
-    const category = categoryAnalysis?.recommended?.categoryName ||
-                    aiAnalysis?.recommended_category?.categoryName || 
-                    safeTrim(aiAnalysis?.category) || 
-                    safeTrim(aiAnalysis?.detected_category) ||
-                    safeTrim(aiAnalysis?.item_type) || 
-                    'other';
-    const color = normUnknown(aiAnalysis?.color || aiAnalysis?.detected_color);
-    const model_number = normUnknown(aiAnalysis?.model_number || aiAnalysis?.modelNumber);
-    
-    // Enhanced keywords from multiple sources
-    const keywords = safeStringArray([
-      ...safeArray(aiAnalysis?.keywords),
-      ...safeArray(aiAnalysis?.ai_suggested_keywords),
-      ...safeArray(aiAnalysis?.key_features),
-      ...safeArray(aiAnalysis?.keyFeatures)
-    ]).filter((keyword, index, array) => 
-      keyword && array.indexOf(keyword) === index
-    ).slice(0, 10);
-    
-    const description = safeTrim(aiAnalysis?.description) || 
-                       generateListingDescription({
-                         title, brand, size, condition, category, color, keywords
-                       });
-    
-    // Extract key features for AI analysis
-    const keyFeatures = safeStringArray([
-      ...safeArray(aiAnalysis?.key_features),
-      ...safeArray(aiAnalysis?.keyFeatures),
-      ...safeArray(aiAnalysis?.features)
-    ]).filter((feature, index, array) => 
-      feature && array.indexOf(feature) === index
-    ).slice(0, 8);
-    
-    // Extract eBay item specifics if available
-    const ebaySpecifics = aiAnalysis?.ebay_item_specifics || aiAnalysis?.ebayItemSpecifics || {};
-    
-    // Extract evidence data
-    const evidence = aiAnalysis?.evidence || {};
-    
-    // Safe confidence extraction
-    const confidence = safeNumber(
-      marketResearch?.confidence || 
-      aiAnalysis?.market_confidence || 
-      aiAnalysis?.confidence,
-      0.5
-    );
-    
-    const extractedData = {
-      title,
-      description,
-      price,
-      category: normalizeCategory(category),
-      condition: normalizeCondition(condition),
-      brand,
-      size,
-      color,
-      model_number,
-      keywords,
-      keyFeatures,
-      confidence,
-      ebaySpecifics,
-      evidence
-    };
-    
-    console.log('📋 [EXTRACT] Final extracted data:', extractedData);
-    return extractedData;
-  };
 
   // Helper function to link photos to a generated item
   const linkPhotosToItem = async (sku: string, itemId: string) => {
@@ -655,7 +547,7 @@ const GenerateListingsPage = () => {
 
   // Normalize category to match database enum
   const normalizeCategory = (category: string): string => {
-    const normalized = safeLower(category);
+    const normalized = category?.toLowerCase() || '';
     const categoryMap: Record<string, string> = {
       'clothing': 'clothing',
       'jacket': 'clothing',
@@ -680,7 +572,7 @@ const GenerateListingsPage = () => {
 
   // Normalize condition to match database enum
   const normalizeCondition = (condition: string): string => {
-    const normalized = safeLower(condition);
+    const normalized = condition?.toLowerCase() || '';
     const conditionMap: Record<string, string> = {
       'new': 'like_new',
       'like new': 'like_new',
@@ -695,32 +587,8 @@ const GenerateListingsPage = () => {
     return conditionMap[normalized] || 'good';
   };
 
+
   // Helper functions
-  const generateListingDescription = ({ title, brand, size, condition, category, color, keywords }) => {
-    // Handle undefined parameters
-    const safeBrand = safeTrim(brand) || 'Unknown';
-    const safeSize = safeTrim(size) || 'Unknown';
-    const safeCondition = safeTrim(condition) || 'good';
-    const safeColor = safeTrim(color) || 'Various';
-    const safeKeywords = safeStringArray(keywords);
-    
-    const features = [];
-    if (safeBrand !== 'Unknown') features.push(`Brand: ${safeBrand}`);
-    if (safeSize !== 'Unknown') features.push(`Size: ${safeSize}`);
-    if (safeCondition) features.push(`Condition: ${safeCondition}`);
-    if (safeColor !== 'Various') features.push(`Color: ${safeColor}`);
-    
-    const featureText = features.length > 0 ? features.join(' | ') : 'Quality item in great condition';
-    const keywordText = safeKeywords.length > 0 ? `\n\nKeywords: ${safeKeywords.join(', ')}` : '';
-    
-    return `${safeTrim(title) || 'Quality Item'}
-
-${featureText}${keywordText}
-
-This item is carefully inspected and ready to ship. Check out our other listings for more great deals!
-
-Fast shipping and excellent customer service guaranteed.`;
-  };
 
   // Calculate stats
   const stats = {
