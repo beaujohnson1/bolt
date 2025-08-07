@@ -87,7 +87,7 @@ exports.handler = async (event, context) => {
     console.log('🤖 [OPENAI-FUNCTION] Calling OpenAI API...');
     
     const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview", // As specified by the user
+      model: "gpt-4o",
       messages: [
         {
           role: "user",
