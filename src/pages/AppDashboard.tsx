@@ -85,7 +85,7 @@ const AppDashboard = () => {
       case 'skus':
         return <SKUAssignmentPage isDarkMode={isDarkMode} key={refreshTrigger} onAssignmentComplete={() => setActiveTab('generate')} />;
       case 'generate':
-        return <GenerateListingsPage />;
+        return <GenerateListingsPage key={`generate-${refreshTrigger}`} />;
       case 'publish':
         return <PublishTab />;
       case 'coach':
