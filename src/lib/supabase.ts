@@ -47,6 +47,8 @@ export interface Item {
   updated_at: string;
   sku?: string;
   ai_suggested_keywords?: string[];
+  item_type?: string;
+  category_path?: string;
 }
 
 export interface Listing {

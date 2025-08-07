@@ -5,6 +5,7 @@ import { TrendingUp, DollarSign, Package, Eye, ShoppingCart, Calendar, Target, Z
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
 import EbayApiService, { type TrendingItem } from '../services/ebayApi';
+import GenerateListingsTable from '../components/GenerateListingsTable';
 import { normalizeCondition, normalizeCategory, generateSKU, generateSequentialSKU } from '../utils/itemUtils';
 import { resizeImage, calculateImageHash, processImagesWithEnhancement } from '../utils/imageUtils';
 import DashboardLayout from '../components/DashboardLayout';

@@ -108,3 +108,30 @@ export const formatDate = (dateString: string): string => {
     day: 'numeric'
   });
 };
+// Get category path for eBay-style hierarchy
+export const getCategoryPath = (category: string): string => {
+  const categoryPaths: { [key: string]: string } = {
+    'clothing': 'Clothing, Shoes & Accessories > Clothing',
+    'shoes': 'Clothing, Shoes & Accessories > Shoes',
+    'accessories': 'Clothing, Shoes & Accessories > Accessories',
+    'electronics': 'Consumer Electronics',
+    'home_garden': 'Home & Garden',
+    'toys_games': 'Toys & Hobbies',
+    'sports_outdoors': 'Sporting Goods',
+    'books_media': 'Books, Movies & Music',
+    'jewelry': 'Jewelry & Watches',
+    'collectibles': 'Collectibles',
+    'other': 'Everything Else'
+  };
+  return categoryPaths[category] || 'Everything Else';
+};
+
+// Get item specifics for display
+export const getItemSpecifics = (item: { brand?: string; size?: string; color?: string; model_number?: string }): string => {
+  const specifics = [];
+  if (item.brand) specifics.push(`Brand: ${item.brand}`);
+  if (item.size) specifics.push(`Size: ${item.size}`);
+  if (item.color) specifics.push(`Color: ${item.color}`);
+  if (item.model_number) specifics.push(`Model: ${item.model_number}`);
+  return specifics.join(', ') || '-';
+};
