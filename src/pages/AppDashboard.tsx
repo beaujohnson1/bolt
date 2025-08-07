@@ -208,6 +208,8 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
   const [itemsToSku, setItemsToSku] = useState<Item[]>([]);
   const [loadingSkus, setLoadingSkus] = useState(true);
   const [assigningSkus, setAssigningSkus] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [customSku, setCustomSku] = useState('');
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -233,18 +235,48 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
     fetchItems();
   }, [authUser]);
 
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItemIds(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
+  const selectAllItems = () => {
+    if (selectedItemIds.length === itemsToSku.length) {
+      setSelectedItemIds([]);
+    } else {
+      setSelectedItemIds(itemsToSku.map(item => item.id));
+    }
+  };
   const handleAssignSkus = async () => {
-    if (itemsToSku.length === 0) {
-      alert('No items to assign SKUs to.');
+    if (selectedItemIds.length === 0) {
+      alert('Please select items to assign SKUs to.');
       return;
     }
+    
+    if (!customSku.trim()) {
+      alert('Please enter a SKU value.');
+      return;
+    }
+    
     setAssigningSkus(true);
     try {
-      const updates = itemsToSku.map((item, index) => ({
-        id: item.id,
-        sku: generateSKU(index), // Sequential SKU
-        status: 'sku_assigned' // Update status
-      }));
+      const selectedItems = itemsToSku.filter(item => selectedItemIds.includes(item.id));
+      
+      // If multiple items selected, append sequential numbers to the custom SKU
+      const updates = selectedItems.map((item, index) => {
+        const finalSku = selectedItems.length > 1 
+          ? `${customSku.trim()}-${String(index + 1).padStart(2, '0')}`
+          : customSku.trim();
+        
+        return {
+          id: item.id,
+          sku: finalSku,
+          status: 'sku_assigned'
+        };
+      });
 
       for (const update of updates) {
         const { error } = await supabase
@@ -255,7 +287,20 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
         if (error) throw error;
       }
 
-      alert('SKUs assigned successfully!');
+      // Refresh the items list to remove assigned items
+      const { data: remainingItems, error: fetchError } = await supabase
+        .from('items')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .eq('status', 'draft')
+        .order('created_at', { ascending: true });
+
+      if (fetchError) throw fetchError;
+      setItemsToSku(remainingItems || []);
+      setSelectedItemIds([]);
+      setCustomSku('');
+      
+      alert(`SKUs assigned successfully to ${updates.length} item${updates.length > 1 ? 's' : ''}!`);
       setActiveTab('generate'); // Move to Generate Listings tab
     } catch (error) {
       console.error('Error assigning SKUs:', error);
@@ -279,33 +324,89 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
         <h2 className="text-xl font-bold mb-4 text-white dark:text-white">🏷️ Assign SKU Numbers</h2>
         <p className="text-white/80 dark:text-white/80 mb-6">
-          Review your processed items and assign sequential SKU numbers.
+          Select photos that belong to one listing and assign a custom SKU.
         </p>
         
         {itemsToSku.length > 0 ? (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            {/* Selection Controls */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={selectAllItems}
+                  className="text-cyber-blue-500 hover:text-cyber-blue-400 text-sm font-medium"
+                >
+                  {selectedItemIds.length === itemsToSku.length ? 'Deselect All' : 'Select All'}
+                </button>
+                <span className="text-white/60 text-sm">
+                  {selectedItemIds.length} of {itemsToSku.length} selected
+                </span>
+              </div>
+            </div>
+            
+            {/* Items Grid with smaller photos */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
               {itemsToSku.map((item, index) => (
-                <div key={item.id} className="bg-white/10 rounded-lg p-4 text-center">
+                <div 
+                  key={item.id} 
+                  onClick={() => toggleItemSelection(item.id)}
+                  className={`bg-white/10 rounded-lg p-3 text-center cursor-pointer transition-all duration-200 hover:bg-white/20 ${
+                    selectedItemIds.includes(item.id) 
+                      ? 'ring-2 ring-cyber-blue-500 bg-cyber-blue-500/20' 
+                      : ''
+                  }`}
+                >
+                  {/* Selection indicator */}
+                  <div className="relative">
+                    <div className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                      selectedItemIds.includes(item.id)
+                        ? 'bg-cyber-blue-500 text-white'
+                        : 'bg-white/20 text-white/60'
+                    }`}>
+                      {selectedItemIds.includes(item.id) ? '✓' : '○'}
+                    </div>
+                  </div>
+                  
                   <img
                     src={item.primary_image_url || 'https://via.placeholder.com/150'}
                     alt={item.title}
-                    className="w-full h-32 object-cover rounded-md mb-3"
+                    className="w-full h-20 object-cover rounded-md mb-2"
                   />
                   <div className="space-y-2">
-                    <p className="text-sm text-white/90 font-medium truncate">{item.title}</p>
-                    <p className="text-xs text-white/60">Brand: {item.brand || 'Unknown'}</p>
-                    <p className="text-xs text-white/60">Price: ${item.suggested_price}</p>
-                    <div className="bg-cyber-gradient text-white px-2 py-1 rounded text-xs font-bold">
-                      Will be: {generateSKU(index)}
-                    </div>
+                    <p className="text-xs text-white/90 font-medium truncate">{item.title}</p>
+                    <p className="text-xs text-white/60">{item.brand || 'Unknown'}</p>
+                    <p className="text-xs text-white/60">${item.suggested_price}</p>
                   </div>
                 </div>
               ))}
             </div>
+            
+            {/* SKU Input and Assignment */}
+            <div className="bg-white/5 rounded-xl p-4 mb-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex-1">
+                  <label className="block text-white/80 text-sm font-medium mb-2">
+                    Enter SKU for selected items:
+                  </label>
+                  <input
+                    type="text"
+                    value={customSku}
+                    onChange={(e) => setCustomSku(e.target.value)}
+                    placeholder="e.g., JACKET-001, HOODIE-WSB"
+                    className="w-full p-3 rounded-lg bg-white/10 text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyber-blue-500 placeholder-white/50"
+                  />
+                  {selectedItemIds.length > 1 && (
+                    <p className="text-xs text-white/60 mt-1">
+                      Multiple items will get sequential numbers: {customSku}-01, {customSku}-02, etc.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            
             <button
               onClick={handleAssignSkus}
-              disabled={assigningSkus}
+              disabled={assigningSkus || selectedItemIds.length === 0 || !customSku.trim()}
               className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
             >
               {assigningSkus ? (
@@ -316,7 +417,9 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
               ) : (
                 <>
                   <Package className="w-5 h-5" />
-                  <span>Assign SKUs ({itemsToSku.length} items)</span>
+                  <span>
+                    Assign SKU to {selectedItemIds.length} Selected Item{selectedItemIds.length !== 1 ? 's' : ''}
+                  </span>
                 </>
               )}
             </button>
@@ -335,10 +438,12 @@ const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTa
 };
 
 // Generate Listings Tab Component
-const GenerateListingsTab: React.FC = () => {
+const GenerateListingsTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTab }) => {
   const { authUser } = useAuth();
   const [itemsToGenerate, setItemsToGenerate] = useState<Item[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
+  const [generatingListings, setGeneratingListings] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -364,6 +469,110 @@ const GenerateListingsTab: React.FC = () => {
     fetchItems();
   }, [authUser]);
 
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItems(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    );
+  };
+
+  const handleGenerateListings = async () => {
+    if (selectedItems.length === 0) {
+      alert('Please select items to generate listings for.');
+      return;
+    }
+
+    setGeneratingListings(true);
+    try {
+      console.log('🤖 [GENERATE] Starting AI analysis for selected items...');
+      
+      for (const itemId of selectedItems) {
+        const item = itemsToGenerate.find(i => i.id === itemId);
+        if (!item) continue;
+
+        console.log(`🔍 [GENERATE] Analyzing item: ${item.title}`);
+        
+        // Call AI analysis for this item
+        const analysisResponse = await fetch('/.netlify/functions/analyze-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageUrl: item.primary_image_url,
+            allImageUrls: item.images
+          })
+        });
+
+        if (!analysisResponse.ok) {
+          console.error(`❌ [GENERATE] Analysis failed for item ${item.id}`);
+          continue;
+        }
+
+        const analysisResult = await analysisResponse.json();
+        if (!analysisResult.success) {
+          console.error(`❌ [GENERATE] Analysis unsuccessful for item ${item.id}`);
+          continue;
+        }
+
+        const analysis = analysisResult.analysis;
+        
+        // Update item with AI analysis
+        const { error: updateError } = await supabase
+          .from('items')
+          .update({
+            title: analysis.suggestedTitle,
+            description: analysis.suggestedDescription,
+            category: normalizeCategory(analysis.category),
+            condition: normalizeCondition(analysis.condition),
+            brand: analysis.brand !== 'Unknown' ? analysis.brand : item.brand,
+            size: analysis.size !== 'Unknown' ? analysis.size : item.size,
+            color: analysis.color !== 'Unknown' ? analysis.color : item.color,
+            suggested_price: analysis.suggestedPrice,
+            price_range_min: analysis.priceRange?.min || Math.round(analysis.suggestedPrice * 0.8),
+            price_range_max: analysis.priceRange?.max || Math.round(analysis.suggestedPrice * 1.2),
+            ai_confidence: analysis.confidence,
+            ai_analysis: {
+              detected_category: analysis.category,
+              detected_brand: analysis.brand,
+              detected_condition: analysis.condition,
+              key_features: analysis.keyFeatures || []
+            },
+            ai_suggested_keywords: analysis.keyFeatures || [],
+            status: 'ready_to_publish'
+          })
+          .eq('id', item.id);
+
+        if (updateError) {
+          console.error(`❌ [GENERATE] Error updating item ${item.id}:`, updateError);
+          continue;
+        }
+
+        console.log(`✅ [GENERATE] Item ${item.id} analyzed and updated successfully`);
+      }
+
+      // Refresh the items list
+      const { data: remainingItems, error: fetchError } = await supabase
+        .from('items')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .eq('status', 'sku_assigned')
+        .order('created_at', { ascending: true });
+
+      if (fetchError) throw fetchError;
+      setItemsToGenerate(remainingItems || []);
+      setSelectedItems([]);
+      
+      alert(`Listings generated successfully for ${selectedItems.length} item${selectedItems.length > 1 ? 's' : ''}!`);
+      setActiveTab('publish'); // Move to Publish tab
+    } catch (error) {
+      console.error('❌ [GENERATE] Error generating listings:', error);
+      alert('Failed to generate listings. Please try again.');
+    } finally {
+      setGeneratingListings(false);
+    }
+  };
   if (loadingItems) {
     return (
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6 text-center">
@@ -378,14 +587,54 @@ const GenerateListingsTab: React.FC = () => {
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
         <h2 className="text-xl font-bold mb-4 text-white dark:text-white">✨ Generate Listings</h2>
         <p className="text-white/80 dark:text-white/80 mb-6">
-          Review items with assigned SKUs and generate optimized listings.
+          Select items to analyze with AI and generate optimized eBay listings.
         </p>
         
         {itemsToGenerate.length > 0 ? (
           <>
+            {/* Selection Controls */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => {
+                    if (selectedItems.length === itemsToGenerate.length) {
+                      setSelectedItems([]);
+                    } else {
+                      setSelectedItems(itemsToGenerate.map(item => item.id));
+                    }
+                  }}
+                  className="text-cyber-blue-500 hover:text-cyber-blue-400 text-sm font-medium"
+                >
+                  {selectedItems.length === itemsToGenerate.length ? 'Deselect All' : 'Select All'}
+                </button>
+                <span className="text-white/60 text-sm">
+                  {selectedItems.length} of {itemsToGenerate.length} selected
+                </span>
+              </div>
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               {itemsToGenerate.map((item) => (
-                <div key={item.id} className="bg-white/10 rounded-lg p-4 text-center">
+                <div 
+                  key={item.id} 
+                  onClick={() => toggleItemSelection(item.id)}
+                  className={`bg-white/10 rounded-lg p-4 text-center cursor-pointer transition-all duration-200 hover:bg-white/20 ${
+                    selectedItems.includes(item.id) 
+                      ? 'ring-2 ring-cyber-blue-500 bg-cyber-blue-500/20' 
+                      : ''
+                  }`}
+                >
+                  {/* Selection indicator */}
+                  <div className="relative">
+                    <div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                      selectedItems.includes(item.id)
+                        ? 'bg-cyber-blue-500 text-white'
+                        : 'bg-white/20 text-white/60'
+                    }`}>
+                      {selectedItems.includes(item.id) ? '✓' : '○'}
+                    </div>
+                  </div>
+                  
                   <img
                     src={item.primary_image_url || 'https://via.placeholder.com/150'}
                     alt={item.title}
@@ -400,9 +649,23 @@ const GenerateListingsTab: React.FC = () => {
                 </div>
               ))}
             </div>
-            <button className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2">
-              <Zap className="w-5 h-5" />
-              <span>Generate Listings ({itemsToGenerate.length} items)</span>
+            
+            <button
+              onClick={handleGenerateListings}
+              disabled={generatingListings || selectedItems.length === 0}
+              className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
+            >
+              {generatingListings ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Analyzing with AI...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-5 h-5" />
+                  <span>Generate Listings ({selectedItems.length} selected)</span>
+                </>
+              )}
             </button>
           </>
         ) : (
@@ -420,6 +683,23 @@ const GenerateListingsTab: React.FC = () => {
 
 // Publish Tab Component
 const PublishTab: React.FC = () => {
+  const { authUser } = useAuth();
+  const [readyToPublish, setReadyToPublish] = useState<Item[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+  const [publishing, setPublishing] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchReadyItems = async () => {
+      if (!authUser) return;
+      setLoadingItems(true);
+      try {
+        const { data, error } = await supabase
+          .from('items')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .eq('status', 'ready_to_publish')
+          .order('created_at', { ascending: true });
   return (
     <div className="space-y-6">
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
@@ -1253,7 +1533,7 @@ const AppDashboard = () => {
       case 'skus':
         return <SKUTab setActiveTab={setActiveTab} />;
       case 'generate':
-        return <GenerateListingsTab />;
+        return <GenerateListingsTab setActiveTab={setActiveTab} />;
       case 'publish':
         return <PublishTab />;
       case 'coach':
@@ -1399,8 +1679,186 @@ const AppDashboard = () => {
     </div>
   );
 
-  return (
-    <DashboardLayout activeTab={activeTab} onTabChange={setActiveTab}>
+        if (error) throw error;
+        setReadyToPublish(data || []);
+      } catch (error) {
+        console.error('Error fetching items ready to publish:', error);
+      } finally {
+        setLoadingItems(false);
+      }
+    };
+    fetchReadyItems();
+  }, [authUser]);
+
+  const handlePublishToEbay = async () => {
+    if (selectedItems.length === 0) {
+      alert('Please select items to publish.');
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      console.log('🚀 [PUBLISH] Publishing selected items to eBay...');
+      
+      for (const itemId of selectedItems) {
+        const item = readyToPublish.find(i => i.id === itemId);
+        if (!item) continue;
+
+        // Create listing in database
+        const { data: listingData, error: listingError } = await supabase
+          .from('listings')
+          .insert([{
+            item_id: item.id,
+            user_id: authUser.id,
+            title: item.title,
+            description: item.description || '',
+            price: item.suggested_price,
+            images: item.images,
+            platforms: ['ebay'],
+            status: 'active',
+            listed_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+
+        if (listingError) {
+          console.error(`❌ [PUBLISH] Error creating listing for item ${item.id}:`, listingError);
+          continue;
+        }
+
+        // Update item status
+        await supabase
+          .from('items')
+          .update({ status: 'published' })
+          .eq('id', item.id);
+
+        console.log(`✅ [PUBLISH] Item ${item.id} published successfully`);
+      }
+
+      // Refresh the list
+      const { data: remainingItems, error: fetchError } = await supabase
+        .from('items')
+        .select('*')
+        .eq('user_id', authUser.id)
+        .eq('status', 'ready_to_publish')
+        .order('created_at', { ascending: true });
+
+      if (fetchError) throw fetchError;
+      setReadyToPublish(remainingItems || []);
+      setSelectedItems([]);
+      
+      alert(`Successfully published ${selectedItems.length} listing${selectedItems.length > 1 ? 's' : ''} to eBay!`);
+    } catch (error) {
+      console.error('❌ [PUBLISH] Error publishing items:', error);
+      alert('Failed to publish some items. Please try again.');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  if (loadingItems) {
+    return (
+          Review AI-generated listings and publish directly to eBay.
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyber-blue-500 mx-auto mb-4"></div>
+        <p className="text-white/70">Loading items ready to publish...</p>
+        {readyToPublish.length > 0 ? (
+          <>
+            {/* Selection Controls */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => {
+                    if (selectedItems.length === readyToPublish.length) {
+                      setSelectedItems([]);
+                    } else {
+                      setSelectedItems(readyToPublish.map(item => item.id));
+                    }
+                  }}
+                  className="text-cyber-blue-500 hover:text-cyber-blue-400 text-sm font-medium"
+                >
+                  {selectedItems.length === readyToPublish.length ? 'Deselect All' : 'Select All'}
+                </button>
+                <span className="text-white/60 text-sm">
+                  {selectedItems.length} of {readyToPublish.length} selected
+                </span>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {readyToPublish.map((item) => (
+                <div 
+                  key={item.id}
+                  onClick={() => toggleItemSelection(item.id)}
+                  className={`bg-white/10 rounded-lg p-4 cursor-pointer transition-all duration-200 hover:bg-white/20 ${
+                    selectedItems.includes(item.id) 
+                      ? 'ring-2 ring-cyber-blue-500 bg-cyber-blue-500/20' 
+                      : ''
+                  }`}
+                >
+                  {/* Selection indicator */}
+                  <div className="relative">
+                    <div className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                      selectedItems.includes(item.id)
+                        ? 'bg-cyber-blue-500 text-white'
+                        : 'bg-white/20 text-white/60'
+                    }`}>
+                      {selectedItems.includes(item.id) ? '✓' : '○'}
+                    </div>
+                  </div>
+                  
+                  <div className="flex space-x-4">
+                    <img
+                      src={item.primary_image_url || 'https://via.placeholder.com/150'}
+                      alt={item.title}
+                      className="w-24 h-24 object-cover rounded-md flex-shrink-0"
+                    />
+                    <div className="flex-1 text-left space-y-2">
+                      <h3 className="text-sm text-white/90 font-medium">{item.title}</h3>
+                      <p className="text-xs text-white/60">SKU: {item.sku}</p>
+                      <p className="text-xs text-white/60">Brand: {item.brand || 'Unknown'}</p>
+                      <p className="text-xs text-white/60">Price: ${item.suggested_price}</p>
+                      <p className="text-xs text-white/60">Category: {item.category?.replace('_', ' ')}</p>
+                      {item.ai_suggested_keywords && item.ai_suggested_keywords.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {item.ai_suggested_keywords.slice(0, 3).map((keyword, i) => (
+                            <span key={i} className="px-1 py-0.5 bg-cyber-blue-500/30 text-white/80 rounded text-xs">
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <button
+              onClick={handlePublishToEbay}
+              disabled={publishing || selectedItems.length === 0}
+              className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
+            >
+              {publishing ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Publishing to eBay...</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="w-5 h-5" />
+                  <span>Publish {selectedItems.length} Listing{selectedItems.length !== 1 ? 's' : ''} to eBay</span>
+                </>
+              )}
+            </button>
+          </>
+        ) : (
+          <div className="text-center py-8">
+            <ShoppingCart className="w-16 h-16 text-white/30 dark:text-white/30 mx-auto mb-4" />
+            <p className="text-white/50 dark:text-white/50">
+              No items ready to publish. Generate listings first!
+            </p>
+          </div>
+        )}
       {renderTabContent()}
     </DashboardLayout>
   );
