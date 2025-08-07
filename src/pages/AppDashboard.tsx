@@ -1090,7 +1090,7 @@ const AppDashboard = () => {
           chatEndRef={chatEndRef}
         />;
       case 'upload':
-        return <UploadTab 
+        return <UploadTab selectedFiles={selectedFiles} onFileUpload={handleFileUpload} onProcessFiles={processUploadedFiles} isUploading={isUploading} uploadProgress={uploadProgress} processingStatus={processingStatus} />;
           selectedFiles={selectedFiles}
           onFileUpload={handleFileUpload}
           onProcessFiles={processUploadedFiles}
