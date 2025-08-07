@@ -236,8 +236,10 @@ const GenerateListingsPage = () => {
           market_comparisons: analysisResult?.marketResearch || {},
           category_suggestions: analysisResult?.categoryAnalysis?.suggestions || [],
           ai_source: aiData?.source || 'fallback',
+          evidence: extractedData.evidence || {},
           ebay_category_id: analysisResult?.ebay_category_id || null,
-          ebay_item_specifics: extractedData.ebaySpecifics || {}
+          ebay_item_specifics: extractedData.ebaySpecifics || {},
+          preprocessing_data: analysisResult?.preprocessing || {}
         },
         status: 'draft',
         created_at: new Date().toISOString(),
@@ -553,6 +555,12 @@ const GenerateListingsPage = () => {
       feature && array.indexOf(feature) === index
     ).slice(0, 8);
     
+    // Extract eBay item specifics if available
+    const ebaySpecifics = aiAnalysis?.ebay_item_specifics || {};
+    
+    // Extract evidence data
+    const evidence = aiAnalysis?.evidence || {};
+    
     const extractedData = {
       title,
       description,
@@ -565,7 +573,9 @@ const GenerateListingsPage = () => {
       model_number,
       keywords,
       keyFeatures,
-      confidence: marketResearch?.confidence || aiAnalysis?.market_confidence || aiAnalysis?.confidence || 0.5
+      confidence: marketResearch?.confidence || aiAnalysis?.market_confidence || aiAnalysis?.confidence || 0.5,
+      ebaySpecifics,
+      evidence
     };
     
     console.log('📋 [EXTRACT] Final extracted data:', extractedData);

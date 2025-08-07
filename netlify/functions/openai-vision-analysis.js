@@ -283,3 +283,4 @@ Do NOT include markdown or code fences.`;
   const fullPrompt = basePrompt + ebayAspectsPrompt + schemaPrompt;
 
   console.log('✅ [OPENAI-FUNCTION] Prompt generated successfully');
+}
