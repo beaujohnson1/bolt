@@ -1899,7 +1899,7 @@ const AppDashboard = () => {
       case 'listings':
         return (
           <div className="space-y-6">
-            <GenerateListingsTable isDarkMode={isDarkMode} />
+            <GenerateListingsTable isDarkMode={true} />
           </div>
         );
       default:
