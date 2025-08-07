@@ -5,7 +5,7 @@ import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import GenerateListingsTable from '../components/GenerateListingsTable';
-import SKUAssignmentTable from '../components/SKUAssignmentTable';
+import SKUAssignmentPage from '../components/SKUAssignment/SKUAssignmentPage';
 import PhotoCapture from './PhotoCapture';
 import { formatPrice } from '../utils/itemUtils';
 
@@ -82,7 +82,7 @@ const AppDashboard = () => {
       case 'upload':
         return <PhotoCapture onUploadComplete={handlePhotoUploadComplete} embedded={true} />;
       case 'skus':
-        return <SKUAssignmentTable isDarkMode={isDarkMode} key={refreshTrigger} onAssignmentComplete={() => setActiveTab('generate')} />;
+        return <SKUAssignmentPage isDarkMode={isDarkMode} key={refreshTrigger} onAssignmentComplete={() => setActiveTab('generate')} />;
       case 'generate':
         return <GenerateListingsTable isDarkMode={isDarkMode} key={refreshTrigger} />;
       case 'publish':
