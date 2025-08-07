@@ -1319,7 +1319,7 @@ const AppDashboard = () => {
       // Update local state to remove the deleted listing
       setAllListings(prevListings => 
         prevListings.filter(listing => listing.id !== listingId)
-      );
+      )
 
       // Update dashboard stats
       setDashboardStats(prevStats => ({
