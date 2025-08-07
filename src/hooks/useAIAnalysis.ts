@@ -35,6 +35,11 @@ export const useAIAnalysis = () => {
     setIsAnalyzing(true);
     setAnalysisError(null);
 
+    // Declare variables outside try block to prevent ReferenceError
+    let aiData: any = null;
+    let marketResearchData: any = null;
+    let categoryAnalysisData: any = null;
+    let enhancedData: any = null;
     try {
       // Use the existing OpenAI service
       const result = await withRetry( // Apply retry logic here
@@ -50,15 +55,9 @@ export const useAIAnalysis = () => {
       console.log('✅ [AI-ANALYSIS] Analysis complete:', result);
       
       // Extract AI data from the result
-      const aiData = result.analysis || result.data;
+      aiData = result.analysis || result.data;
 
-      return {
-        success: true,
-        data: result.analysis || result.data
-      };
       // Step 2: Enhanced eBay integration (if requested)
-      let marketResearchData = null;
-      let categoryAnalysisData = null; // Keep this line
 
       if (options.includeMarketResearch && aiData.title) {
         try {
@@ -95,7 +94,7 @@ export const useAIAnalysis = () => {
       }
 
       // Step 3: Combine all analysis results
-      const enhancedData = {
+      enhancedData = {
         ...aiData,
         // Override price with market research if available
         suggested_price: marketResearchData?.suggestedPrice || aiData.suggested_price || aiData.price || 25,
@@ -108,15 +107,22 @@ export const useAIAnalysis = () => {
         sold_count: marketResearchData?.soldCount || 0
       };
 
+      return {
+        success: true,
+        data: enhancedData,
+        marketResearch: marketResearchData,
+        categoryAnalysis: categoryAnalysisData
+      };
     } catch (error) {
       console.error('❌ [AI-ANALYSIS] Analysis failed:', error);
       setAnalysisError(error.message);
       
       return {
         success: false,
-        data: enhancedData,
+        data: enhancedData || aiData || null,
         marketResearch: marketResearchData,
-        categoryAnalysis: categoryAnalysisData
+        categoryAnalysis: categoryAnalysisData,
+        error: error.message
       };
     } finally {
       setIsAnalyzing(false);

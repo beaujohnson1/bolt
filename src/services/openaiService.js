@@ -9,18 +9,17 @@ export const analyzeClothingItem = async (imageInput) => {
       inputLength: imageInput.length
     });
     
-    // Determine if input is URL or base64
-    let imageBase64;
+    // Always send as imageUrl to the Netlify function
+    let imageUrl;
     if (imageInput.startsWith('http')) {
-      // It's a URL, convert to base64
-      console.log('🔄 [OPENAI-CLIENT] Converting URL to base64...');
-      imageBase64 = await fetchImageAsBase64(imageInput);
+      // It's already a URL, use directly
+      imageUrl = imageInput;
     } else if (imageInput.startsWith('data:')) {
-      // It's already base64, extract the data part
-      imageBase64 = imageInput.split(',')[1];
+      // It's already a data URL, use directly
+      imageUrl = imageInput;
     } else {
-      // Assume it's raw base64
-      imageBase64 = imageInput;
+      // Assume it's raw base64, convert to data URL
+      imageUrl = `data:image/jpeg;base64,${imageInput}`;
     }
     
     const response = await fetch('/.netlify/functions/openai-vision-analysis', {
@@ -29,9 +28,9 @@ export const analyzeClothingItem = async (imageInput) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        imageBase64,
+        imageUrl,
         analysisType: 'enhanced_listing',
-        imageUrl: imageInput.startsWith('http') ? imageInput : undefined
+        originalInput: imageInput
       }),
     });
 
