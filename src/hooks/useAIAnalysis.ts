@@ -1,3 +1,5 @@
+import { buildItemSpecificsFromEbayPayload } from '../ebay/specificsAdapter'; // <--- Import the new adapter
+import { sTrim } from '../utils/strings'; // <--- Import sTrim
 import { useState } from 'react';
 import { analyzeClothingItem } from '../services/openaiService.js';
 import EbayApiService from '../services/ebayApi';
