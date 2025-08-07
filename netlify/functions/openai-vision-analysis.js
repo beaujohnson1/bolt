@@ -86,20 +86,45 @@ exports.handler = async (event, context) => {
 
     console.log('🖼️ Analyzing image:', imageInput.substring(0, 50) + '...');
 
-    // Create specific prompt for keywords
-    const prompt = `Look at this clothing item and generate 8-10 specific selling keywords for eBay/marketplace listings.
+    // Enhanced prompt for complete listing data
+    const prompt = `You are analyzing a clothing item photo for an eBay listing. Extract ALL the information needed to create a complete listing.
 
-Focus on what you actually see in the image:
-- Specific brand name if visible
-- Exact item type (leather jacket, wool sweater, etc.)
-- Material type (leather, cotton, wool, etc.)
-- Color details
-- Style features
-- Condition indicators
-- Popular search terms buyers use
+CRITICAL INSTRUCTIONS:
+1. Analyze the clothing item carefully
+2. Return ONLY valid JSON with these exact field names
+3. Be specific and accurate
 
-Return ONLY a JSON array of keywords like:
-["black leather jacket", "genuine leather", "vintage style", "excellent condition", "designer jacket", "winter coat", "authentic leather", "quality craftsmanship"]`;
+REQUIRED RESPONSE FORMAT (JSON ONLY):
+{
+  "title": "Complete descriptive title for eBay listing",
+  "description": "Detailed description for buyers",
+  "price": estimated_market_price_number,
+  "brand": "Exact brand name or Unknown if not visible",
+  "size": "Exact size or Unknown if not visible", 
+  "condition": "New with tags/Excellent/Good/Fair",
+  "category": "Clothing type (jacket, shirt, pants, etc)",
+  "color": "Primary color",
+  "material": "Primary material if visible",
+  "gender": "Men/Women/Unisex",
+  "style": "Style description",
+  "keywords": ["keyword1", "keyword2", "keyword3"]
+}
+
+EXAMPLES:
+- title: "Stio Blue Quilted Puffer Jacket - Lightweight Outdoor Wear"
+- price: 45 (just the number)
+- brand: "Stio" (from visible labels/tags)
+- size: "M" (from visible size tags)
+- condition: "Excellent" (based on appearance)
+- category: "Jacket"
+- color: "Blue"
+- material: "Polyester"
+
+IMPORTANT: 
+- Return ONLY the JSON object, no other text
+- Use "Unknown" if you cannot determine a field
+- Price should be a realistic market value (20-100 typically)
+- Be specific in the title and description`;
 
     console.log('🤖 Calling OpenAI API with enhanced keyword prompt...');
 
@@ -111,6 +136,10 @@ Return ONLY a JSON array of keywords like:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        success: true,
+        analysis: responseData,
+        source: 'openai-vision-enhanced'
+      })
         model: "gpt-4o",
         messages: [
           {
@@ -201,12 +230,54 @@ Return ONLY a JSON array of keywords like:
     let keywords = [];
     
     try {
-      // Try to parse as JSON
+      // Try to parse as JSON first
+      responseData = JSON.parse(responseText);
+      console.log('✅ [OPENAI-VISION] Successfully parsed JSON response');
       keywords = JSON.parse(content);
     } catch (parseError) {
-      console.log('⚠️ JSON parsing failed, extracting manually');
+      console.log('⚠️ [OPENAI-VISION] JSON parsing failed, extracting manually');
       
-      // Extract array from text
+      // Extract JSON from the response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          responseData = JSON.parse(jsonMatch[0]);
+          console.log('✅ [OPENAI-VISION] Successfully extracted and parsed JSON from response');
+        } catch (innerParseError) {
+          console.error('❌ [OPENAI-VISION] Failed to parse extracted JSON:', innerParseError);
+          // Return fallback structured data
+          responseData = {
+            title: 'Quality Clothing Item',
+            description: 'Quality clothing item in good condition.',
+            price: 25,
+            brand: 'Unknown',
+            size: 'Unknown',
+            condition: 'Good',
+            category: 'Clothing',
+            color: 'Multi-Color',
+            material: 'Mixed Materials',
+            gender: 'Unisex',
+            style: 'Casual',
+            keywords: ['quality item', 'excellent condition', 'authentic', 'fast shipping']
+          };
+        }
+      } else {
+        // No JSON structure found, create fallback
+        responseData = {
+          title: 'Quality Clothing Item',
+          description: 'Quality clothing item in good condition.',
+          price: 25,
+          brand: 'Unknown',
+          size: 'Unknown',
+          condition: 'Good',
+          category: 'Clothing',
+          color: 'Multi-Color',
+          material: 'Mixed Materials',
+          gender: 'Unisex',
+          style: 'Casual',
+          keywords: ['quality item', 'excellent condition', 'authentic', 'fast shipping']
+        };
+      }
       const arrayMatch = content.match(/\[(.*?)\]/s);
       if (arrayMatch) {
         try {
@@ -265,9 +336,22 @@ Return ONLY a JSON array of keywords like:
       headers,
       body: JSON.stringify({ 
         keywords: ['quality item', 'excellent condition', 'authentic', 'fast shipping'],
-        source: 'fallback_error',
-        success: true,
-        error: error.message
+        success: false,
+        error: error.message,
+        analysis: {
+          title: 'Quality Clothing Item',
+          description: 'Quality clothing item in good condition.',
+          price: 25,
+          brand: 'Unknown',
+          size: 'Unknown',
+          condition: 'Good',
+          category: 'Clothing',
+          color: 'Multi-Color',
+          material: 'Mixed Materials',
+          gender: 'Unisex',
+          style: 'Casual',
+          keywords: ['quality item', 'excellent condition', 'authentic', 'fast shipping']
+        }
       })
     };
   }
