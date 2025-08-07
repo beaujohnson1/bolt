@@ -5,6 +5,440 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatPrice, formatDate, getCategoryPath, getItemSpecifics, normalizeCondition, normalizeCategory } from '../utils/itemUtils';
 import { analyzeClothingItem } from '../services/openaiService.js';
 
+// Debug function to analyze AI response structure
+const debugAIResponse = (aiAnalysis: any) => {
+  console.log('🔍 [DEBUG] =====================================');
+  console.log('🔍 [DEBUG] FULL AI ANALYSIS RESPONSE:');
+  console.log('🔍 [DEBUG] =====================================');
+  console.log('🔍 [DEBUG] Raw response:', JSON.stringify(aiAnalysis, null, 2));
+  console.log('🔍 [DEBUG] Response type:', typeof aiAnalysis);
+  console.log('🔍 [DEBUG] Available keys:', Object.keys(aiAnalysis || {}));
+  
+  // Check every possible field name for title
+  console.log('🔍 [DEBUG] TITLE FIELD VARIATIONS:');
+  const titleFields = ['title', 'suggested_title', 'suggestedTitle', 'name', 'itemName', 'item_name', 'product_name', 'listing_title'];
+  titleFields.forEach(field => {
+    if (aiAnalysis[field] !== undefined) {
+      console.log(`🔍 [DEBUG] ✅ FOUND TITLE: ${field} = "${aiAnalysis[field]}"`);
+    } else {
+      console.log(`🔍 [DEBUG] ❌ Missing: ${field}`);
+    }
+  });
+  
+  // Check every possible field name for price
+  console.log('🔍 [DEBUG] PRICE FIELD VARIATIONS:');
+  const priceFields = ['price', 'suggested_price', 'suggestedPrice', 'estimated_price', 'estimatedPrice', 'market_price', 'listing_price'];
+  priceFields.forEach(field => {
+    if (aiAnalysis[field] !== undefined) {
+      console.log(`🔍 [DEBUG] ✅ FOUND PRICE: ${field} = "${aiAnalysis[field]}"`);
+    } else {
+      console.log(`🔍 [DEBUG] ❌ Missing: ${field}`);
+    }
+  });
+  
+  // Check other important fields
+  console.log('🔍 [DEBUG] OTHER IMPORTANT FIELDS:');
+  ['brand', 'size', 'condition', 'category', 'item_type', 'color', 'material'].forEach(field => {
+    if (aiAnalysis[field] !== undefined) {
+      console.log(`🔍 [DEBUG] ✅ ${field.toUpperCase()}: "${aiAnalysis[field]}"`);
+    }
+  });
+  
+  console.log('🔍 [DEBUG] =====================================');
+  return aiAnalysis;
+};
+
+// Generate fallback title when AI doesn't provide one
+const generateFallbackTitle = (aiAnalysis: any): string => {
+  const brand = aiAnalysis?.brand || 'Quality';
+  const category = aiAnalysis?.category || aiAnalysis?.item_type || 'Clothing Item';
+  const size = aiAnalysis?.size ? ` Size ${aiAnalysis.size}` : '';
+  const condition = aiAnalysis?.condition ? ` - ${aiAnalysis.condition}` : '';
+  
+  return `${brand} ${category}${size}${condition}`;
+};
+
+// Generate professional listing description
+const generateListingDescription = (data: any): string => {
+  const { title, brand, size, condition, category, color, material } = data;
+  const features = [];
+  
+  if (brand && brand !== 'Unknown Brand' && brand !== 'Unknown') features.push(`Brand: ${brand}`);
+  if (size && size !== 'One Size' && size !== 'Unknown') features.push(`Size: ${size}`);
+  if (condition) features.push(`Condition: ${condition}`);
+  if (color && color !== 'Multi-Color' && color !== 'Various') features.push(`Color: ${color}`);
+  if (material && material !== 'Mixed Materials') features.push(`Material: ${material}`);
+  
+  const featureText = features.length > 0 ? features.join(' | ') : 'Quality item in great condition';
+  
+  return `${title}
+
+${featureText}
+
+This item is carefully inspected and ready to ship. Check out our other listings for more great deals!
+
+Fast shipping and excellent customer service guaranteed.`;
+};
+
+// Extract and map AI data to consistent format
+const extractAndMapAIData = (aiAnalysis: any) => {
+  console.log('📊 [EXTRACT] Starting data extraction...');
+  
+  // Try all possible title field names
+  const title = aiAnalysis?.title || 
+                aiAnalysis?.suggested_title || 
+                aiAnalysis?.suggestedTitle ||
+                aiAnalysis?.name || 
+                aiAnalysis?.itemName || 
+                aiAnalysis?.item_name || 
+                aiAnalysis?.product_name || 
+                aiAnalysis?.listing_title ||
+                generateFallbackTitle(aiAnalysis);
+  
+  // Try all possible price field names
+  const rawPrice = aiAnalysis?.price || 
+                   aiAnalysis?.suggested_price || 
+                   aiAnalysis?.suggestedPrice ||
+                   aiAnalysis?.estimated_price || 
+                   aiAnalysis?.estimatedPrice || 
+                   aiAnalysis?.market_price || 
+                   aiAnalysis?.listing_price ||
+                   25; // fallback price
+  
+  const price = parseFloat(rawPrice) || 25;
+  
+  // Extract other fields with fallbacks
+  const brand = aiAnalysis?.brand || 'Unknown Brand';
+  const size = aiAnalysis?.size || 'One Size';
+  const condition = aiAnalysis?.condition || 'Good';
+  const category = aiAnalysis?.category || aiAnalysis?.item_type || 'Clothing';
+  const color = aiAnalysis?.color || 'Multi-Color';
+  const material = aiAnalysis?.material || 'Mixed Materials';
+  
+  // Generate item specifics
+  const itemSpecifics = {
+    Brand: brand,
+    Size: size,
+    Condition: condition,
+    Color: color,
+    Material: material,
+    Category: category
+  };
+  
+  const extractedData = {
+    title,
+    description: generateListingDescription({ title, brand, size, condition, category, color, material }),
+    price,
+    brand,
+    size,
+    condition,
+    category,
+    color,
+    material,
+    item_specifics: itemSpecifics
+  };
+  
+  console.log('📋 [EXTRACT] Extracted data:', extractedData);
+  return extractedData;
+};
+
+// Edit Listing Modal Component
+const EditListingModal: React.FC<{
+  listing: any;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (updatedListing: any) => void;
+  isDarkMode: boolean;
+}> = ({ listing, isOpen, onClose, onSave, isDarkMode }) => {
+  const [formData, setFormData] = useState({
+    title: listing?.title || '',
+    price: listing?.price || 0,
+    brand: listing?.brand || '',
+    size: listing?.size || '',
+    condition: listing?.condition || '',
+    category: listing?.category || '',
+    color: listing?.color || '',
+    material: listing?.material || '',
+    description: listing?.description || ''
+  });
+  
+  const [saving, setSaving] = useState(false);
+  
+  useEffect(() => {
+    if (listing) {
+      setFormData({
+        title: listing.title || '',
+        price: listing.price || 0,
+        brand: listing.brand || '',
+        size: listing.size || '',
+        condition: listing.condition || '',
+        category: listing.category || '',
+        color: listing.color || '',
+        material: listing.material || '',
+        description: listing.description || ''
+      });
+    }
+  }, [listing]);
+  
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      console.log('💾 [EDIT-MODAL] Saving listing changes...', formData);
+      
+      const updatedData = {
+        ...formData,
+        price: parseFloat(formData.price.toString()) || 0,
+        item_specifics: {
+          Brand: formData.brand,
+          Size: formData.size,
+          Condition: formData.condition,
+          Color: formData.color,
+          Material: formData.material,
+          Category: formData.category
+        },
+        updated_at: new Date().toISOString()
+      };
+      
+      const { data, error } = await supabase
+        .from('listings')
+        .update(updatedData)
+        .eq('id', listing.id)
+        .select('*')
+        .single();
+      
+      if (error) {
+        console.error('❌ [EDIT-MODAL] Error updating listing:', error);
+        throw error;
+      }
+      
+      console.log('✅ [EDIT-MODAL] Listing updated successfully:', data);
+      onSave(data);
+      onClose();
+      
+    } catch (error) {
+      console.error('❌ [EDIT-MODAL] Error updating listing:', error);
+      alert('Failed to update listing: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto`}>
+        <div className="p-6">
+          <h2 className={`text-xl font-bold mb-6 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            Edit Listing
+          </h2>
+          
+          <div className="space-y-4">
+            {/* Title */}
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Title
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                className={`w-full border rounded-lg px-3 py-2 ${
+                  isDarkMode 
+                    ? 'bg-gray-700 text-white border-gray-600' 
+                    : 'bg-white text-gray-900 border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                placeholder="Enter listing title"
+              />
+            </div>
+            
+            {/* Price */}
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Price ($)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.price}
+                onChange={(e) => setFormData({...formData, price: e.target.value})}
+                className={`w-full border rounded-lg px-3 py-2 ${
+                  isDarkMode 
+                    ? 'bg-gray-700 text-white border-gray-600' 
+                    : 'bg-white text-gray-900 border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                placeholder="0.00"
+              />
+            </div>
+            
+            {/* Brand and Size */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Brand
+                </label>
+                <input
+                  type="text"
+                  value={formData.brand}
+                  onChange={(e) => setFormData({...formData, brand: e.target.value})}
+                  className={`w-full border rounded-lg px-3 py-2 ${
+                    isDarkMode 
+                      ? 'bg-gray-700 text-white border-gray-600' 
+                      : 'bg-white text-gray-900 border-gray-300'
+                  } focus:ring-2 focus:ring-blue-500`}
+                  placeholder="Brand name"
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Size
+                </label>
+                <input
+                  type="text"
+                  value={formData.size}
+                  onChange={(e) => setFormData({...formData, size: e.target.value})}
+                  className={`w-full border rounded-lg px-3 py-2 ${
+                    isDarkMode 
+                      ? 'bg-gray-700 text-white border-gray-600' 
+                      : 'bg-white text-gray-900 border-gray-300'
+                  } focus:ring-2 focus:ring-blue-500`}
+                  placeholder="Size"
+                />
+              </div>
+            </div>
+            
+            {/* Condition and Category */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Condition
+                </label>
+                <select
+                  value={formData.condition}
+                  onChange={(e) => setFormData({...formData, condition: e.target.value})}
+                  className={`w-full border rounded-lg px-3 py-2 ${
+                    isDarkMode 
+                      ? 'bg-gray-700 text-white border-gray-600' 
+                      : 'bg-white text-gray-900 border-gray-300'
+                  } focus:ring-2 focus:ring-blue-500`}
+                >
+                  <option value="New with tags">New with tags</option>
+                  <option value="Excellent">Excellent</option>
+                  <option value="Good">Good</option>
+                  <option value="Fair">Fair</option>
+                  <option value="Poor">Poor</option>
+                </select>
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Category
+                </label>
+                <input
+                  type="text"
+                  value={formData.category}
+                  onChange={(e) => setFormData({...formData, category: e.target.value})}
+                  className={`w-full border rounded-lg px-3 py-2 ${
+                    isDarkMode 
+                      ? 'bg-gray-700 text-white border-gray-600' 
+                      : 'bg-white text-gray-900 border-gray-300'
+                  } focus:ring-2 focus:ring-blue-500`}
+                  placeholder="Category"
+                />
+              </div>
+            </div>
+            
+            {/* Color and Material */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Color
+                </label>
+                <input
+                  type="text"
+                  value={formData.color}
+                  onChange={(e) => setFormData({...formData, color: e.target.value})}
+                  className={`w-full border rounded-lg px-3 py-2 ${
+                    isDarkMode 
+                      ? 'bg-gray-700 text-white border-gray-600' 
+                      : 'bg-white text-gray-900 border-gray-300'
+                  } focus:ring-2 focus:ring-blue-500`}
+                  placeholder="Color"
+                />
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Material
+                </label>
+                <input
+                  type="text"
+                  value={formData.material}
+                  onChange={(e) => setFormData({...formData, material: e.target.value})}
+                  className={`w-full border rounded-lg px-3 py-2 ${
+                    isDarkMode 
+                      ? 'bg-gray-700 text-white border-gray-600' 
+                      : 'bg-white text-gray-900 border-gray-300'
+                  } focus:ring-2 focus:ring-blue-500`}
+                  placeholder="Material"
+                />
+              </div>
+            </div>
+            
+            {/* Description */}
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Description
+              </label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                className={`w-full border rounded-lg px-3 py-2 h-32 ${
+                  isDarkMode 
+                    ? 'bg-gray-700 text-white border-gray-600' 
+                    : 'bg-white text-gray-900 border-gray-300'
+                } focus:ring-2 focus:ring-blue-500`}
+                placeholder="Enter listing description"
+              />
+            </div>
+          </div>
+          
+          {/* Buttons */}
+          <div className="flex space-x-4 mt-6">
+            <button
+              onClick={onClose}
+              className={`px-4 py-2 border rounded-lg transition-colors ${
+                isDarkMode 
+                  ? 'border-gray-600 text-gray-300 hover:bg-gray-700' 
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Edit Listing Modal */}
+      {showEditModal && editingListing && (
+        <EditListingModal
+          listing={editingListing}
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          onSave={handleSaveListing}
+          isDarkMode={isDarkMode}
+        />
+      )}
+    </div>
+  );
+};
+
 interface GenerateListingsTableProps {
   isDarkMode: boolean;
 }
@@ -38,6 +472,10 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [processingStatus, setProcessingStatus] = useState<Record<string, string>>({});
+
+  // Edit modal state
+  const [editingListing, setEditingListing] = useState<any>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     fetchSKUGroups();
@@ -141,26 +579,32 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
 
       const analysis = aiResult.analysis;
       console.log('✅ [GENERATE] AI analysis complete:', analysis);
+      
+      // CRITICAL: Add debugging to see what AI actually returns
+      debugAIResponse(analysis);
+      
+      // Extract and map the AI data properly
+      const extractedData = extractAndMapAIData(analysis);
 
-      // Step 3: Prepare item data with normalized values
+      // Step 3: Prepare item data with extracted values
       const itemData = {
         user_id: authUser.id,
-        title: analysis.suggestedTitle || `${analysis.brand !== 'Unknown' ? analysis.brand + ' ' : ''}${analysis.category}`,
-        description: generateDescription(analysis),
-        category: normalizeCategory(analysis.category),
-        condition: normalizeCondition(analysis.condition),
-        brand: analysis.brand !== 'Unknown' ? analysis.brand : null,
-        size: analysis.size !== 'Unknown' ? analysis.size : null,
-        color: analysis.color !== 'Various' ? analysis.color : null,
+        title: extractedData.title,
+        description: extractedData.description,
+        category: normalizeCategory(extractedData.category),
+        condition: normalizeCondition(extractedData.condition),
+        brand: extractedData.brand !== 'Unknown Brand' ? extractedData.brand : null,
+        size: extractedData.size !== 'One Size' ? extractedData.size : null,
+        color: extractedData.color !== 'Multi-Color' ? extractedData.color : null,
         model_number: analysis.modelNumber || null,
-        suggested_price: analysis.suggestedPrice || 25,
-        price_range_min: analysis.priceRange?.min || Math.round((analysis.suggestedPrice || 25) * 0.8),
-        price_range_max: analysis.priceRange?.max || Math.round((analysis.suggestedPrice || 25) * 1.2),
+        suggested_price: extractedData.price,
+        price_range_min: Math.round(extractedData.price * 0.8),
+        price_range_max: Math.round(extractedData.price * 1.2),
         images: skuGroup.photos.map(photo => photo.image_url),
         primary_image_url: primaryPhoto.image_url,
-        ai_confidence: analysis.confidence || 0.7,
+        ai_confidence: analysis.confidence || 0.8,
         ai_analysis: analysis,
-        ai_key_features: analysis.keyFeatures || [],
+        ai_key_features: analysis.keyFeatures || analysis.key_features || [],
         sku: skuGroup.sku,
         status: 'draft',
         created_at: new Date().toISOString(),
@@ -203,12 +647,21 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
       const listingData = {
         item_id: itemResult.id,
         user_id: authUser.id,
-        title: itemResult.title,
-        description: itemData.description,
+        title: extractedData.title,
+        description: extractedData.description,
         price: itemResult.suggested_price,
         images: itemData.images,
         platforms: ['ebay'],
         status: 'draft',
+        
+        // Store extracted data for display and editing
+        brand: extractedData.brand,
+        size: extractedData.size,
+        condition: extractedData.condition,
+        category: extractedData.category,
+        color: extractedData.color,
+        material: extractedData.material,
+        
         created_at: new Date().toISOString()
       };
 
@@ -231,7 +684,8 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         item: itemResult,
         listing: listingResult,
         sku: skuGroup.sku,
-        analysis
+        analysis,
+        extractedData
       };
 
     } catch (error) {
@@ -256,6 +710,19 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
     } else {
       setSelectedSKUs(new Set(skuGroups.map(group => group.sku)));
     }
+  };
+
+  const handleEditListing = (listing: any) => {
+    console.log('✏️ [EDIT] Opening edit modal for listing:', listing);
+    setEditingListing(listing);
+    setShowEditModal(true);
+  };
+
+  const handleSaveListing = (updatedListing: any) => {
+    console.log('💾 [EDIT] Listing updated, refreshing table...');
+    // Refresh the table to show updated data
+    fetchSKUGroups();
+    setSuccessMessage('Listing updated successfully!');
   };
 
   const handleDeleteSKUGroup = async (sku: string) => {
@@ -785,6 +1252,20 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                       {/* Actions */}
                       <td className="px-4 py-4">
                         <div className="flex items-center space-x-2">
+                          {group.status === 'completed' && (
+                            <button
+                              onClick={() => handleEditListing(group)}
+                              disabled={isGenerating || isDeleting}
+                              className={`p-2 rounded-lg transition-colors ${
+                                isDarkMode 
+                                  ? 'hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 disabled:text-blue-600' 
+                                  : 'hover:bg-blue-50 text-blue-600 hover:text-blue-700 disabled:text-blue-400'
+                              }`}
+                              title="Edit listing"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDeleteSKUGroup(group.sku)}
                             disabled={isGenerating || isDeleting}
