@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Camera, Upload, ArrowLeft, Zap } from 'lucide-react';
+import React, { useState, useRef, useCallback } from 'react';
+import { Camera, Upload, ArrowLeft, Zap, X, CheckCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -86,7 +86,12 @@ const normalizeCategory = (category: string): string => {
   return categoryMap[normalized] || 'other';
 };
 
-const PhotoCapture = () => {
+interface PhotoCaptureProps {
+  onUploadComplete?: () => void;
+  embedded?: boolean;
+}
+
+const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded = false }) => {
   const { user, authUser, updateUser } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,81 +99,83 @@ const PhotoCapture = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadComplete, setUploadComplete] = useState(false);
+
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = Array.from(e.dataTransfer.files).filter(file => 
+      file.type.startsWith('image/')
+    );
+
+    if (files.length > 0) {
+      processDroppedFiles(files);
+    }
+  }, []);
+
+  const processDroppedFiles = async (files: File[]) => {
+    console.log('📁 [PHOTO] Processing dropped files:', files.length);
+    setProcessingStatus('Optimizing images...');
+    
+    try {
+      // Resize all images to 800px max width
+      const resizePromises = files.map(file => resizeImage(file, 800));
+      const resizedFiles = await Promise.all(resizePromises);
+      
+      // Enhance images for AI analysis
+      setProcessingStatus('Enhancing images for AI...');
+      const enhancedFiles = await processImagesWithEnhancement(resizedFiles);
+      
+      console.log('✅ [PHOTO] All images processed successfully');
+      setSelectedFiles(enhancedFiles);
+      
+      // Create preview URLs
+      const imagePromises = enhancedFiles.map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+      });
+      
+      const imageUrls = await Promise.all(imagePromises);
+      setSelectedImages(imageUrls);
+      setProcessingStatus('');
+    } catch (error) {
+      console.error('❌ [PHOTO] Error processing dropped files:', error);
+      setProcessingStatus('');
+    }
+  };
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length > 0) {
-      // Priority 1: Resize images before processing
-      const processImages = async () => {
-        console.log('📏 [PHOTO] Starting image resize process...');
-        setProcessingStatus('Optimizing images...');
-        
-        try {
-          // Resize all images to 800px max width
-          const resizePromises = files.map(file => resizeImage(file, 800));
-          const resizedFiles = await Promise.all(resizePromises);
-          
-          // NEW: Enhance images for AI analysis
-          setProcessingStatus('Enhancing images for AI...');
-          const enhancedFiles = await processImagesWithEnhancement(resizedFiles); // Call the new function
-          
-          console.log('✅ [PHOTO] All images resized and enhanced successfully');
-          setSelectedFiles(enhancedFiles); // Use enhanced files for further processing
-          
-          // Create preview URLs for resized images
-          const imagePromises = enhancedFiles.map(file => { // Use enhanced files for preview
-            return new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onload = (e) => resolve(e.target?.result as string);
-              reader.readAsDataURL(file);
-            });
-          });
-          
-          const imageUrls = await Promise.all(imagePromises);
-          setSelectedImages(imageUrls);
-          setProcessingStatus('');
-        } catch (error) {
-          console.error('❌ [PHOTO] Error resizing or enhancing images:', error);
-          // Fallback to original files if resize fails
-          setSelectedFiles(files);
-          
-          const imagePromises = files.map(file => {
-            return new Promise<string>((resolve) => {
-              const reader = new FileReader();
-              reader.onload = (e) => resolve(e.target?.result as string);
-              reader.readAsDataURL(file);
-            });
-          });
-          
-          Promise.all(imagePromises).then(imageUrls => {
-            setSelectedImages(imageUrls);
-          });
-          setProcessingStatus('');
-        }
-      };
-      
-      processImages();
+      processDroppedFiles(files);
     }
   };
 
   const handleProcessImage = async () => {
     if (selectedImages.length === 0 || selectedFiles.length === 0 || !user || !authUser) return;
 
-    // Debug: Log current user limits
-    console.log('🔍 [PHOTO] Current user limits:', {
-      listings_used: user.listings_used,
-      listings_limit: user.listings_limit,
-      subscription_plan: user.subscription_plan,
-      user_id: user.id
-    });
-
     // Check if user has reached their limit
     if (user.listings_used >= user.listings_limit && user.subscription_plan === 'free') {
-      console.log('❌ [PHOTO] Listing limit reached!', {
-        used: user.listings_used,
-        limit: user.listings_limit,
-        plan: user.subscription_plan
-      });
+      console.log('❌ [PHOTO] Listing limit reached!');
       alert('You\'ve reached your free listing limit. Upgrade to Pro for unlimited listings!');
       return;
     }
@@ -177,12 +184,12 @@ const PhotoCapture = () => {
     setProcessingStatus('Starting image processing...');
 
     try {
-      // Priority 4: Calculate image hash for caching
+      // Calculate image hash for caching
       console.log('🔐 [PHOTO] Calculating image hash for caching...');
       setProcessingStatus('Checking for cached results...');
       const primaryImageHash = await calculateImageHash(selectedFiles[0]);
 
-      // Step 1: Upload all images to Supabase Storage first
+      // Upload all images to Supabase Storage
       console.log('📤 [CLIENT] Starting image uploads to Supabase...');
       setProcessingStatus(`Uploading ${selectedFiles.length} optimized images...`);
       const uploadPromises = selectedFiles.map(async (file, index) => {
@@ -211,17 +218,9 @@ const PhotoCapture = () => {
       const publicUrls = await Promise.all(uploadPromises);
       console.log('✅ [CLIENT] All images uploaded successfully:', publicUrls);
 
-      // Step 2: Analyze the first image using its public URL
+      // Analyze the first image using its public URL
       console.log('🔄 [CLIENT] Starting AI analysis using image URL...');
       setProcessingStatus('Analyzing item with AI...');
-      console.log('📊 [CLIENT] Analysis request details:', {
-        url: '/.netlify/functions/analyze-image',
-        method: 'POST',
-        primaryImageUrl: publicUrls[0],
-        totalImages: publicUrls.length,
-        imageHash: primaryImageHash,
-        timestamp: new Date().toISOString()
-      });
       
       const analysisResponse = await fetch('/.netlify/functions/analyze-image', {
         method: 'POST',
@@ -229,102 +228,44 @@ const PhotoCapture = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageUrl: publicUrls[0], // Use the first uploaded image URL for analysis
-          allImageUrls: publicUrls, // Pass all image URLs for multi-image analysis
-          imageHash: primaryImageHash // For caching
+          imageUrl: publicUrls[0],
+          allImageUrls: publicUrls,
+          imageHash: primaryImageHash
         })
       });
       
-      console.log('📥 [CLIENT] Analysis response received:', {
-        status: analysisResponse.status,
-        statusText: analysisResponse.statusText,
-        ok: analysisResponse.ok,
-        headers: Object.fromEntries(analysisResponse.headers.entries()),
-        url: analysisResponse.url,
-        type: analysisResponse.type,
-        redirected: analysisResponse.redirected
-      });
-      
       if (!analysisResponse.ok) {
-        console.error('❌ [CLIENT] Analysis response not OK:', {
-          status: analysisResponse.status,
-          statusText: analysisResponse.statusText
-        });
-        
-        // Try to get response body for more details
-        let errorBody = '';
-        try {
-          errorBody = await analysisResponse.text();
-          console.error('❌ [CLIENT] Error response body:', errorBody);
-        } catch (bodyError) {
-          console.error('❌ [CLIENT] Could not read error response body:', bodyError);
-        }
-        
+        const errorBody = await analysisResponse.text();
         throw new Error(`Analysis failed: ${analysisResponse.status} ${analysisResponse.statusText}. Body: ${errorBody}`);
       }
       
-      console.log('🔄 [CLIENT] Parsing analysis JSON response...');
       const analysisResult = await analysisResponse.json();
-      console.log('✅ [CLIENT] Analysis JSON parsed successfully:', {
-        success: analysisResult.success,
-        hasAnalysis: !!analysisResult.analysis,
-        analysisKeys: analysisResult.analysis ? Object.keys(analysisResult.analysis) : [],
-        responseSize: JSON.stringify(analysisResult).length
-      });
       
       if (!analysisResult.success) {
-        console.error('❌ [CLIENT] Analysis result indicates failure:', analysisResult);
         throw new Error(analysisResult.error || 'Analysis failed');
       }
       
       const analysis = analysisResult.analysis;
       
-      // DEBUG: Log the exact analysis structure to identify missing fields
-      console.log('🔍 [CLIENT] Raw analysis structure:', {
-        brand: analysis.brand,
-        category: analysis.category,
-        suggestedPrice: analysis.suggestedPrice,
-        hasPriceRange: !!analysis.priceRange,
-        priceRangeStructure: analysis.priceRange,
-        hasKeyFeatures: !!analysis.keyFeatures,
-        allKeys: Object.keys(analysis)
-      });
-      
-      // SAFETY: Ensure priceRange exists to prevent 'min' error
+      // Ensure priceRange exists
       if (!analysis.priceRange || typeof analysis.priceRange !== 'object') {
         const basePrice = analysis.suggestedPrice || 25;
         analysis.priceRange = {
           min: Math.round(basePrice * 0.8),
           max: Math.round(basePrice * 1.3)
         };
-        console.log('⚠️ [CLIENT] Fixed missing priceRange:', analysis.priceRange);
       }
       
-      // SAFETY: Ensure keyFeatures exists
+      // Ensure keyFeatures exists
       if (!analysis.keyFeatures || !Array.isArray(analysis.keyFeatures)) {
         analysis.keyFeatures = [];
-        console.log('⚠️ [CLIENT] Fixed missing keyFeatures');
       }
       
-      console.log('🎉 [CLIENT] AI analysis completed successfully:', {
-        category: analysis.category,
-        confidence: analysis.confidence,
-        suggestedTitle: analysis.suggestedTitle,
-        suggestedPrice: analysis.suggestedPrice,
-        brand: analysis.brand,
-        modelNumber: analysis.model_number,
-        condition: analysis.condition,
-        keyFeaturesCount: analysis.keyFeatures?.length || 0,
-        priceRange: analysis.priceRange
-      });
-      
-      // Step 2.5: Enhance title with model number if available
+      // Enhance title with model number if available
       let finalTitle = analysis.suggestedTitle;
       if (analysis.data?.model_number && analysis.brand) {
-        // For sneakers and electronics, model numbers are crucial for searchability
         const modelImportantCategories = ['shoes', 'electronics', 'accessories'];
         if (modelImportantCategories.includes(analysis.category)) {
-          // Insert model number after brand name in title
           const brandName = analysis.brand;
           if (finalTitle.includes(brandName) && !finalTitle.includes(analysis.data.model_number)) {
             finalTitle = finalTitle.replace(
@@ -332,14 +273,12 @@ const PhotoCapture = () => {
               `${brandName} ${analysis.data.model_number}`
             );
           } else if (!finalTitle.includes(analysis.data.model_number)) {
-            // If brand not in title or model not already included, add model number
             finalTitle = `${brandName} ${analysis.data.model_number} ${finalTitle.replace(brandName, '').trim()}`.trim();
           }
-          console.log('🏷️ [CLIENT] Enhanced title with model number:', finalTitle);
         }
       }
       
-      // Step 3: Create item in database with analysis results
+      // Create item in database
       console.log('💾 [CLIENT] Creating item in database...');
       setProcessingStatus('Saving item details...');
       const { data: itemData, error: itemError } = await supabase
@@ -381,21 +320,20 @@ const PhotoCapture = () => {
       }
       console.log('✅ [CLIENT] Item created successfully:', itemData.id);
 
-      // Step 4.5: Generate keyword suggestions using the new system
+      // Generate keyword suggestions
       console.log('🔍 [CLIENT] Generating keyword suggestions...');
       setProcessingStatus('Generating SEO keywords...');
       try {
         const keywordService = new KeywordOptimizationService(supabase);
         
-        // Priority 5: Smart API usage - pass confidence for optimization decisions
         const keywordSuggestions = await keywordService.getKeywordSuggestions(
-          publicUrls[0], // Primary image URL
+          publicUrls[0],
           analysis.brand || 'Unknown',
           analysis.category || 'other',
-          itemData.id, // Item ID for linking
-          analysis.suggestedTitle, // Style/title as detected style
-          undefined, // User preferences (none yet)
-          analysis.confidence // Pass AI confidence for smart API usage
+          itemData.id,
+          analysis.suggestedTitle,
+          undefined,
+          analysis.confidence
         );
         
         console.log('✅ [CLIENT] Keyword suggestions generated:', keywordSuggestions);
@@ -415,73 +353,218 @@ const PhotoCapture = () => {
         }
       } catch (keywordError) {
         console.error('❌ [CLIENT] Error generating keyword suggestions:', keywordError);
-        // Don't fail the entire process if keywords fail
       }
 
-      // Step 4: Create a listing for this item
-      console.log('📝 [CLIENT] Creating listing for item...');
-      setProcessingStatus('Creating listing...');
-      const { data: listingData, error: listingError } = await supabase
-        .from('listings')
-        .insert([
-          {
-            item_id: itemData.id,
-            user_id: authUser.id,
-            title: itemData.title,
-            description: itemData.description || '',
-            price: itemData.suggested_price,
-           images: publicUrls, // All uploaded images
-            platforms: ['ebay'],
-            status: 'active',
-            listed_at: new Date().toISOString()
-          }
-        ])
-        .select()
-        .single();
-
-      if (listingError) {
-        console.error('❌ [CLIENT] Error creating listing:', listingError);
-        throw listingError;
-      }
-      console.log('✅ [CLIENT] Listing created successfully:', listingData.id);
-
-      // Step 5: Update user's listing count
+      // Update user's listing count
       console.log('🔄 [CLIENT] Updating user listing count...');
       setProcessingStatus('Finalizing...');
       await updateUser({ listings_used: user.listings_used + 1 });
       console.log('✅ [CLIENT] User listing count updated');
 
-      // Step 6: Navigate to item details
-      console.log('🔍 DEBUG - Item created with ID:', itemData.id);
-      console.log('🔍 DEBUG - About to navigate to:', `/details/${itemData.id}`);
-      console.log('🔍 DEBUG - Current location:', window.location.href);
-      console.log('🔍 DEBUG - Item created with ID:', itemData.id);
-      console.log('🔍 DEBUG - About to navigate to:', `/details/${itemData.id}`);
-      console.log('🔍 DEBUG - Current location:', window.location.href);
-      console.log('🎯 [CLIENT] Navigating to item details page...');
       setProcessingStatus('Complete!');
-      navigate(`/details/${itemData.id}`);
-      setTimeout(() => {
-        console.log('🔍 DEBUG - Final location after navigation:', window.location.href);
-      }, 1000);
-      setTimeout(() => {
-        console.log('🔍 DEBUG - Final location after navigation:', window.location.href);
-      }, 1000);
+      setUploadComplete(true);
+
+      // Call the completion callback if provided (for embedded mode)
+      if (onUploadComplete) {
+        console.log('🎯 [CLIENT] Calling upload completion callback...');
+        setTimeout(() => {
+          onUploadComplete();
+        }, 1500); // Small delay to show success state
+      } else {
+        // Navigate to item details if not embedded
+        console.log('🎯 [CLIENT] Navigating to item details page...');
+        setTimeout(() => {
+          navigate(`/details/${itemData.id}`);
+        }, 1500);
+      }
     } catch (error) {
-      console.error('❌ [CLIENT] Critical error in handleProcessImage:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        timestamp: new Date().toISOString()
-      });
+      console.error('❌ [CLIENT] Critical error in handleProcessImage:', error);
       alert(`Failed to process image: ${error.message}. Please try again.`);
     } finally {
-      console.log('🏁 [CLIENT] Processing complete, setting loading to false');
       setIsProcessing(false);
-      setProcessingStatus('');
+      if (!uploadComplete) {
+        setProcessingStatus('');
+      }
     }
   };
 
+  const removeImage = (index: number) => {
+    const newImages = selectedImages.filter((_, i) => i !== index);
+    const newFiles = selectedFiles.filter((_, i) => i !== index);
+    setSelectedImages(newImages);
+    setSelectedFiles(newFiles);
+  };
+
+  if (uploadComplete) {
+    return (
+      <div className={`${embedded ? '' : 'min-h-screen bg-gray-50 flex items-center justify-center'}`}>
+        <div className="max-w-md mx-auto text-center">
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              Upload Complete!
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Your item has been processed and is ready for SKU assignment.
+            </p>
+            
+            {embedded ? (
+              <div className="text-sm text-gray-500">
+                Redirecting to SKU management...
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <Link
+                  to="/app"
+                  className="block w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-medium transition-colors"
+                >
+                  Go to Dashboard
+                </Link>
+                <button
+                  onClick={() => {
+                    setUploadComplete(false);
+                    setSelectedImages([]);
+                    setSelectedFiles([]);
+                  }}
+                  className="block w-full border border-gray-300 text-gray-700 py-3 px-6 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Upload Another Item
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const uploadArea = (
+    <div className="bg-white rounded-xl shadow-sm border p-8">
+      {selectedImages.length === 0 ? (
+        <div className="text-center">
+          <div 
+            className={`border-2 border-dashed rounded-xl p-12 transition-all duration-300 ${
+              isDragOver 
+                ? 'border-blue-500 bg-blue-50' 
+                : 'border-gray-300 hover:border-blue-400'
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <Camera className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {isDragOver ? 'Drop your photos here!' : 'Add Your Photos'}
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Drag and drop photos here, or click to upload multiple photos of your item from different angles.
+            </p>
+            
+            <div className="space-y-4">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload Photos</span>
+              </button>
+              
+              <div className="text-sm text-gray-500">
+                Supports JPG, PNG up to 10MB each. Upload 2-8 photos for best results.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleImageSelect}
+          className="hidden"
+        />
+      ) : (
+        <div>
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
+              Selected Photos ({selectedImages.length})
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {selectedImages.map((image, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={image}
+                    alt={`Selected item ${index + 1}`}
+                    className="w-full h-32 object-cover rounded-lg border"
+                  />
+                  <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
+                    {index === 0 ? 'Primary' : `${index + 1}`}
+                  </div>
+                  <button
+                    onClick={() => removeImage(index)}
+                    className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={() => {
+                setSelectedImages([]);
+                setSelectedFiles([]);
+              }}
+              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+            >
+              Choose Different Photos
+            </button>
+            
+            <button
+              onClick={handleProcessImage}
+              disabled={isProcessing}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Processing {selectedImages.length} photos...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  <span>Analyze Item ({selectedImages.length} photos)</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {isProcessing && (
+            <div className="mt-6 text-center">
+              <div className="text-sm text-gray-600">
+                {processingStatus || `Our AI is analyzing your item and uploading ${selectedImages.length} photos...`}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {processingStatus ? 'Please wait...' : 'This may take a few seconds depending on the number of photos'}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // If embedded, just return the upload area
+  if (embedded) {
+    return uploadArea;
+  }
+
+  // Full page layout
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -506,111 +589,11 @@ const PhotoCapture = () => {
             Create New Listing
           </h1>
           <p className="text-gray-600">
-            Take or upload a photo of your item and let our AI do the rest
+            Drag and drop or upload photos of your item and let our AI do the rest
           </p>
         </div>
 
-        {selectedImages.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border p-8">
-            <div className="text-center">
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 hover:border-blue-400 transition-colors">
-                <Camera className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Add Your Photos
-                </h3>
-                <p className="text-gray-600 mb-6">
-                 Upload multiple photos of your item from different angles. The first photo will be used for AI analysis.
-                </p>
-                
-                <div className="space-y-4">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Upload Photos</span>
-                  </button>
-                  
-                  <div className="text-sm text-gray-500">
-                   Supports JPG, PNG up to 10MB each. Upload 2-8 photos for best results.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleImageSelect}
-              className="hidden"
-            />
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-sm border p-8">
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
-                Selected Photos ({selectedImages.length})
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {selectedImages.map((image, index) => (
-                  <div key={index} className="relative">
-                    <img
-                      src={image}
-                      alt={`Selected item ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg border"
-                    />
-                    <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
-                      {index === 0 ? 'Primary' : `${index + 1}`}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex justify-center space-x-4">
-              <button
-                onClick={() => {
-                  setSelectedImages([]);
-                  setSelectedFiles([]);
-                }}
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-              >
-                Choose Different Photos
-              </button>
-              
-              <button
-                onClick={handleProcessImage}
-                disabled={isProcessing}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Processing {selectedImages.length} photos...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4" />
-                    <span>Analyze Item ({selectedImages.length} photos)</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {isProcessing && (
-              <div className="mt-6 text-center">
-                <div className="text-sm text-gray-600">
-                  {processingStatus || `Our AI is analyzing your item and uploading ${selectedImages.length} photos...`}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {processingStatus ? 'Please wait...' : 'This may take a few seconds depending on the number of photos'}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {uploadArea}
 
         {/* Tips */}
         <div className="mt-8 bg-blue-50 rounded-xl p-6">

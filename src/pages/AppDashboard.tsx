@@ -1,27 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Package, TrendingUp, DollarSign, Eye, MessageCircle, BarChart3, Upload, Zap, Bot, Star, Award, Users, ShoppingCart, Target, Clock, CheckCircle, AlertCircle, RefreshCw, Trash2, Edit, Save, X } from 'lucide-react';
+import { Camera, Package, TrendingUp, DollarSign, Upload, Zap, Bot, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import GenerateListingsTable from '../components/GenerateListingsTable';
 import SKUTable from '../components/SKUTable';
-import { formatPrice, formatDate, generateSKU, getItemSpecifics } from '../utils/itemUtils';
+import PhotoCapture from './PhotoCapture';
+import { formatPrice } from '../utils/itemUtils';
 
 const AppDashboard = () => {
   const { user, authUser } = useAuth();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [items, setItems] = useState<Item[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Debug log to confirm DashboardLayout is properly imported
-  console.log('🔍 [APP-DASHBOARD] DashboardLayout imported as:', DashboardLayout);
-  console.log('🔍 [APP-DASHBOARD] DashboardLayout type:', typeof DashboardLayout);
-  console.log('🔍 [APP-DASHBOARD] DashboardLayout is function:', typeof DashboardLayout === 'function');
+  // Handle photo upload completion - switch to SKUs tab
+  const handlePhotoUploadComplete = () => {
+    console.log('🎯 [APP-DASHBOARD] Photo upload complete, switching to SKUs tab...');
+    setActiveTab('skus');
+    setRefreshTrigger(prev => prev + 1); // Trigger refresh of SKU table
+  };
 
   useEffect(() => {
     if (authUser) {
@@ -77,11 +80,11 @@ const AppDashboard = () => {
       case 'overview':
         return <OverviewTab />;
       case 'upload':
-        return <UploadTab />;
+        return <PhotoCapture onUploadComplete={handlePhotoUploadComplete} embedded={true} />;
       case 'skus':
-        return <SKUTable isDarkMode={isDarkMode} />;
+        return <SKUTable isDarkMode={isDarkMode} key={refreshTrigger} />;
       case 'generate':
-        return <GenerateListingsTable isDarkMode={isDarkMode} />;
+        return <GenerateListingsTable isDarkMode={isDarkMode} key={refreshTrigger} />;
       case 'publish':
         return <PublishTab />;
       case 'coach':
@@ -175,29 +178,6 @@ const AppDashboard = () => {
             </p>
           </div>
         )}
-      </div>
-    </div>
-  );
-
-  const UploadTab = () => (
-    <div className={`${isDarkMode ? 'glass-panel' : 'glass-panel-light'} backdrop-blur-glass rounded-2xl p-8`}>
-      <div className="text-center">
-        <div className="w-24 h-24 bg-cyber-gradient rounded-2xl mx-auto mb-6 flex items-center justify-center shadow-lg shadow-cyber-blue-500/30">
-          <Camera className="w-12 h-12 text-white" />
-        </div>
-        <h2 className={`text-2xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-          Upload New Items
-        </h2>
-        <p className={`mb-8 ${isDarkMode ? 'text-white/70' : 'text-gray-600'}`}>
-          Take photos of items you want to sell and let our AI analyze them
-        </p>
-        <Link
-          to="/capture"
-          className="inline-flex items-center gap-3 bg-cyber-gradient text-white px-8 py-4 rounded-xl font-semibold text-lg shadow-lg shadow-cyber-blue-500/30 hover:scale-105 transition-all duration-300"
-        >
-          <Upload className="w-5 h-5" />
-          Start Photo Capture
-        </Link>
       </div>
     </div>
   );
