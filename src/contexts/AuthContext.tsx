@@ -56,59 +56,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('🔐 [AUTH] User role:', supabaseUser.role);
       console.log('⏰ [AUTH] User created at:', supabaseUser.created_at);
       
-      // Prepare user profile data
-      const userProfileData = {
-        id: supabaseUser.id,
-        email: supabaseUser.email!,
-        name: userName,
-        avatar_url: avatarUrl,
-        subscription_plan: 'free',
-        subscription_status: 'active',
-        listings_used: 0,
-        listings_limit: 999,
-        monthly_revenue: 0,
-        total_sales: 0,
-        notification_preferences: {
-          email: true,
-          push: true
-        },
-        timezone: 'America/New_York',
-        is_active: true,
-        updated_at: new Date().toISOString()
-      };
-      
       console.log('📝 [AUTH] Preparing user profile data with name:', userName);
       console.log('🆔 [AUTH] User ID:', supabaseUser.id);
       console.log('📧 [AUTH] User email:', supabaseUser.email);
       console.log('🖼️ [AUTH] Avatar URL:', avatarUrl);
       
-      // Use upsert to create or update user profile
-      console.log('📤 [AUTH] Directly upserting user profile (bypassing RPC)...');
-      console.log('📊 [AUTH] User data to upsert:', userProfileData);
+      // Use RPC function to create or update user profile
+      console.log('📤 [AUTH] Calling create_user_profile RPC function...');
       
       const { data, error: upsertError } = await withTimeout(
-        supabase
-          .from('users')
-          .upsert(userProfileData, { 
-            onConflict: 'id',
-            ignoreDuplicates: false
-          })
-          .select()
-          .single(),
+        supabase.rpc('create_user_profile', {
+          user_id: supabaseUser.id,
+          user_email: supabaseUser.email!,
+          user_name: userName,
+          user_avatar_url: avatarUrl
+        }),
         PROFILE_FETCH_TIMEOUT,
-        'User profile upsert operation timed out while creating/updating user profile'
+        'RPC create_user_profile operation timed out while creating/updating user profile'
       );
       
       console.log('📥 [AUTH] Upsert result:', data);
 
       if (upsertError) {
         console.error('❌ [AUTH] Error details:', upsertError.message);
-        console.error('❌ [AUTH] Upsert parameters that failed:', userProfileData);
+        console.error('❌ [AUTH] RPC parameters that failed:', {
+          user_id: supabaseUser.id,
+          user_email: supabaseUser.email,
+          user_name: userName,
+          user_avatar_url: avatarUrl
+        });
         throw upsertError;
       }
 
       if (!data) {
-        console.error('❌ [AUTH] Upsert operation returned no data');
+        console.error('❌ [AUTH] RPC operation returned no data');
         // If insert fails, return a minimal user object to prevent auth blocking
         return {
           id: supabaseUser.id,
@@ -125,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } as AppUser;
       }
 
-      console.log('✅ [AUTH] User profile upserted successfully:', data);
+      console.log('✅ [AUTH] User profile created/updated via RPC successfully:', data);
       console.log('🔧 [AUTH] Profile data includes listing limit:', data.listings_limit);
       return data;
       
