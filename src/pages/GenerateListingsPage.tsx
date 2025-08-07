@@ -547,7 +547,7 @@ const GenerateListingsPage = () => {
 
   // Normalize category to match database enum
   const normalizeCategory = (category: string): string => {
-    const normalized = safeLower(toStr(category));
+    const normalized = category?.toLowerCase() || '';
     const categoryMap: Record<string, string> = {
       'clothing': 'clothing',
       'jacket': 'clothing',
@@ -572,7 +572,7 @@ const GenerateListingsPage = () => {
 
   // Normalize condition to match database enum
   const normalizeCondition = (condition: string): string => {
-    const normalized = safeLower(toStr(condition));
+    const normalized = condition?.toLowerCase() || '';
     const conditionMap: Record<string, string> = {
       'new': 'like_new',
       'like new': 'like_new',
@@ -587,15 +587,10 @@ const GenerateListingsPage = () => {
     return conditionMap[normalized] || 'good';
   };
 
-  // Helper function for safe string operations
-  const safeLower = (str: string): string => {
-    return str ? str.toLowerCase() : '';
-  };
-
-  // Helper function for safe array operations
+  // Helper function to safely handle arrays
   const safeStringArray = (arr: any): string[] => {
     if (!Array.isArray(arr)) return [];
-    return arr.filter(item => typeof item === 'string');
+    return arr.filter(item => typeof item === 'string' && item.trim().length > 0);
   };
 
   // Helper functions
