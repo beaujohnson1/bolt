@@ -13,6 +13,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activeTab, 
   const [isDarkMode, setIsDarkMode] = useState(true); // Default to dark mode
   const [showAccountMenu, setShowAccountMenu] = useState(false);
 
+  // Debug log to confirm component is being rendered
+  console.log('✅ [DASHBOARD-LAYOUT] DashboardLayout component rendered successfully');
+
   // Initialize theme on component mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');

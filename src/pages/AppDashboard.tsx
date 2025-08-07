@@ -7,6 +7,12 @@ import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
 import EbayApiService, { type TrendingItem } from '../services/ebayApi';
 import { normalizeCondition, normalizeCategory, generateSKU, generateSequentialSKU } from '../utils/itemUtils';
 import { resizeImage, calculateImageHash, processImagesWithEnhancement } from '../utils/imageUtils';
+import DashboardLayout from '../components/DashboardLayout';
+
+// Debug log to confirm DashboardLayout is properly imported
+console.log('🔍 [APP-DASHBOARD] DashboardLayout imported as:', DashboardLayout);
+console.log('🔍 [APP-DASHBOARD] DashboardLayout type:', typeof DashboardLayout);
+console.log('🔍 [APP-DASHBOARD] DashboardLayout is function:', typeof DashboardLayout === 'function');
 
 // Types for dashboard data
 interface DashboardStats {
