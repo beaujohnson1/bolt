@@ -547,7 +547,7 @@ const GenerateListingsPage = () => {
 
   // Normalize category to match database enum
   const normalizeCategory = (category: string): string => {
-    const normalized = category?.toLowerCase() || '';
+    const normalized = safeLower(toStr(category));
     const categoryMap: Record<string, string> = {
       'clothing': 'clothing',
       'jacket': 'clothing',
@@ -572,7 +572,7 @@ const GenerateListingsPage = () => {
 
   // Normalize condition to match database enum
   const normalizeCondition = (condition: string): string => {
-    const normalized = condition?.toLowerCase() || '';
+    const normalized = safeLower(toStr(condition));
     const conditionMap: Record<string, string> = {
       'new': 'like_new',
       'like new': 'like_new',
@@ -587,8 +587,43 @@ const GenerateListingsPage = () => {
     return conditionMap[normalized] || 'good';
   };
 
+  // Helper function for safe string operations
+  const safeLower = (str: string): string => {
+    return str ? str.toLowerCase() : '';
+  };
+
+  // Helper function for safe array operations
+  const safeStringArray = (arr: any): string[] => {
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(item => typeof item === 'string');
+  };
 
   // Helper functions
+  const generateListingDescription = ({ title, brand, size, condition, category, color, keywords }) => {
+    // Handle undefined parameters
+    const safeBrand = safeTrim(brand) || 'Unknown';
+    const safeSize = safeTrim(size) || 'Unknown';
+    const safeCondition = safeTrim(condition) || 'good';
+    const safeColor = safeTrim(color) || 'Various';
+    const safeKeywords = safeStringArray(keywords);
+    
+    const features = [];
+    if (safeBrand !== 'Unknown') features.push(`Brand: ${safeBrand}`);
+    if (safeSize !== 'Unknown') features.push(`Size: ${safeSize}`);
+    if (safeCondition) features.push(`Condition: ${safeCondition}`);
+    if (safeColor !== 'Various') features.push(`Color: ${safeColor}`);
+    
+    const featureText = features.length > 0 ? features.join(' | ') : 'Quality item in great condition';
+    const keywordText = safeKeywords.length > 0 ? `\n\nKeywords: ${safeKeywords.join(', ')}` : '';
+    
+    return `${safeTrim(title) || 'Quality Item'}
+
+${featureText}${keywordText}
+
+This item is carefully inspected and ready to ship. Check out our other listings for more great deals!
+
+Fast shipping and excellent customer service guaranteed.`;
+  };
 
   // Calculate stats
   const stats = {
