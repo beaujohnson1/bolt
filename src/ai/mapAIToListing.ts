@@ -21,6 +21,9 @@ type RawAI = {
 export function mapAIToListing(ai: RawAI) {
   console.log('🔄 [AI-MAPPER] Sanitizing AI payload before UI use...');
   
+  // Extract title first
+  const titleRaw = safeTrim(ai.title);
+  
   // arrays - safely filter and trim
   const keywords = Array.isArray(ai.keywords)
     ? ai.keywords.filter(isStr).map(safeTrim).filter(Boolean).slice(0, 20)
@@ -43,7 +46,7 @@ export function mapAIToListing(ai: RawAI) {
   const model_number = nullIfUnknown(ai.model_number);
   const condition = safeTrim(ai.condition) || "good";
   const item_type = safeTrim(ai.item_type) || "Item";
-  let title = safeTrim(ai.title);
+  let title = titleRaw;
 
   // Rebuild title if missing or invalid
   if (!title || title.length < 3) {

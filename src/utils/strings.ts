@@ -18,6 +18,12 @@ export const safeSlice = (v: unknown, start = 0, end?: number): string => {
   return end == null ? s.slice(start) : s.slice(start, end);
 };
 
+// replaces ANY use of .substring()
+export const sSub = (v: unknown, start = 0, end?: number): string => {
+  const s = toStr(v);
+  return end == null ? s.slice(start) : s.slice(start, end);
+};
+
 export const safeSlug = (value: unknown, max = 80): string => {
   const s = safeTrim(value).toLowerCase().replace(/[^a-z0-9]+/g, "-");
   return s.replace(/^-+|-+$/g, "").slice(0, max);
