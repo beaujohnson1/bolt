@@ -35,27 +35,38 @@ export const useAIAnalysis = () => {
     setIsAnalyzing(true);
     setAnalysisError(null);
 
-    // Declare variables outside try block to prevent ReferenceError
+    // Declare all variables outside try block to prevent ReferenceError
     let aiData: any = null;
     let marketResearchData: any = null;
     let categoryAnalysisData: any = null;
     let enhancedData: any = null;
+    
     try {
-      // Use the existing OpenAI service
-      const result = await withRetry( // Apply retry logic here
+      console.log('🤖 [AI-ANALYSIS] Calling OpenAI service...');
+      
+      // Use the existing OpenAI service with retry logic
+      const result = await withRetry(
         () => analyzeClothingItem(imageUrl),
-        3, // maxRetries
-        1000 // baseDelay
+        2, // Reduced retries to avoid long waits
+        2000 // 2 second delay between retries
       );
 
+      console.log('📊 [AI-ANALYSIS] OpenAI service result:', result);
+      
       if (!result.success) {
-        throw new Error(result.error || 'AI analysis failed');
+        console.error('❌ [AI-ANALYSIS] OpenAI service returned unsuccessful result:', result.error);
+        throw new Error(result.error || 'OpenAI analysis returned unsuccessful result');
       }
 
-      console.log('✅ [AI-ANALYSIS] Analysis complete:', result);
+      console.log('✅ [AI-ANALYSIS] OpenAI analysis successful');
       
       // Extract AI data from the result
       aiData = result.analysis || result.data;
+      
+      if (!aiData) {
+        console.error('❌ [AI-ANALYSIS] No analysis data in successful result');
+        throw new Error('OpenAI analysis returned no data');
+      }
 
       // Step 2: Enhanced eBay integration (if requested)
 
@@ -71,6 +82,7 @@ export const useAIAnalysis = () => {
           console.log('✅ [AI-ANALYSIS] Market research complete');
         } catch (error) {
           console.error('❌ [AI-ANALYSIS] Market research failed:', error);
+          // Don't throw - continue without market research
         }
       }
 
@@ -90,6 +102,7 @@ export const useAIAnalysis = () => {
           console.log('✅ [AI-ANALYSIS] Category analysis complete');
         } catch (error) {
           console.error('❌ [AI-ANALYSIS] Category analysis failed:', error);
+          // Don't throw - continue without category analysis
         }
       }
 
@@ -104,9 +117,12 @@ export const useAIAnalysis = () => {
         category_options: categoryAnalysisData?.suggestions || [],
         // Add market insights
         market_confidence: marketResearchData?.confidence || 0.5,
-        sold_count: marketResearchData?.soldCount || 0
+        sold_count: marketResearchData?.soldCount || 0,
+        source: 'ai_analysis'
       };
 
+      console.log('✅ [AI-ANALYSIS] Enhanced data created successfully');
+      
       return {
         success: true,
         data: enhancedData,
@@ -117,9 +133,26 @@ export const useAIAnalysis = () => {
       console.error('❌ [AI-ANALYSIS] Analysis failed:', error);
       setAnalysisError(error.message);
       
+      // Create fallback data to prevent complete failure
+      const fallbackData = {
+        title: 'Item - Manual Review Required',
+        brand: 'Unknown',
+        size: 'Unknown',
+        condition: 'good',
+        category: 'other',
+        color: 'Various',
+        suggested_price: 25,
+        price: 25,
+        confidence: 0.1,
+        key_features: ['manual review required'],
+        keywords: ['item', 'manual review'],
+        source: 'fallback',
+        error_message: error.message
+      };
+      
       return {
         success: false,
-        data: enhancedData || aiData || null,
+        data: enhancedData || aiData || fallbackData,
         marketResearch: marketResearchData,
         categoryAnalysis: categoryAnalysisData,
         error: error.message

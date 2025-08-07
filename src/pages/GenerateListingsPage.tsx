@@ -98,21 +98,27 @@ const GenerateListingsPage = () => {
 
       setSKUGroups(skuGroupsArray);
 
-      // Fetch existing items that were generated from these SKUs
-      // Note: We'll match by checking if any photos with this SKU were used to create items
+      // Fetch existing items for this user (no SKU matching since items table doesn't have sku column)
       const { data: existingItems, error: itemsError } = await supabase
         .from('items')
         .select('*')
-        .eq('user_id', authUser.id);
+        .eq('user_id', authUser.id)
+        .order('created_at', { ascending: false });
 
       if (itemsError) {
         console.error('❌ [GENERATE-LISTINGS] Error fetching existing items:', itemsError);
+        // Don't throw here - continue with empty items array
       }
 
       // Convert to generated items format
       const items: GeneratedItem[] = skuGroupsArray.map(group => {
-        // For now, we'll create new items since we don't have SKU matching in items table
-        const existingItem = null; // TODO: Implement proper SKU matching when items table has sku column
+        // Try to find existing item by matching primary photo URL
+        const primaryPhotoUrl = group.photos[0]?.image_url;
+        const existingItem = existingItems?.find(item => 
+          item.primary_image_url === primaryPhotoUrl ||
+          item.images?.includes(primaryPhotoUrl)
+        ) || null;
+        
         const primaryPhoto = group.photos[0]?.image_url || '';
         
         return {
@@ -120,10 +126,10 @@ const GenerateListingsPage = () => {
           sku: group.sku,
           photos: group.photos.map(p => p.image_url),
           primaryPhoto,
-          title: existingItem?.title || '',
-          description: existingItem?.description || '',
+          title: existingItem?.title || 'Click Generate to create title',
+          description: existingItem?.description || 'Click Generate to create description',
           price: existingItem?.suggested_price || 0,
-          category: existingItem?.category || 'clothing',
+          category: existingItem?.category || 'other',
           condition: existingItem?.condition || 'good',
           brand: existingItem?.brand,
           size: existingItem?.size,
@@ -133,6 +139,7 @@ const GenerateListingsPage = () => {
           ai_confidence: existingItem?.ai_confidence || 0,
           ai_analysis: existingItem?.ai_analysis || {},
           status: existingItem ? 'complete' : 'not_started',
+          generationError: undefined,
           lastUpdated: existingItem?.updated_at ? new Date(existingItem.updated_at) : new Date()
         };
       });
@@ -156,25 +163,54 @@ const GenerateListingsPage = () => {
       // Update status to analyzing
       setGeneratedItems(prev => prev.map(i => 
         i.sku === item.sku 
-          ? { ...i, status: 'analyzing' }
+          ? { ...i, status: 'analyzing', generationError: undefined }
           : i
       ));
 
-      // Run AI analysis
-      const analysisResult = await analyzeItem(item.primaryPhoto, {
-        sku: item.sku,
-        photos: item.photos
-      });
-
-      if (!analysisResult.success) {
-        throw new Error(analysisResult.error || 'AI analysis failed');
+      let analysisResult;
+      let aiData = null;
+      let extractedData = null;
+      
+      try {
+        // Run AI analysis with timeout and retry
+        console.log('🤖 [GENERATE-LISTINGS] Starting AI analysis for:', item.primaryPhoto);
+        analysisResult = await analyzeItem(item.primaryPhoto, {
+          sku: item.sku,
+          photos: item.photos,
+          includeMarketResearch: true,
+          includeCategoryAnalysis: true
+        });
+        
+        console.log('📊 [GENERATE-LISTINGS] AI analysis result:', analysisResult);
+        
+        if (!analysisResult.success) {
+          throw new Error(analysisResult.error || 'AI analysis returned unsuccessful result');
+        }
+        
+        aiData = analysisResult.data;
+        
+        if (!aiData) {
+          throw new Error('AI analysis returned no data');
+        }
+        
+        console.log('✅ [GENERATE-LISTINGS] AI analysis successful, extracting data...');
+        
+      } catch (aiError) {
+        console.error('❌ [GENERATE-LISTINGS] AI analysis failed:', aiError);
+        
+        // Create fallback data when AI fails
+        console.log('🔄 [GENERATE-LISTINGS] Creating fallback data for failed AI analysis...');
+        aiData = createFallbackAIData(item);
       }
 
-      const aiData = analysisResult.data;
-      console.log('🤖 [GENERATE-LISTINGS] AI analysis complete:', aiData);
-      
       // Extract structured data
-      const extractedData = extractListingDataFromAI(aiData);
+      try {
+        extractedData = extractListingDataFromAI(aiData, analysisResult?.marketResearch, analysisResult?.categoryAnalysis);
+      } catch (extractError) {
+        console.error('❌ [GENERATE-LISTINGS] Data extraction failed:', extractError);
+        extractedData = createFallbackExtractedData(item);
+      }
+      
       console.log('📊 [GENERATE-LISTINGS] Extracted data:', extractedData);
 
       // Create or update item in database
@@ -198,8 +234,9 @@ const GenerateListingsPage = () => {
           detected_brand: extractedData.brand,
           detected_condition: extractedData.condition,
           key_features: extractedData.keyFeatures || [],
-          market_comparisons: marketResearchData || {},
-          category_suggestions: categoryAnalysisData?.suggestions || []
+          market_comparisons: analysisResult?.marketResearch || {},
+          category_suggestions: analysisResult?.categoryAnalysis?.suggestions || [],
+          ai_source: aiData?.source || 'fallback'
         },
         status: 'draft',
         created_at: new Date().toISOString(),
@@ -217,6 +254,7 @@ const GenerateListingsPage = () => {
 
         if (error) throw error;
         savedItem = data;
+        console.log('✅ [GENERATE-LISTINGS] New item created:', savedItem.id);
       } else {
         // Update existing item
         const { data, error } = await supabase
@@ -228,6 +266,7 @@ const GenerateListingsPage = () => {
 
         if (error) throw error;
         savedItem = data;
+        console.log('✅ [GENERATE-LISTINGS] Existing item updated:', savedItem.id);
       }
 
       // Update local state
@@ -248,7 +287,8 @@ const GenerateListingsPage = () => {
               ai_suggested_keywords: extractedData.keywords || [],
               ai_confidence: extractedData.confidence || 0.8,
               ai_analysis: itemData.ai_analysis,
-              status: 'ready',
+              status: aiData?.source === 'fallback' ? 'needs_attention' : 'ready',
+              generationError: aiData?.source === 'fallback' ? 'AI analysis failed - manual review required' : undefined,
               lastUpdated: new Date()
             }
           : i
@@ -435,8 +475,14 @@ const GenerateListingsPage = () => {
   };
 
   // Extract listing data from AI analysis
-  const extractListingDataFromAI = (aiAnalysis: any) => {
+  const extractListingDataFromAI = (aiAnalysis: any, marketResearch?: any, categoryAnalysis?: any) => {
     console.log('📊 [EXTRACT] Processing AI analysis:', aiAnalysis);
+    
+    // Handle null or undefined aiAnalysis
+    if (!aiAnalysis) {
+      console.log('⚠️ [EXTRACT] No AI analysis data provided, using fallback');
+      return createFallbackExtractedData({ sku: 'unknown' });
+    }
     
     // Debug the AI response
     debugAIResponse(aiAnalysis);
@@ -449,36 +495,40 @@ const GenerateListingsPage = () => {
                   aiAnalysis?.item_name || 
                   aiAnalysis?.product_name || 
                   aiAnalysis?.listing_title ||
-                  generateFallbackTitle(aiAnalysis);
+                  generateFallbackTitle(aiAnalysis) ||
+                  'Item - Manual Review Required';
     
-    // Use market research price if available, otherwise AI price
-    const rawPrice = aiAnalysis?.suggested_price || // Market research price
-                     aiAnalysis?.price || 
+    // Use market research price if available, otherwise AI price, otherwise fallback
+    const rawPrice = marketResearch?.suggestedPrice || // Market research price first
                      aiAnalysis?.suggested_price || 
+                     aiAnalysis?.price || 
                      aiAnalysis?.estimated_price || 
                      aiAnalysis?.estimatedPrice || 
                      aiAnalysis?.suggestedPrice || 
                      aiAnalysis?.market_price || 
                      aiAnalysis?.listing_price ||
-                     35;
+                     25; // Fallback price
     
-    const price = parseFloat(rawPrice) || 35;
+    const price = parseFloat(rawPrice) || 25;
     
-    const brand = aiAnalysis?.brand || 'Unknown Brand';
+    const brand = aiAnalysis?.brand || aiAnalysis?.detected_brand || 'Unknown';
     const size = aiAnalysis?.size || 'Unknown';
-    const condition = aiAnalysis?.condition || 'Good';
-    const category = aiAnalysis?.recommended_category?.categoryName || 
+    const condition = aiAnalysis?.condition || aiAnalysis?.detected_condition || 'good';
+    const category = categoryAnalysis?.recommended?.categoryName ||
+                    aiAnalysis?.recommended_category?.categoryName || 
                     aiAnalysis?.category || 
+                    aiAnalysis?.detected_category ||
                     aiAnalysis?.item_type || 
-                    'Clothing';
-    const color = aiAnalysis?.color || 'Multi-Color';
+                    'other';
+    const color = aiAnalysis?.color || aiAnalysis?.detected_color || 'Various';
     const model_number = aiAnalysis?.model_number || aiAnalysis?.modelNumber || null;
     
     // Enhanced keywords from multiple sources
     const keywords = [
       ...(aiAnalysis?.keywords || []),
       ...(aiAnalysis?.ai_suggested_keywords || []),
-      ...(aiAnalysis?.key_features || [])
+      ...(aiAnalysis?.key_features || []),
+      ...(aiAnalysis?.keyFeatures || [])
     ].filter((keyword, index, array) => 
       keyword && array.indexOf(keyword) === index // Remove duplicates
     ).slice(0, 10); // Limit to 10 keywords
@@ -508,7 +558,7 @@ const GenerateListingsPage = () => {
       model_number,
       keywords,
       keyFeatures,
-      confidence: aiAnalysis?.market_confidence || aiAnalysis?.confidence || 0.8
+      confidence: marketResearch?.confidence || aiAnalysis?.market_confidence || aiAnalysis?.confidence || 0.5
     };
     
     console.log('📋 [EXTRACT] Final extracted data:', extractedData);
@@ -559,6 +609,11 @@ const GenerateListingsPage = () => {
 
   // Debug AI response
   const debugAIResponse = (aiAnalysis: any) => {
+    if (!aiAnalysis) {
+      console.log('🔍 [DEBUG] No AI analysis data to debug');
+      return;
+    }
+    
     console.log('🔍 [DEBUG] =====================================');
     console.log('🔍 [DEBUG] FULL AI ANALYSIS RESPONSE:');
     console.log('🔍 [DEBUG] =====================================');
@@ -601,6 +656,8 @@ const GenerateListingsPage = () => {
 
   // Helper functions
   const generateFallbackTitle = (aiAnalysis: any) => {
+    if (!aiAnalysis) return 'Item - Manual Review Required';
+    
     const brand = aiAnalysis?.brand || 'Quality';
     const category = aiAnalysis?.category || aiAnalysis?.item_type || 'Clothing Item';
     const size = aiAnalysis?.size ? ` Size ${aiAnalysis.size}` : '';
@@ -609,17 +666,63 @@ const GenerateListingsPage = () => {
     return `${brand} ${category}${size}${condition}`;
   };
 
+  // Create fallback AI data when analysis completely fails
+  const createFallbackAIData = (item: GeneratedItem) => {
+    console.log('🔄 [FALLBACK] Creating fallback AI data for SKU:', item.sku);
+    
+    return {
+      title: `Item ${item.sku} - Manual Review Required`,
+      brand: 'Unknown',
+      size: 'Unknown',
+      condition: 'good',
+      category: 'other',
+      color: 'Various',
+      suggested_price: 25,
+      price: 25,
+      confidence: 0.1,
+      key_features: ['manual review required'],
+      keywords: ['item', 'manual review'],
+      source: 'fallback'
+    };
+  };
+
+  // Create fallback extracted data when extraction fails
+  const createFallbackExtractedData = (item: GeneratedItem) => {
+    console.log('🔄 [FALLBACK] Creating fallback extracted data for SKU:', item.sku);
+    
+    return {
+      title: `Item ${item.sku} - Manual Review Required`,
+      description: `This item (SKU: ${item.sku}) requires manual review and editing. The AI analysis was unable to process the image properly. Please review the photos and add details manually.`,
+      price: 25,
+      category: 'other',
+      condition: 'good',
+      brand: 'Unknown',
+      size: 'Unknown',
+      color: 'Various',
+      model_number: null,
+      keywords: ['manual review', 'item'],
+      keyFeatures: ['requires manual review'],
+      confidence: 0.1
+    };
+  };
   const generateListingDescription = ({ title, brand, size, condition, category, color, keywords }) => {
+    // Handle undefined parameters
+    const safeBrand = brand || 'Unknown';
+    const safeSize = size || 'Unknown';
+    const safeCondition = condition || 'good';
+    const safeColor = color || 'Various';
+    const safeKeywords = keywords || [];
+    
     const features = [];
-    if (brand !== 'Unknown Brand') features.push(`Brand: ${brand}`);
-    if (size !== 'Unknown') features.push(`Size: ${size}`);
-    if (condition) features.push(`Condition: ${condition}`);
-    if (color !== 'Multi-Color') features.push(`Color: ${color}`);
+    if (safeBrand !== 'Unknown') features.push(`Brand: ${safeBrand}`);
+    if (safeSize !== 'Unknown') features.push(`Size: ${safeSize}`);
+    if (safeCondition) features.push(`Condition: ${safeCondition}`);
+    if (safeColor !== 'Various') features.push(`Color: ${safeColor}`);
     
     const featureText = features.length > 0 ? features.join(' | ') : 'Quality item in great condition';
-    const keywordText = keywords.length > 0 ? `\n\nKeywords: ${keywords.join(', ')}` : '';
+    const keywordText = safeKeywords.length > 0 ? `\n\nKeywords: ${safeKeywords.join(', ')}` : '';
     
-    return `${title}
+    return `${title || 'Quality Item'}
 
 ${featureText}${keywordText}
 
