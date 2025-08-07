@@ -6,8 +6,9 @@ import { supabase } from '../lib/supabase';
 import ListingsTable from '../components/ListingsTable';
 import EditListingModal from '../components/EditListingModal';
 import { useAIAnalysis } from '../hooks/useAIAnalysis';
-import { safeTrim, isStr, normUnknown, safeStringArray, safeNumber, safeLower } from '../utils/strings';
-import { buildTitle } from '../utils/itemUtils';
+import { mapAIToListing } from '../ai/mapAIToListing';
+import { safeTrim, toStr } from '../utils/strings';
+import { preview } from '../utils/text';
 
 interface SKUGroup {
   sku: string;
@@ -127,17 +128,17 @@ const GenerateListingsPage = () => {
           sku: group.sku,
           photos: group.photos.map(p => p.image_url),
           primaryPhoto,
-          title: existingItem?.title || 'Click Generate to create title',
-          description: existingItem?.description || 'Click Generate to create description',
-          price: existingItem?.suggested_price || 0,
-          category: existingItem?.category || 'other',
-          condition: existingItem?.condition || 'good',
-          brand: existingItem?.brand,
-          size: existingItem?.size,
-          color: existingItem?.color,
-          model_number: existingItem?.model_number,
-          ai_suggested_keywords: existingItem?.ai_suggested_keywords || [],
-          ai_confidence: existingItem?.ai_confidence || 0,
+          title: sanitizedData.title,
+          description: sanitizedData.description,
+          price: sanitizedData.suggested_price,
+          category: normalizeCategory(sanitizedData.item_type),
+          condition: normalizeCondition(sanitizedData.condition),
+          brand: sanitizedData.brand,
+          size: sanitizedData.size,
+          color: sanitizedData.color,
+          model_number: sanitizedData.model_number,
+          ai_suggested_keywords: sanitizedData.keywords || [],
+          ai_confidence: sanitizedData.confidence || 0.8,
           ai_analysis: existingItem?.ai_analysis || {},
           status: existingItem ? 'complete' : 'not_started',
           generationError: undefined,
@@ -157,10 +158,6 @@ const GenerateListingsPage = () => {
   };
 
   // Import safe array helper
-  const safeArray = (v: unknown): any[] => Array.isArray(v) ? v : [];
-
-  // Generate listing for individual item
-  const handleGenerateItem = async (item: GeneratedItem) => {
     try {
       console.log('🚀 [GENERATE-LISTINGS] Starting generation for item:', item.sku);
       
@@ -172,13 +169,12 @@ const GenerateListingsPage = () => {
       ));
 
       let analysisResult;
-      let aiData = null;
-      let extractedData = null;
+      let sanitizedData = null;
       
       try {
         // Run AI analysis with timeout and retry
         console.log('🤖 [GENERATE-LISTINGS] Starting AI analysis for:', item.primaryPhoto);
-        analysisResult = await analyzeItem(item.photos, { // Pass all photos instead of just primary
+        analysisResult = await analyzeItem(item.photos, {
           sku: item.sku,
           photos: item.photos,
           includeMarketResearch: true,
@@ -191,18 +187,22 @@ const GenerateListingsPage = () => {
           throw new Error(analysisResult.error || 'AI analysis returned unsuccessful result');
         }
         
-        aiData = analysisResult.data;
+        const aiData = analysisResult.data;
         
         if (!aiData) {
           throw new Error('AI analysis returned no data');
         }
         
-        console.log('✅ [GENERATE-LISTINGS] AI analysis successful, extracting data...');
+        console.log('✅ [GENERATE-LISTINGS] AI analysis successful, sanitizing data...');
+        
+        // Sanitize AI payload once before UI uses it
+        sanitizedData = mapAIToListing(aiData);
+        console.log('✅ [GENERATE-LISTINGS] AI data sanitized successfully');
         
       } catch (aiError) {
         console.error('❌ [GENERATE-LISTINGS] AI analysis failed:', aiError);
         
-        // Don't create fallback data - mark as needs attention
+        // Don't auto-create generic fallbacks - mark as needs attention
         console.log('🚨 [GENERATE-LISTINGS] AI analysis failed, marking as needs attention');
         setGeneratedItems(prev => prev.map(i => 
           i.sku === item.sku 
@@ -216,53 +216,50 @@ const GenerateListingsPage = () => {
         return; // Exit early, don't continue processing
       }
 
-      // Extract structured data
-      try {
-        extractedData = extractListingDataFromAI(aiData, analysisResult?.marketResearch, analysisResult?.categoryAnalysis);
-      } catch (extractError) {
-        console.error('❌ [GENERATE-LISTINGS] Data extraction failed:', extractError);
-        // Mark as needs attention instead of using fallback
+      // Validate sanitized data
+      if (!sanitizedData || !sanitizedData.title) {
+        console.error('❌ [GENERATE-LISTINGS] Sanitized data is invalid');
         setGeneratedItems(prev => prev.map(i => 
           i.sku === item.sku 
             ? { 
                 ...i, 
                 status: 'needs_attention',
-                generationError: `Data extraction failed: ${extractError.message}`
+                generationError: 'AI returned invalid data structure'
               }
             : i
         ));
         return; // Exit early
       }
       
-      console.log('📊 [GENERATE-LISTINGS] Extracted data:', extractedData);
+      console.log('📊 [GENERATE-LISTINGS] Sanitized data:', sanitizedData);
 
       // Create or update item in database
       const itemData = {
         user_id: authUser.id,
-        title: extractedData.title,
-        description: extractedData.description,
-        suggested_price: extractedData.price,
-        category: extractedData.category,
-        condition: extractedData.condition,
+        title: sanitizedData.title,
+        description: sanitizedData.description,
+        suggested_price: sanitizedData.suggested_price,
+        category: normalizeCategory(sanitizedData.item_type),
+        condition: normalizeCondition(sanitizedData.condition),
         images: item.photos,
         primary_image_url: item.primaryPhoto,
-        brand: extractedData.brand,
-        size: extractedData.size,
-        color: extractedData.color,
-        model_number: extractedData.model_number,
-        ai_suggested_keywords: extractedData.keywords || [],
-        ai_confidence: extractedData.confidence || 0.8,
+        brand: sanitizedData.brand,
+        size: sanitizedData.size,
+        color: sanitizedData.color,
+        model_number: sanitizedData.model_number,
+        ai_suggested_keywords: sanitizedData.keywords || [],
+        ai_confidence: sanitizedData.confidence || 0.8,
         ai_analysis: {
-          detected_category: extractedData.category,
-          detected_brand: extractedData.brand,
-          detected_condition: extractedData.condition,
-          key_features: extractedData.keyFeatures || [],
+          detected_category: sanitizedData.item_type,
+          detected_brand: sanitizedData.brand,
+          detected_condition: sanitizedData.condition,
+          key_features: sanitizedData.key_features || [],
           market_comparisons: analysisResult?.marketResearch || {},
           category_suggestions: analysisResult?.categoryAnalysis?.suggestions || [],
-          ai_source: aiData?.source || 'fallback',
-          evidence: extractedData.evidence || {},
+          ai_source: 'enhanced_ai',
+          evidence: sanitizedData.evidence || {},
           ebay_category_id: analysisResult?.ebay_category_id || null,
-          ebay_item_specifics: extractedData.ebaySpecifics || {},
+          ebay_item_specifics: sanitizedData.ebay_item_specifics || {},
           preprocessing_data: analysisResult?.preprocessing || {}
         },
         status: 'draft',
@@ -497,114 +494,6 @@ const GenerateListingsPage = () => {
     }
   };
 
-  // Extract listing data from AI analysis
-  const extractListingDataFromAI = (aiAnalysis: any, marketResearch?: any, categoryAnalysis?: any) => {
-    console.log('📊 [EXTRACT] Processing AI analysis:', aiAnalysis);
-    
-    // Handle null or undefined aiAnalysis
-    if (!aiAnalysis) {
-      console.log('⚠️ [EXTRACT] No AI analysis data provided, using fallback');
-      throw new Error('No AI analysis data provided');
-    }
-    
-    // Use safe string operations for all field extractions
-    const rawTitle = aiAnalysis?.title || 
-                     aiAnalysis?.suggested_title || 
-                     aiAnalysis?.name || 
-                     aiAnalysis?.itemName || 
-                     aiAnalysis?.item_name || 
-                     aiAnalysis?.product_name || 
-                     aiAnalysis?.listing_title;
-    
-    const title = safeTrim(rawTitle) || buildTitle({
-      brand: normUnknown(aiAnalysis?.brand),
-      item_type: safeTrim(aiAnalysis?.item_type) || 'Item',
-      color: normUnknown(aiAnalysis?.color),
-      size: normUnknown(aiAnalysis?.size)
-    });
-    
-    // Use market research price if available, otherwise AI price, otherwise fallback
-    const rawPrice = marketResearch?.suggestedPrice || 
-                     aiAnalysis?.suggested_price || 
-                     aiAnalysis?.price || 
-                     aiAnalysis?.estimated_price || 
-                     aiAnalysis?.estimatedPrice || 
-                     aiAnalysis?.suggestedPrice || 
-                     aiAnalysis?.market_price || 
-                     aiAnalysis?.listing_price;
-    
-    const price = safeNumber(rawPrice, 25);
-    
-    const brand = normUnknown(aiAnalysis?.brand || aiAnalysis?.detected_brand);
-    const size = normUnknown(aiAnalysis?.size);
-    const condition = safeTrim(aiAnalysis?.condition || aiAnalysis?.detected_condition) || 'good';
-    const category = categoryAnalysis?.recommended?.categoryName ||
-                    aiAnalysis?.recommended_category?.categoryName || 
-                    safeTrim(aiAnalysis?.category) || 
-                    safeTrim(aiAnalysis?.detected_category) ||
-                    safeTrim(aiAnalysis?.item_type) || 
-                    'other';
-    const color = normUnknown(aiAnalysis?.color || aiAnalysis?.detected_color);
-    const model_number = normUnknown(aiAnalysis?.model_number || aiAnalysis?.modelNumber);
-    
-    // Enhanced keywords from multiple sources
-    const keywords = safeStringArray([
-      ...safeArray(aiAnalysis?.keywords),
-      ...safeArray(aiAnalysis?.ai_suggested_keywords),
-      ...safeArray(aiAnalysis?.key_features),
-      ...safeArray(aiAnalysis?.keyFeatures)
-    ]).filter((keyword, index, array) => 
-      keyword && array.indexOf(keyword) === index
-    ).slice(0, 10);
-    
-    const description = safeTrim(aiAnalysis?.description) || 
-                       generateListingDescription({
-                         title, brand, size, condition, category, color, keywords
-                       });
-    
-    // Extract key features for AI analysis
-    const keyFeatures = safeStringArray([
-      ...safeArray(aiAnalysis?.key_features),
-      ...safeArray(aiAnalysis?.keyFeatures),
-      ...safeArray(aiAnalysis?.features)
-    ]).filter((feature, index, array) => 
-      feature && array.indexOf(feature) === index
-    ).slice(0, 8);
-    
-    // Extract eBay item specifics if available
-    const ebaySpecifics = aiAnalysis?.ebay_item_specifics || aiAnalysis?.ebayItemSpecifics || {};
-    
-    // Extract evidence data
-    const evidence = aiAnalysis?.evidence || {};
-    
-    // Safe confidence extraction
-    const confidence = safeNumber(
-      marketResearch?.confidence || 
-      aiAnalysis?.market_confidence || 
-      aiAnalysis?.confidence,
-      0.5
-    );
-    
-    const extractedData = {
-      title,
-      description,
-      price,
-      category: normalizeCategory(category),
-      condition: normalizeCondition(condition),
-      brand,
-      size,
-      color,
-      model_number,
-      keywords,
-      keyFeatures,
-      confidence,
-      ebaySpecifics,
-      evidence
-    };
-    
-    console.log('📋 [EXTRACT] Final extracted data:', extractedData);
-    return extractedData;
-  };
 
   // Helper function to link photos to a generated item
   const linkPhotosToItem = async (sku: string, itemId: string) => {
@@ -657,7 +546,7 @@ const GenerateListingsPage = () => {
 
   // Normalize category to match database enum
   const normalizeCategory = (category: string): string => {
-    const normalized = safeLower(category);
+    const normalized = safeLower(toStr(category));
     const categoryMap: Record<string, string> = {
       'clothing': 'clothing',
       'jacket': 'clothing',
@@ -682,7 +571,7 @@ const GenerateListingsPage = () => {
 
   // Normalize condition to match database enum
   const normalizeCondition = (condition: string): string => {
-    const normalized = safeLower(condition);
+    const normalized = safeLower(toStr(condition));
     const conditionMap: Record<string, string> = {
       'new': 'like_new',
       'like new': 'like_new',
@@ -699,31 +588,6 @@ const GenerateListingsPage = () => {
 
 
   // Helper functions
-  const generateListingDescription = ({ title, brand, size, condition, category, color, keywords }) => {
-    // Handle undefined parameters
-    const safeBrand = safeTrim(brand) || 'Unknown';
-    const safeSize = safeTrim(size) || 'Unknown';
-    const safeCondition = safeTrim(condition) || 'good';
-    const safeColor = safeTrim(color) || 'Various';
-    const safeKeywords = safeStringArray(keywords);
-    
-    const features = [];
-    if (safeBrand !== 'Unknown') features.push(`Brand: ${safeBrand}`);
-    if (safeSize !== 'Unknown') features.push(`Size: ${safeSize}`);
-    if (safeCondition) features.push(`Condition: ${safeCondition}`);
-    if (safeColor !== 'Various') features.push(`Color: ${safeColor}`);
-    
-    const featureText = features.length > 0 ? features.join(' | ') : 'Quality item in great condition';
-    const keywordText = safeKeywords.length > 0 ? `\n\nKeywords: ${safeKeywords.join(', ')}` : '';
-    
-    return `${safeTrim(title) || 'Quality Item'}
-
-${featureText}${keywordText}
-
-This item is carefully inspected and ready to ship. Check out our other listings for more great deals!
-
-Fast shipping and excellent customer service guaranteed.`;
-  };
 
   // Calculate stats
   const stats = {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Edit, Trash2, Zap, Eye, ExternalLink } from 'lucide-react';
 import StatusBadge from './StatusBadge';
-import { safeTrim } from '../utils/strings';
+import { safeTrim, toStr } from '../utils/strings';
 
 interface GeneratedItem {
   id: string;
@@ -63,7 +63,7 @@ const ListingRow: React.FC<ListingRowProps> = ({
 
   const formatItemSpecifics = (specifics: Record<string, string>) => {
     const entries = Object.entries(specifics).filter(([key, value]) => {
-      const trimmedValue = safeTrim(value);
+      const trimmedValue = safeTrim(toStr(value));
       return trimmedValue && trimmedValue !== 'Unknown' && trimmedValue !== 'Unknown Brand';
     });
     
@@ -195,11 +195,11 @@ const ListingRow: React.FC<ListingRowProps> = ({
         <div className="col-span-2">
           <div className="text-xs text-gray-600">
             {formatItemSpecifics({
-              Brand: item.brand || 'Unknown',
-              Size: item.size || 'Unknown',
-              Condition: item.condition || 'Unknown',
-              Color: item.color || 'Unknown',
-              Category: item.category || 'Unknown'
+              Brand: item.brand ?? 'Unknown',
+              Size: item.size ?? 'Unknown',
+              Condition: item.condition ?? 'Unknown',
+              Color: item.color ?? 'Unknown',
+              Category: item.category ?? 'Unknown'
             })}
           </div>
         </div>

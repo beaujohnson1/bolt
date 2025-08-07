@@ -1,9 +1,9 @@
 // Utility functions for item data processing
-import { safeTrim, safeLower, safeUpper, isStr, normUnknown, safeSlice } from './strings';
+import { safeTrim, safeLower, safeUpper, isStr, nullIfUnknown, safeSlice, toStr, take } from './strings';
 
 // Normalize condition values from AI to match database enum
 export const normalizeCondition = (condition: string): string => {
-  const trimmed = safeTrim(condition);
+  const trimmed = safeTrim(toStr(condition));
   if (!trimmed) return 'good';
   
   const normalized = safeLower(trimmed);
@@ -23,7 +23,7 @@ export const normalizeCondition = (condition: string): string => {
 
 // Normalize category values from AI to match database enum
 export const normalizeCategory = (category: string): string => {
-  const trimmed = safeTrim(category);
+  const trimmed = safeTrim(toStr(category));
   if (!trimmed) return 'clothing';
   
   const normalized = safeLower(trimmed);
@@ -65,13 +65,13 @@ export const normalizeCategory = (category: string): string => {
  */
 export const generateSKU = (item: { brand?: string; category?: string; size?: string }): string => {
   try {
-    const brand = safeTrim(item.brand) || 'UNK';
-    const itemType = safeTrim(item.category) || 'ITEM';
-    const size = safeTrim(item.size) || 'OS'; // OS = One Size
+    const brand = safeTrim(toStr(item.brand)) || 'UNK';
+    const itemType = safeTrim(toStr(item.category)) || 'ITEM';
+    const size = safeTrim(toStr(item.size)) || 'OS'; // OS = One Size
     const timestamp = Date.now().toString().slice(-6); // Last 6 digits of timestamp
     
     // Create SKU: BRAND-TYPE-SIZE-TIMESTAMP
-    const sku = `${safeSlice(brand, 0, 3).toUpperCase()}-${safeSlice(itemType, 0, 3).toUpperCase()}-${safeUpper(size)}-${timestamp}`;
+    const sku = `${take(brand, 3).toUpperCase()}-${take(itemType, 3).toUpperCase()}-${safeUpper(size)}-${timestamp}`;
     
     console.log('✅ [SKU] Generated SKU:', sku, 'for item:', item);
     return sku;
@@ -113,6 +113,7 @@ export const formatDate = (dateString: string): string => {
 };
 // Get category path for eBay-style hierarchy
 export const getCategoryPath = (category: string): string => {
+  const safeCategory = safeTrim(toStr(category));
   const categoryPaths: { [key: string]: string } = {
     'clothing': 'Clothing, Shoes & Accessories > Clothing',
     'shoes': 'Clothing, Shoes & Accessories > Shoes',
@@ -126,16 +127,16 @@ export const getCategoryPath = (category: string): string => {
     'collectibles': 'Collectibles',
     'other': 'Everything Else'
   };
-  return categoryPaths[category] || 'Everything Else';
+  return categoryPaths[safeLower(safeCategory)] || 'Everything Else';
 };
 
 // Get item specifics for display
 export const getItemSpecifics = (item: { brand?: string; size?: string; color?: string; model_number?: string }): string => {
   const specifics = [];
-  const brand = safeTrim(item.brand);
-  const size = safeTrim(item.size);
-  const color = safeTrim(item.color);
-  const model = safeTrim(item.model_number);
+  const brand = safeTrim(toStr(item.brand));
+  const size = safeTrim(toStr(item.size));
+  const color = safeTrim(toStr(item.color));
+  const model = safeTrim(toStr(item.model_number));
   
   if (brand) specifics.push(`Brand: ${brand}`);
   if (size) specifics.push(`Size: ${size}`);
@@ -163,7 +164,7 @@ const KNOWN_BRANDS = [
  * @returns Extracted size or null if not found
  */
 export const extractSize = (ocrText: string): string | null => {
-  const text = safeTrim(ocrText);
+  const text = safeTrim(toStr(ocrText));
   if (!text) return null;
   
   try {
@@ -213,7 +214,7 @@ export const extractSize = (ocrText: string): string | null => {
  * @returns Extracted brand or null if not found
  */
 export const extractBrand = (ocrText: string, brands: string[] = KNOWN_BRANDS): string | null => {
-  const text = safeTrim(ocrText);
+  const text = safeTrim(toStr(ocrText));
   if (!text) return null;
   
   try {
@@ -248,12 +249,12 @@ export const buildTitle = (components: {
   gender?: string | null;
   fabric?: string | null;
 }): string => {
-  const brand = normUnknown(components.brand);
-  const itemType = safeTrim(components.item_type);
-  const color = normUnknown(components.color);
-  const size = normUnknown(components.size);
-  const gender = normUnknown(components.gender);
-  const fabric = normUnknown(components.fabric);
+  const brand = nullIfUnknown(components.brand);
+  const itemType = safeTrim(toStr(components.item_type));
+  const color = nullIfUnknown(components.color);
+  const size = nullIfUnknown(components.size);
+  const gender = nullIfUnknown(components.gender);
+  const fabric = nullIfUnknown(components.fabric);
   
   const parts = [
     brand,
@@ -261,7 +262,7 @@ export const buildTitle = (components: {
     itemType,
     fabric,
     color,
-    size ? `Size ${safeUpper(size)}` : "Size Unknown",
+    size ? `Size ${safeUpper(toStr(size))}` : "Size Unknown",
   ].filter(Boolean);
   
   const title = parts.join(" ");
@@ -271,6 +272,6 @@ export const buildTitle = (components: {
 
 // Helper function to capitalize first letter
 const cap = (s: string): string => {
-  const str = safeTrim(s);
+  const str = safeTrim(toStr(s));
   return str.charAt(0).toUpperCase() + safeSlice(str, 1).toLowerCase();
 };

@@ -3,7 +3,7 @@ import { convertToBase64, fetchImageAsBase64 } from '../utils/imageUtils';
 import { extractTagText, cropAndReocr } from '../utils/imageUtils';
 import { extractSize, extractBrand, buildTitle } from '../utils/itemUtils';
 import { visionClient } from '../lib/googleVision';
-import { safeTrim, normUnknown, safeUpper } from '../utils/strings';
+import { safeTrim, nullIfUnknown, safeUpper, toStr } from '../utils/strings';
 
 // Primary clothing analysis function - now accepts URL or base64
 export const analyzeClothingItem = async (imageUrls, options = {}) => {
@@ -92,18 +92,18 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     console.log('🔧 [OPENAI-CLIENT] Step 4: Post-processing AI results...');
     
     // Override with deterministic finds when model returns null
-    if (!safeTrim(ai.size) && preSize) {
+    if (!safeTrim(toStr(ai.size)) && preSize) {
       console.log('🔄 [POST-PROCESS] Overriding AI size with pre-extracted:', preSize);
       ai.size = preSize;
     }
-    if (!safeTrim(ai.brand) && preBrand) {
+    if (!safeTrim(toStr(ai.brand)) && preBrand) {
       console.log('🔄 [POST-PROCESS] Overriding AI brand with pre-extracted:', preBrand);
       ai.brand = preBrand;
     }
 
     // Never save literal "Unknown"
     for (const k of ["brand", "size", "color"]) {
-      const value = safeTrim(ai[k]);
+      const value = safeTrim(toStr(ai[k]));
       if (value && /unknown/i.test(value)) {
         console.log(`🔄 [POST-PROCESS] Removing "Unknown" from ${k}:`, ai[k]);
         ai[k] = null;
@@ -111,17 +111,17 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     }
 
     // Rebuild clean title
-    const hasBrand = safeTrim(ai.brand);
-    const hasItemType = safeTrim(ai.item_type);
-    const hasColor = safeTrim(ai.color);
-    const hasSize = safeTrim(ai.size);
+    const hasBrand = safeTrim(toStr(ai.brand));
+    const hasItemType = safeTrim(toStr(ai.item_type));
+    const hasColor = safeTrim(toStr(ai.color));
+    const hasSize = safeTrim(toStr(ai.size));
     
     if (hasBrand || hasItemType || hasColor || hasSize) {
       const newTitle = buildTitle({
-        brand: normUnknown(ai.brand),
+        brand: nullIfUnknown(ai.brand),
         item_type: hasItemType || 'Item',
-        color: normUnknown(ai.color),
-        size: normUnknown(ai.size)
+        color: nullIfUnknown(ai.color),
+        size: nullIfUnknown(ai.size)
       });
       console.log('🏗️ [POST-PROCESS] Rebuilt title:', newTitle);
       ai.title = newTitle;
@@ -129,10 +129,10 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     
     // Optional coercions/guards
     if (isStr(ai.suggested_price)) {
-      const parsed = parseFloat(safeTrim(ai.suggested_price));
+      const parsed = parseFloat(safeTrim(toStr(ai.suggested_price)));
       ai.suggested_price = isNaN(parsed) ? 25 : parsed;
     }
-    if (!safeTrim(ai.title)) {
+    if (!safeTrim(toStr(ai.title))) {
       throw new Error("AI payload missing title");
     }
     

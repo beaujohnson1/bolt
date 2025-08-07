@@ -9,7 +9,11 @@ function stripFences(s) {
 
 // Safe string helpers for server-side processing
 function safeTrim(v) {
-  return typeof v === "string" ? v.trim() : String(v || "").trim();
+  return String(v || "").trim();
+}
+
+function toStr(v) {
+  return v == null ? "" : String(v);
 }
 
 function safeStringify(obj) {
@@ -239,7 +243,7 @@ exports.handler = async (event, context) => {
 function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspects = [], knownFields = {}) {
   console.log('📝 [OPENAI-FUNCTION] Generating prompt for analysis type:', analysisType);
   console.log('📝 [OPENAI-FUNCTION] Prompt context:', {
-    ocrTextLength: safeTrim(ocrText).length,
+    ocrTextLength: toStr(ocrText).length,
     candidatesProvided: Object.keys(candidates),
     ebayAspectsCount: Array.isArray(ebayAspects) ? ebayAspects.length : 0,
     knownFieldsProvided: Object.keys(knownFields)
@@ -262,7 +266,7 @@ KNOWN_FIELDS (from previous analysis):
 ${safeStringify(knownFields)}
 
 OCR_TEXT:
-${safeTrim(ocrText)}`;
+${toStr(ocrText)}`;
 
   // Add eBay aspects if provided
   let ebayAspectsPrompt = '';
@@ -270,7 +274,7 @@ ${safeTrim(ocrText)}`;
     ebayAspectsPrompt = `
 
 EBAY ITEM SPECIFICS (fill these exactly):
-${safeStringify(ebayAspects.slice(0, 15))}
+${safeStringify(ebayAspects.slice(0, 10))}
 
 For each aspect:
 - If it has allowedValues, choose ONE from the list (best match)

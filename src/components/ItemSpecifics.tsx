@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, X } from 'lucide-react';
-import { safeTrim, normUnknown } from '../utils/strings';
+import { safeTrim, nullIfUnknown, toStr } from '../utils/strings';
 
 interface ItemSpecificsProps {
   specifics: Record<string, string>;
@@ -32,7 +32,7 @@ const ItemSpecifics: React.FC<ItemSpecificsProps> = ({
 
   const updateSpecific = (key: string, value: string) => {
     const updated = { ...specifics };
-    const trimmedValue = safeTrim(value);
+    const trimmedValue = safeTrim(toStr(value));
     if (trimmedValue) {
       updated[key] = trimmedValue;
     } else {
@@ -42,8 +42,8 @@ const ItemSpecifics: React.FC<ItemSpecificsProps> = ({
   };
 
   const addCustomSpecific = () => {
-    const trimmedKey = safeTrim(newKey);
-    const trimmedValue = safeTrim(newValue);
+    const trimmedKey = safeTrim(toStr(newKey));
+    const trimmedValue = safeTrim(toStr(newValue));
     if (trimmedKey && trimmedValue) {
       updateSpecific(trimmedKey, trimmedValue);
       setNewKey('');
@@ -97,7 +97,7 @@ const ItemSpecifics: React.FC<ItemSpecificsProps> = ({
                 onChange={(e) => {
                   const updated = { ...specifics };
                   delete updated[key];
-                  const newKey = safeTrim(e.target.value);
+                  const newKey = safeTrim(toStr(e.target.value));
                   if (newKey) {
                     updated[newKey] = value;
                   }
@@ -109,7 +109,7 @@ const ItemSpecifics: React.FC<ItemSpecificsProps> = ({
               <input
                 type="text"
                 value={value}
-                onChange={(e) => updateSpecific(key, safeTrim(e.target.value))}
+                onChange={(e) => updateSpecific(key, safeTrim(toStr(e.target.value)))}
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 placeholder="Value"
               />
@@ -156,7 +156,7 @@ const ItemSpecifics: React.FC<ItemSpecificsProps> = ({
         <h4 className="font-medium text-gray-700">SEO Keywords</h4>
         <textarea
           value={specifics.keywords || ''}
-          onChange={(e) => updateSpecific('keywords', safeTrim(e.target.value))}
+          onChange={(e) => updateSpecific('keywords', safeTrim(toStr(e.target.value)))}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
           rows={3}
           placeholder="Enter keywords separated by commas"
