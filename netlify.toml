@@ -4,6 +4,7 @@
 
 [functions]
   directory = "netlify/functions"
+  timeout = 30
 
 [[redirects]]
   from = "/*"
@@ -13,5 +14,3 @@
 [build.environment]
   NODE_VERSION = "18"
 
-[functions]
-  timeout = 30
