@@ -153,6 +153,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Debounced auth state change handler to prevent rapid successive updates
   const handleAuthStateChange = React.useCallback(
     debounceAsync(async (event: string, session: any) => {
+      // Always set loading to true at the start of processing any auth state change
+      setLoading(true);
+      
       console.log('🔄 [AUTH] Auth state change detected:', {
         event,
         userEmail: session?.user?.email || 'no user',
@@ -211,78 +214,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authEffectInitialized.current = true;
     console.log('🔄 [AUTH] Auth effect triggered - setting up authentication listeners');
     
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        console.log('🔍 [AUTH] Getting initial session...');
-        const { data: { session }, error } = await withTimeout(
-          supabase.auth.getSession(),
-          SESSION_TIMEOUT,
-          'Session fetch timed out'
-        );
-        
-        console.log('📊 [AUTH] Initial session result:', { session: session ? 'exists' : 'null', error });
-        
-        if (error) {
-          console.error('❌ [AUTH] Error getting initial session:', error);
-          if (error.message.includes('session_not_found') || error.message.includes('JWT')) {
-            console.log('🔄 [AUTH] Attempting to refresh session...');
-            const { data: refreshData, error: refreshError } = await withTimeout(
-              supabase.auth.refreshSession(),
-              SESSION_TIMEOUT,
-              'Session refresh timed out'
-            );
-            
-            if (refreshError) {
-              console.error('❌ [AUTH] Session refresh failed:', refreshError);
-              setUser(null);
-              setAuthUser(null);
-              return;
-            }
-            
-            if (refreshData.session) {
-              console.log('✅ [AUTH] Session refreshed successfully');
-              setAuthUser(refreshData.session.user);
-              const profile = await fetchUserProfile(refreshData.session.user);
-              setUser(profile);
-            }
-          }
-          return;
-        }
-
-        if (session) {
-          console.log('📱 [AUTH] Initial session found for user:', session.user.email);
-          setAuthUser(session.user);
-          console.log('🔄 [AUTH] Fetching user profile for initial session...');
-          const profile = await withRetry(
-            () => withTimeout(
-              fetchUserProfile(session.user),
-              PROFILE_FETCH_TIMEOUT,
-              'User profile fetch timed out during initial session'
-            ),
-            3, // maxRetries
-            2000 // baseDelay
-          );
-          console.log('📊 [AUTH] Profile fetch result for initial session:', profile ? 'success' : 'failed');
-          console.log('📊 [AUTH] Initial profile data:', {
-            listings_used: profile?.listings_used,
-            listings_limit: profile?.listings_limit,
-            user_id: profile?.id
-          });
-          setUser(profile);
-        } else {
-          console.log('ℹ️ [AUTH] No initial session found');
-        }
-      } catch (error) {
-        console.error('❌ [AUTH] Unexpected error getting initial session:', error);
-      } finally {
-        // Always set loading to false, regardless of success or failure
-        console.log('🏁 [AUTH] Initial session check complete, setting loading to false');
-        setLoading(false);
-      }
-    };
-
+    // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+
+    // Get initial session and trigger auth state change handler
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('❌ [AUTH] Error getting initial session:', error);
+        handleAuthStateChange('INITIAL_SESSION_ERROR', null);
+      } else {
+        console.log('📱 [AUTH] Initial session check:', session ? 'found' : 'not found');
+        handleAuthStateChange('INITIAL_SESSION', session);
+      }
+    });
 
     console.log('✅ [AUTH] Auth listeners set up successfully');
 
@@ -290,7 +234,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscription.unsubscribe();
       authEffectInitialized.current = false; // Reset flag on cleanup
     };
-  }, []);
+  }, [handleAuthStateChange]);
 
   const signUp = async (email: string, password: string, name: string) => {
     try {
