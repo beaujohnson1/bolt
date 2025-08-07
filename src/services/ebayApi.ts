@@ -129,6 +129,8 @@ class EbayApiService {
   private accessToken: string | null = null;
   private categoryCache: Map<string, EbayCategory> = new Map();
   private priceCache: Map<string, MarketResearchData> = new Map();
+  private static instance: EbayApiService; // Singleton instance
+
 
   constructor(redirectUri: string = `${window.location.origin}/auth/ebay/callback`) {
     // Determine environment and select appropriate credentials
@@ -177,6 +179,11 @@ class EbayApiService {
       baseUrl: this.config.baseUrl,
       hasCredentials: true
     });
+
+    // Singleton enforcement
+    if (EbayApiService.instance) {
+      return EbayApiService.instance;
+    }
   }
 
   // Authentication
@@ -674,7 +681,7 @@ class EbayApiService {
       // Use eBay Browse API to get popular items
       // Note: This endpoint doesn't require user authentication, just app credentials
       const searchParams = new URLSearchParams({
-        category_ids: categoryIds.length > 0 ? categoryIds.join(',') : '11450,15724,1249,11233', // Default popular categories
+        category_ids: categoryIds.length > 0 ? categoryIds.join(',') : '11450,15724,1249,11233', // Default popular categories if none provided
         limit: limit.toString(),
         sort: 'newlyListed', // Can also use 'price', 'distance', 'endingSoonest'
         filter: 'buyingOptions:{FIXED_PRICE},itemLocationCountry:US,deliveryCountry:US',
@@ -870,7 +877,7 @@ class EbayApiService {
    * Get eBay category tree
    */
   async getCategories(levelLimit: number = 3): Promise<EbayCategory[]> {
-    try {
+    try { // Removed retry logic from here, moved to useAIAnalysis hook
       console.log('📂 [EBAY] Fetching eBay category tree...');
       
       // Check cache first
@@ -885,7 +892,7 @@ class EbayApiService {
       }
 
       // Fetch from eBay API
-      const xmlBody = this.buildTradingApiXml('GetCategories', {
+      const xmlBody = this.buildTradingApiXml('GetCategories', { // Use buildTradingApiXml
         DetailLevel: 'ReturnAll',
         ViewAllNodes: true,
         LevelLimit: levelLimit
@@ -918,7 +925,7 @@ class EbayApiService {
       console.log('✅ [EBAY] Categories fetched and cached:', categories.length);
       return categories;
     } catch (error) {
-      console.error('❌ [EBAY] Error fetching categories:', error);
+      console.error('❌ [EBAY] Error fetching categories:', error); // Log error
       throw error;
     }
   }
@@ -927,7 +934,7 @@ class EbayApiService {
    * Get item specifics for a category
    */
   async getCategorySpecifics(categoryId: string): Promise<ItemSpecific[]> {
-    try {
+    try { // Removed retry logic from here, moved to useAIAnalysis hook
       console.log('📋 [EBAY] Fetching category specifics for:', categoryId);
       
       // Check if we have cached specifics
@@ -943,7 +950,7 @@ class EbayApiService {
         return cachedCategory.item_specifics;
       }
 
-      const xmlBody = this.buildTradingApiXml('GetCategorySpecifics', {
+      const xmlBody = this.buildTradingApiXml('GetCategorySpecifics', { // Use buildTradingApiXml
         CategoryID: categoryId,
         IncludeConfidence: true,
         IncludeHelpText: true
@@ -982,7 +989,7 @@ class EbayApiService {
       console.log('✅ [EBAY] Category specifics fetched and cached');
       return specifics;
     } catch (error) {
-      console.error('❌ [EBAY] Error fetching category specifics:', error);
+      console.error('❌ [EBAY] Error fetching category specifics:', error); // Log error
       return []; // Return empty array as fallback
     }
   }
@@ -995,7 +1002,7 @@ class EbayApiService {
    * Search for completed items using Browse API
    */
   async searchCompletedItems(query: string, categoryId?: string, options: any = {}): Promise<CompletedListing[]> {
-    try {
+    try { // Removed retry logic from here, moved to useAIAnalysis hook
       console.log('🔍 [EBAY] Searching completed items:', { query, categoryId });
       
       const searchParams = new URLSearchParams({
@@ -1043,7 +1050,7 @@ class EbayApiService {
       console.log('✅ [EBAY] Found completed items:', completedListings.length);
       return completedListings;
     } catch (error) {
-      console.error('❌ [EBAY] Error searching completed items:', error);
+      console.error('❌ [EBAY] Error searching completed items:', error); // Log error
       return [];
     }
   }
@@ -1055,7 +1062,7 @@ class EbayApiService {
     title: string, 
     categoryId: string, 
     condition: string = 'Used', 
-    brand?: string
+    brand?: string // Removed retry logic from here, moved to useAIAnalysis hook
   ): Promise<MarketResearchData> {
     try {
       const searchKey = this.generateSearchKey(title, categoryId, condition, brand);
@@ -1112,7 +1119,7 @@ class EbayApiService {
       console.log('✅ [EBAY] Price research completed and cached');
       return priceAnalysis;
     } catch (error) {
-      console.error('❌ [EBAY] Error getting price suggestion:', error);
+      console.error('❌ [EBAY] Error getting price suggestion:', error); // Log error
       // Return fallback pricing
       return {
         averagePrice: 25,
@@ -1130,7 +1137,7 @@ class EbayApiService {
    * Suggest eBay category based on item details
    */
   async suggestCategory(title: string, description: string, brand?: string): Promise<EbayCategory[]> {
-    try {
+    try { // Removed retry logic from here, moved to useAIAnalysis hook
       console.log('🎯 [EBAY] Suggesting category for:', { title, brand });
       
       // Get all categories from cache
@@ -1179,7 +1186,7 @@ class EbayApiService {
       console.log('✅ [EBAY] Category suggestions:', suggestions.length);
       return suggestions;
     } catch (error) {
-      console.error('❌ [EBAY] Error suggesting category:', error);
+      console.error('❌ [EBAY] Error suggesting category:', error); // Log error
       return this.getFallbackCategories();
     }
   }

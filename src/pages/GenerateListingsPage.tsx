@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, RefreshCw, Zap, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext'; // Keep this import
 import { supabase } from '../lib/supabase';
 import ListingsTable from '../components/ListingsTable';
 import EditListingModal from '../components/EditListingModal';
@@ -164,7 +164,7 @@ const GenerateListingsPage = () => {
       ));
 
       // Run AI analysis
-      const analysisResult = await analyzeItem(item.primaryPhoto, {
+      const analysisResult = await analyzeItem(item.primaryPhoto, { // Use analyzeItem from useAIAnalysis hook
         sku: item.sku,
         photos: item.photos
       });
@@ -175,7 +175,7 @@ const GenerateListingsPage = () => {
 
       const aiData = analysisResult.data;
       console.log('🤖 [GENERATE-LISTINGS] AI analysis complete:', aiData);
-
+      
       // Extract structured data
       const extractedData = extractListingDataFromAI(aiData);
       console.log('📊 [GENERATE-LISTINGS] Extracted data:', extractedData);
@@ -271,6 +271,20 @@ const GenerateListingsPage = () => {
       ));
     }
   };
+  
+  // Fallback listing generation for error handling
+  const generateFallbackListing = (item: ListingItem) => {
+    return {
+      ...item,
+      title: `Item ${item.sku} - Manual Review Required`,
+      description: 'This item requires manual review and editing due to an AI analysis failure.',
+      price: 0,
+      categoryPath: '',
+      categoryId: '',
+      itemSpecifics: {},
+      keywords: [],
+    };
+  };
 
   // Generate all listings
   const handleGenerateAll = async () => {
@@ -286,13 +300,27 @@ const GenerateListingsPage = () => {
     setBulkGenerating(true);
     
     try {
-      console.log('🚀 [GENERATE-LISTINGS] Starting bulk generation for', itemsToGenerate.length, 'items');
+      console.log('🚀 [GENERATE-LISTINGS] Starting bulk generation for', itemsToGenerate.length, 'items.');
       
-      // Process items sequentially to avoid rate limits
       for (const item of itemsToGenerate) {
-        await handleGenerateItem(item);
-        // Add small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+          // Set item status to "analyzing"
+          setListingItems(prev => prev.map(i => 
+            i.sku === item.sku 
+              ? { ...i, status: 'analyzing', generationError: undefined }
+              : i
+          ));
+          await handleGenerateItem(item);
+          // Add small delay between requests to avoid rate limits
+          await new Promise(resolve => setTimeout(resolve, 1000)); 
+        } catch (error) {
+          console.error(`❌ [GENERATE-LISTINGS] Bulk generation failed for item ${item.sku}:`, error);
+          setListingItems(prev => prev.map(i => 
+            i.sku === item.sku 
+              ? { ...generateFallbackListing(item), status: 'needs_attention', generationError: error.message }
+              : i
+          ));
+        }
       }
       
       console.log('✅ [GENERATE-LISTINGS] Bulk generation complete');

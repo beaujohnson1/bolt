@@ -3,6 +3,7 @@ import { analyzeClothingItem } from '../services/openaiService.js';
 import EbayApiService from '../services/ebayApi';
 import EbayCategoryManager from '../services/EbayCategoryManager';
 import EbayMarketResearch from '../services/EbayMarketResearch';
+import { withRetry } from '../utils/promiseUtils'; // Import withRetry
 import { supabase } from '../lib/supabase';
 
 interface AnalysisOptions {
@@ -30,20 +31,26 @@ export const useAIAnalysis = () => {
   const marketResearch = new EbayMarketResearch(ebayService, supabase);
 
   const analyzeItem = async (imageUrl: string, options: AnalysisOptions = {}): Promise<AnalysisResult> => {
+    console.log('🤖 [AI-ANALYSIS] Starting analysis for:', { imageUrl: imageUrl.substring(0, 50) + '...', options });
     setIsAnalyzing(true);
     setAnalysisError(null);
 
     try {
-      console.log('🤖 [AI-ANALYSIS] Starting analysis for:', { imageUrl: imageUrl.substring(0, 50) + '...', options });
-
       // Use the existing OpenAI service
-      const result = await analyzeClothingItem(imageUrl);
+      const result = await withRetry( // Apply retry logic here
+        () => analyzeClothingItem(imageUrl),
+        3, // maxRetries
+        1000 // baseDelay
+      );
 
       if (!result.success) {
         throw new Error(result.error || 'AI analysis failed');
       }
 
       console.log('✅ [AI-ANALYSIS] Analysis complete:', result);
+      
+      // Extract AI data from the result
+      const aiData = result.analysis || result.data;
 
       return {
         success: true,
@@ -51,7 +58,7 @@ export const useAIAnalysis = () => {
       };
       // Step 2: Enhanced eBay integration (if requested)
       let marketResearchData = null;
-      let categoryAnalysisData = null;
+      let categoryAnalysisData = null; // Keep this line
 
       if (options.includeMarketResearch && aiData.title) {
         try {
