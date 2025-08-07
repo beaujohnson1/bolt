@@ -6,6 +6,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
 import EbayApiService, { type TrendingItem } from '../services/ebayApi';
 import DashboardLayout from '../components/DashboardLayout';
+import { resizeImage, calculateImageHash, processImagesWithEnhancement } from '../utils/imageUtils';
+import { normalizeCondition, normalizeCategory, generateSKU } from '../utils/itemUtils';
+import KeywordOptimizationService from '../services/KeywordOptimizationService';
 
 // Types for dashboard data
 interface DashboardStats {
@@ -160,10 +163,10 @@ const UploadTab: React.FC<{
                 </div>
               </div>
             ))}
-            {selectedFiles.length > 8 && (
+                  {processingStatus || `Processing ${selectedFiles.length} photos...`}
               <div className="bg-white/10 dark:bg-white/10 rounded-lg p-3 text-center flex items-center justify-center">
                 <div className="text-white/80 dark:text-white/80 text-sm">
-                  +{selectedFiles.length - 8} more
+                  Please wait while we process your photos with AI...
                 </div>
               </div>
             )}
@@ -194,27 +197,129 @@ const UploadTab: React.FC<{
 };
 
 // SKU Tab Component
-const SKUTab: React.FC<{ selectedFiles: File[] }> = ({ selectedFiles }) => {
+const SKUTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({ setActiveTab }) => {
+  const { authUser } = useAuth();
+  const [itemsToSku, setItemsToSku] = useState<Item[]>([]);
+  const [loadingSkus, setLoadingSkus] = useState(true);
+  const [assigningSkus, setAssigningSkus] = useState(false);
+
+  useEffect(() => {
+    const fetchItems = async () => {
+      if (!authUser) return;
+      setLoadingSkus(true);
+      try {
+        const { data, error } = await supabase
+          .from('items')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .eq('status', 'draft') // Fetch items in draft status
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        setItemsToSku(data || []);
+      } catch (error) {
+        console.error('Error fetching items for SKU assignment:', error);
+        alert('Failed to load items for SKU assignment.');
+      } finally {
+        setLoadingSkus(false);
+      }
+    };
+    fetchItems();
+  }, [authUser]);
+
+  const handleAssignSkus = async () => {
+    if (itemsToSku.length === 0) {
+      alert('No items to assign SKUs to.');
+      return;
+    }
+    setAssigningSkus(true);
+    try {
+      const updates = itemsToSku.map((item, index) => ({
+        id: item.id,
+        sku: generateSKU(index), // Sequential SKU
+        status: 'sku_assigned' // Update status
+      }));
+
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('items')
+          .update({ sku: update.sku, status: update.status })
+          .eq('id', update.id);
+
+        if (error) throw error;
+      }
+
+      alert('SKUs assigned successfully!');
+      setActiveTab('generate'); // Move to Generate Listings tab
+    } catch (error) {
+      console.error('Error assigning SKUs:', error);
+      alert('Failed to assign SKUs. Please try again.');
+    } finally {
+      setAssigningSkus(false);
+    }
+  };
+
+  if (loadingSkus) {
+    return (
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyber-blue-500 mx-auto mb-4"></div>
+        <p className="text-white/70">Loading items for SKU assignment...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
         <h2 className="text-xl font-bold mb-4 text-white dark:text-white">🏷️ Assign SKU Numbers</h2>
         <p className="text-white/80 dark:text-white/80 mb-6">
-          Review and assign SKU numbers to your processed items.
+          Review your processed items and assign sequential SKU numbers.
         </p>
         
-        {selectedFiles.length > 0 ? (
-          <div className="text-center py-8">
-            <Package className="w-16 h-16 text-cyber-blue-500 mx-auto mb-4" />
-            <p className="text-white/70 dark:text-white/70">
-              {selectedFiles.length} files ready for SKU assignment
-            </p>
-          </div>
+        {itemsToSku.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              {itemsToSku.map((item, index) => (
+                <div key={item.id} className="bg-white/10 rounded-lg p-4 text-center">
+                  <img
+                    src={item.primary_image_url || 'https://via.placeholder.com/150'}
+                    alt={item.title}
+                    className="w-full h-32 object-cover rounded-md mb-3"
+                  />
+                  <div className="space-y-2">
+                    <p className="text-sm text-white/90 font-medium truncate">{item.title}</p>
+                    <p className="text-xs text-white/60">Brand: {item.brand || 'Unknown'}</p>
+                    <p className="text-xs text-white/60">Price: ${item.suggested_price}</p>
+                    <div className="bg-cyber-gradient text-white px-2 py-1 rounded text-xs font-bold">
+                      Will be: {generateSKU(index)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={handleAssignSkus}
+              disabled={assigningSkus}
+              className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
+            >
+              {assigningSkus ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Assigning SKUs...</span>
+                </>
+              ) : (
+                <>
+                  <Package className="w-5 h-5" />
+                  <span>Assign SKUs ({itemsToSku.length} items)</span>
+                </>
+              )}
+            </button>
+          </>
         ) : (
           <div className="text-center py-8">
             <Package className="w-16 h-16 text-white/30 dark:text-white/30 mx-auto mb-4" />
             <p className="text-white/50 dark:text-white/50">
-              Upload photos first to assign SKUs
+              No new items ready for SKU assignment. Upload photos first!
             </p>
           </div>
         )}
@@ -225,20 +330,83 @@ const SKUTab: React.FC<{ selectedFiles: File[] }> = ({ selectedFiles }) => {
 
 // Generate Listings Tab Component
 const GenerateListingsTab: React.FC = () => {
+  const { authUser } = useAuth();
+  const [itemsToGenerate, setItemsToGenerate] = useState<Item[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+
+  useEffect(() => {
+    const fetchItems = async () => {
+      if (!authUser) return;
+      setLoadingItems(true);
+      try {
+        const { data, error } = await supabase
+          .from('items')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .eq('status', 'sku_assigned') // Fetch items with SKU assigned
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        setItemsToGenerate(data || []);
+      } catch (error) {
+        console.error('Error fetching items for listing generation:', error);
+        alert('Failed to load items for listing generation.');
+      } finally {
+        setLoadingItems(false);
+      }
+    };
+    fetchItems();
+  }, [authUser]);
+
+  if (loadingItems) {
+    return (
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyber-blue-500 mx-auto mb-4"></div>
+        <p className="text-white/70">Loading items for listing generation...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
         <h2 className="text-xl font-bold mb-4 text-white dark:text-white">✨ Generate Listings</h2>
         <p className="text-white/80 dark:text-white/80 mb-6">
-          AI will generate optimized listings for your items.
+          Review items with assigned SKUs and generate optimized listings.
         </p>
         
-        <div className="text-center py-8">
-          <Zap className="w-16 h-16 text-white/30 dark:text-white/30 mx-auto mb-4" />
-          <p className="text-white/50 dark:text-white/50">
-            Complete SKU assignment to generate listings
-          </p>
-        </div>
+        {itemsToGenerate.length > 0 ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              {itemsToGenerate.map((item) => (
+                <div key={item.id} className="bg-white/10 rounded-lg p-4 text-center">
+                  <img
+                    src={item.primary_image_url || 'https://via.placeholder.com/150'}
+                    alt={item.title}
+                    className="w-full h-32 object-cover rounded-md mb-3"
+                  />
+                  <div className="space-y-1">
+                    <p className="text-sm text-white/90 font-medium truncate">{item.title}</p>
+                    <p className="text-xs text-white/60">SKU: {item.sku || 'N/A'}</p>
+                    <p className="text-xs text-white/60">Price: ${item.suggested_price}</p>
+                    <p className="text-xs text-white/60">Brand: {item.brand || 'Unknown'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2">
+              <Zap className="w-5 h-5" />
+              <span>Generate Listings ({itemsToGenerate.length} items)</span>
+            </button>
+          </>
+        ) : (
+          <div className="text-center py-8">
+            <Zap className="w-16 h-16 text-white/30 dark:text-white/30 mx-auto mb-4" />
+            <p className="text-white/50 dark:text-white/50">
+              No items ready for listing generation. Assign SKUs first!
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -306,6 +474,7 @@ const AppDashboard = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
 
   // Fetch trending items function
   const fetchTrendingItems = async (categoryId: string = selectedCategory) => {
@@ -713,24 +882,168 @@ const AppDashboard = () => {
   const processUploadedFiles = async () => {
     if (selectedFiles.length === 0) return;
     
+    if (!user || !authUser) {
+      alert('Please sign in to process files');
+      return;
+    }
+
+    // Check if user has reached their limit
+    if (user.listings_used >= user.listings_limit && user.subscription_plan === 'free') {
+      console.log('❌ [DASHBOARD] Listing limit reached!', {
+        used: user.listings_used,
+        limit: user.listings_limit,
+        plan: user.subscription_plan
+      });
+      alert('You\'ve reached your free listing limit. Upgrade to Pro for unlimited listings!');
+      return;
+    }
+
     setIsUploading(true);
     setUploadProgress(0);
+    setProcessingStatus('Starting image processing...');
     
     try {
-      console.log(`🚀 [DASHBOARD] Processing ${selectedFiles.length} files...`);
-      
-      // Simulate upload progress
-      for (let i = 0; i <= selectedFiles.length; i++) {
-        setUploadProgress((i / selectedFiles.length) * 100);
-        await new Promise(resolve => setTimeout(resolve, 200));
+      const processedItems: Item[] = [];
+
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        setProcessingStatus(`Processing image ${i + 1}/${selectedFiles.length}: ${file.name}`);
+        setUploadProgress(((i + 1) / selectedFiles.length) * 100);
+
+        // Resize and enhance image
+        const resizedFile = await resizeImage(file, 800);
+        const [enhancedFile] = await processImagesWithEnhancement([resizedFile]);
+
+        // Calculate image hash for caching
+        const imageHash = await calculateImageHash(enhancedFile);
+
+        // Upload image to Supabase Storage
+        const fileExt = enhancedFile.name.split('.').pop();
+        const fileName = `${authUser.id}/${Date.now()}_${i}.${fileExt}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('item-images')
+          .upload(fileName, enhancedFile);
+
+        if (uploadError) {
+          console.error(`❌ [DASHBOARD] Upload error for image ${i + 1}:`, uploadError);
+          throw uploadError;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('item-images')
+          .getPublicUrl(fileName);
+
+        // Analyze the image using its public URL
+        setProcessingStatus(`Analyzing image ${i + 1}/${selectedFiles.length} with AI...`);
+        const analysisResponse = await fetch('/.netlify/functions/analyze-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl: publicUrl, imageHash })
+        });
+
+        if (!analysisResponse.ok) {
+          let errorBody = '';
+          try { errorBody = await analysisResponse.text(); } catch (e) {}
+          throw new Error(`AI analysis failed for image ${i + 1}: ${analysisResponse.status} ${analysisResponse.statusText}. Body: ${errorBody}`);
+        }
+
+        const analysisResult = await analysisResponse.json();
+        const analysis = analysisResult.analysis;
+
+        // SAFETY: Ensure priceRange exists
+        if (!analysis.priceRange || typeof analysis.priceRange !== 'object') {
+          const basePrice = analysis.suggestedPrice || 25;
+          analysis.priceRange = { min: Math.round(basePrice * 0.8), max: Math.round(basePrice * 1.3) };
+        }
+        // SAFETY: Ensure keyFeatures exists
+        if (!analysis.keyFeatures || !Array.isArray(analysis.keyFeatures)) {
+          analysis.keyFeatures = [];
+        }
+
+        // Create item in database with analysis results
+        setProcessingStatus(`Saving item ${i + 1}/${selectedFiles.length} details...`);
+        const { data: itemData, error: itemError } = await supabase
+          .from('items')
+          .insert([
+            {
+              user_id: authUser.id,
+              title: analysis.suggestedTitle,
+              description: analysis.suggestedDescription,
+              category: normalizeCategory(analysis.category),
+              condition: normalizeCondition(analysis.condition),
+              brand: analysis.brand,
+              model_number: analysis.model_number,
+              size: analysis.size,
+              color: analysis.color,
+              suggested_price: analysis.suggestedPrice,
+              price_range_min: analysis.priceRange.min,
+              price_range_max: analysis.priceRange.max,
+              images: [publicUrl],
+              primary_image_url: publicUrl,
+              ai_confidence: analysis.confidence,
+              ai_analysis: {
+                detected_category: analysis.category,
+                detected_brand: analysis.brand,
+                detected_condition: analysis.condition,
+                key_features: analysis.keyFeatures,
+                model_number: analysis.model_number
+              },
+              status: 'draft' // Set status to draft for SKU assignment
+            }
+          ])
+          .select()
+          .single();
+
+        if (itemError) {
+          console.error('❌ [DASHBOARD] Error creating item:', itemError);
+          throw itemError;
+        }
+        processedItems.push(itemData);
+
+        // Generate keyword suggestions
+        setProcessingStatus(`Generating SEO keywords for item ${i + 1}...`);
+        try {
+          const keywordService = new KeywordOptimizationService(supabase);
+          const keywordSuggestions = await keywordService.getKeywordSuggestions(
+            publicUrl,
+            analysis.brand || 'Unknown',
+            analysis.category || 'other',
+            itemData.id,
+            analysis.suggestedTitle,
+            undefined,
+            analysis.confidence
+          );
+
+          const { error: updateError } = await supabase
+            .from('items')
+            .update({ ai_suggested_keywords: keywordSuggestions.keywords })
+            .eq('id', itemData.id);
+
+          if (updateError) {
+            console.error('❌ [DASHBOARD] Error updating item with keywords:', updateError);
+          }
+        } catch (keywordError) {
+          console.error('❌ [DASHBOARD] Error generating keyword suggestions:', keywordError);
+        }
       }
+
+      // Update user's listing count
+      setProcessingStatus('Updating user listing count...');
+      await updateUser({ listings_used: user.listings_used + processedItems.length });
+
+      setProcessingStatus('Complete!');
+      setSelectedFiles([]); // Clear selected files after processing
+      setUploadProgress(100);
       
-      // Navigate to next step
+      // Navigate to SKU assignment tab
       setActiveTab('skus');
     } catch (error) {
-      console.error('❌ [DASHBOARD] Error processing files:', error);
+      console.error('❌ [DASHBOARD] Critical error during photo processing:', error);
+      alert(`Failed to process photos: ${error.message}. Please try again.`);
     } finally {
       setIsUploading(false);
+      setProcessingStatus('');
     }
   };
 
@@ -847,7 +1160,7 @@ const AppDashboard = () => {
           uploadProgress={uploadProgress}
         />;
       case 'skus':
-        return <SKUTab selectedFiles={selectedFiles} />;
+        return <SKUTab setActiveTab={setActiveTab} />;
       case 'generate':
         return <GenerateListingsTab />;
       case 'publish':
