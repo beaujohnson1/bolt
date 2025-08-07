@@ -16,6 +16,8 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     fetchItemsReadyForListing();
@@ -90,113 +92,190 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
     return { status: 'Generated', color: 'blue', icon: CheckCircle };
   };
 
+  // Enhanced cascade delete function
+  const deleteItemsWithCascade = async (itemIds: string[]) => {
+    console.log('🗑️ [DELETE] Starting cascade delete for items:', itemIds);
+    
+    try {
+      // Step 1: Delete related records first
+      console.log('🗑️ [DELETE] Step 1: Deleting related records...');
+      
+      // Delete listings first
+      const { error: listingsError } = await supabase
+        .from('listings')
+        .delete()
+        .in('item_id', itemIds);
+      
+      if (listingsError) {
+        console.error('❌ [DELETE] Failed to delete listings:', listingsError);
+        // Continue anyway - listings might not exist
+      } else {
+        console.log('✅ [DELETE] Listings deleted successfully');
+      }
+      
+      // Delete photo analyses if they exist
+      const { error: analysesError } = await supabase
+        .from('photo_analysis')
+        .delete()
+        .in('item_id', itemIds);
+      
+      if (analysesError) {
+        console.error('❌ [DELETE] Failed to delete photo analyses:', analysesError);
+        // Continue anyway - analyses might not exist
+      } else {
+        console.log('✅ [DELETE] Photo analyses deleted successfully');
+      }
+      
+      // Step 2: Delete the items themselves
+      console.log('🗑️ [DELETE] Step 2: Deleting items...');
+      
+      const { data, error: itemsError } = await supabase
+        .from('items')
+        .delete()
+        .in('id', itemIds)
+        .select();
+      
+      if (itemsError) {
+        console.error('❌ [DELETE] Failed to delete items:', itemsError);
+        throw itemsError;
+      }
+      
+      console.log('✅ [DELETE] Items deleted successfully:', data);
+      return data;
+      
+    } catch (error) {
+      console.error('❌ [DELETE] Cascade delete failed:', error);
+      throw error;
+    }
+  };
+
+  // Confirmation dialog for delete operations
+  const confirmDelete = (itemCount: number, callback: () => void) => {
+    if (window.confirm(`Are you sure you want to delete ${itemCount} item${itemCount !== 1 ? 's' : ''}? This action cannot be undone.`)) {
+      callback();
+    }
+  };
+
   const handleDeleteSelected = async () => {
     if (selectedItems.size === 0) {
       alert('Please select items to delete.');
       return;
     }
 
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''}? This action cannot be undone.`
-    );
+    const itemIds = Array.from(selectedItems);
     
-    if (!confirmed) return;
-
-    setIsDeleting(true);
-    try {
-      console.log('🗑️ [GENERATE-TABLE] Deleting selected items...');
+    confirmDelete(selectedItems.size, async () => {
+      setIsDeleting(true);
+      setSuccessMessage('');
+      setErrorMessage('');
       
-      const selectedItemsArray = Array.from(selectedItems);
-      
-      // Delete associated listings first
-      for (const itemId of selectedItemsArray) {
-        const { error: listingError } = await supabase
-          .from('listings')
+      try {
+        console.log('🗑️ [DELETE] Attempting to delete items:', itemIds);
+        
+        // Method 1: Try direct delete first (if cascade is set up)
+        let { data, error } = await supabase
+          .from('items')
           .delete()
-          .eq('item_id', itemId);
-
-        if (listingError) {
-          console.error('❌ [GENERATE-TABLE] Error deleting listings for item:', itemId, listingError);
-          // Continue with other deletions even if one fails
+          .in('id', itemIds)
+          .select();
+        
+        // Method 2: If direct delete fails due to foreign key constraints, try cascade delete
+        if (error && error.code === '23503') {
+          console.warn('⚠️ [DELETE] Direct delete failed due to foreign key constraints, trying cascade delete...');
+          data = await deleteItemsWithCascade(itemIds);
+        } else if (error) {
+          throw error;
         }
+        
+        console.log('✅ [DELETE] Successfully deleted items:', data);
+        
+        // Update user's listing count
+        if (user && user.listings_used > 0) {
+          const newListingsUsed = Math.max(0, user.listings_used - selectedItems.size);
+          await updateUser({ listings_used: newListingsUsed });
+        }
+        
+        // Update UI
+        setItems(prevItems => 
+          prevItems.filter(item => !selectedItems.has(item.id))
+        );
+        setSelectedItems(new Set());
+        
+        // Show success message
+        setSuccessMessage(`Successfully deleted ${itemIds.length} item${itemIds.length !== 1 ? 's' : ''}`);
+        
+      } catch (error) {
+        console.error('❌ [DELETE] Delete operation failed:', error);
+        
+        // User-friendly error messages
+        let errorMsg = 'Failed to delete items. ';
+        
+        if (error.code === '23503') {
+          errorMsg += 'Items have associated data that prevents deletion.';
+        } else if (error.code === '42501') {
+          errorMsg += 'You do not have permission to delete these items.';
+        } else {
+          errorMsg += 'Please try again or contact support.';
+        }
+        
+        setErrorMessage(errorMsg);
+        
+      } finally {
+        setIsDeleting(false);
       }
-
-      // Delete the items
-      const { error: itemError } = await supabase
-        .from('items')
-        .delete()
-        .in('id', selectedItemsArray);
-
-      if (itemError) {
-        console.error('❌ [GENERATE-TABLE] Error deleting items:', itemError);
-        throw itemError;
-      }
-
-      // Update user's listing count
-      if (user && user.listings_used > 0) {
-        const newListingsUsed = Math.max(0, user.listings_used - selectedItems.size);
-        await updateUser({ listings_used: newListingsUsed });
-      }
-
-      console.log('✅ [GENERATE-TABLE] Items deleted successfully');
-      
-      // Refresh the table and clear selection
-      await fetchItemsReadyForListing();
-      setSelectedItems(new Set());
-      
-    } catch (error) {
-      console.error('❌ [GENERATE-TABLE] Error deleting items:', error);
-      alert('Failed to delete items. Please try again.');
-    } finally {
-      setIsDeleting(false);
-    }
+    });
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    const confirmed = window.confirm('Are you sure you want to delete this item? This action cannot be undone.');
-    if (!confirmed) return;
-
-    setIsDeleting(true);
-    try {
-      console.log('🗑️ [GENERATE-TABLE] Deleting single item:', itemId);
+    confirmDelete(1, async () => {
+      setIsDeleting(true);
+      setSuccessMessage('');
+      setErrorMessage('');
       
-      // Delete associated listings first
-      const { error: listingError } = await supabase
-        .from('listings')
-        .delete()
-        .eq('item_id', itemId);
-
-      if (listingError) {
-        console.error('❌ [GENERATE-TABLE] Error deleting listings for item:', itemId, listingError);
+      try {
+        console.log('🗑️ [DELETE] Deleting single item:', itemId);
+        
+        // Try direct delete first
+        let { data, error } = await supabase
+          .from('items')
+          .delete()
+          .eq('id', itemId)
+          .select();
+        
+        // If direct delete fails due to foreign key constraints, try cascade delete
+        if (error && error.code === '23503') {
+          console.warn('⚠️ [DELETE] Direct delete failed, trying cascade delete...');
+          data = await deleteItemsWithCascade([itemId]);
+        } else if (error) {
+          throw error;
+        }
+        
+        // Update user's listing count
+        if (user && user.listings_used > 0) {
+          await updateUser({ listings_used: Math.max(0, user.listings_used - 1) });
+        }
+        
+        console.log('✅ [DELETE] Item deleted successfully');
+        
+        // Update UI
+        setItems(prevItems => prevItems.filter(item => item.id !== itemId));
+        setSuccessMessage('Item deleted successfully');
+        
+      } catch (error) {
+        console.error('❌ [DELETE] Error deleting item:', error);
+        
+        let errorMsg = 'Failed to delete item. ';
+        if (error.code === '23503') {
+          errorMsg += 'Item has associated data that prevents deletion.';
+        } else {
+          errorMsg += 'Please try again.';
+        }
+        
+        setErrorMessage(errorMsg);
+      } finally {
+        setIsDeleting(false);
       }
-
-      // Delete the item
-      const { error: itemError } = await supabase
-        .from('items')
-        .delete()
-        .eq('id', itemId);
-
-      if (itemError) {
-        console.error('❌ [GENERATE-TABLE] Error deleting item:', itemError);
-        throw itemError;
-      }
-
-      // Update user's listing count
-      if (user && user.listings_used > 0) {
-        await updateUser({ listings_used: Math.max(0, user.listings_used - 1) });
-      }
-
-      console.log('✅ [GENERATE-TABLE] Item deleted successfully');
-      
-      // Refresh the table
-      await fetchItemsReadyForListing();
-      
-    } catch (error) {
-      console.error('❌ [GENERATE-TABLE] Error deleting item:', error);
-      alert('Failed to delete item. Please try again.');
-    } finally {
-      setIsDeleting(false);
-    }
+    });
   };
 
   const handleGenerateListings = async () => {
@@ -303,34 +382,61 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
         <div className="flex items-center space-x-3">
           <button
             onClick={fetchItemsReadyForListing}
-            disabled={loading}
+            disabled={loading || isDeleting}
             className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
               isDarkMode 
                 ? 'bg-white/10 hover:bg-white/20 text-white disabled:bg-white/5' 
                 : 'bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:bg-gray-50'
             }`}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading || isDeleting ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
           </button>
         </div>
       </div>
+
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg flex items-center justify-between">
+          <span>{successMessage}</span>
+          <button 
+            onClick={() => setSuccessMessage('')}
+            className="text-green-700 hover:text-green-900 font-bold text-lg"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center justify-between">
+          <span>{errorMessage}</span>
+          <button 
+            onClick={() => setErrorMessage('')}
+            className="text-red-700 hover:text-red-900 font-bold text-lg"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Actions Bar */}
       <div className="flex items-center justify-between mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl border border-blue-200 dark:border-blue-700">
         <div className="flex items-center space-x-4">
           <button
             onClick={handleSelectAll}
+            disabled={isDeleting}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2 ${
               isDarkMode
-                ? 'bg-gray-700 hover:bg-gray-600 text-gray-200'
-                : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200'
+                ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 disabled:bg-gray-800 disabled:text-gray-500'
+                : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 disabled:bg-gray-100 disabled:text-gray-400'
             }`}
           >
             <input
               type="checkbox"
               checked={selectedItems.size === items.length && items.length > 0}
               onChange={handleSelectAll}
+              disabled={isDeleting}
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
             />
             <span>{selectedItems.size === items.length ? 'Deselect All' : 'Select All'}</span>
@@ -347,7 +453,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
           <div className="flex items-center space-x-3">
             <button
               onClick={handleDeleteSelected}
-              disabled={isDeleting}
+              disabled={isDeleting || isGenerating}
               className="px-6 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg font-medium transition-colors flex items-center space-x-2 shadow-lg"
             >
               {isDeleting ? (
@@ -365,7 +471,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
             
             <button
               onClick={handleGenerateListings}
-              disabled={isGenerating}
+              disabled={isGenerating || isDeleting}
               className="px-6 py-2 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg font-medium transition-all duration-300 flex items-center space-x-2 shadow-lg"
             >
               {isGenerating ? (
@@ -469,6 +575,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleSelectItem(item.id)}
+                          disabled={isDeleting}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                       </td>
@@ -597,7 +704,7 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                           
                           <button
                             onClick={() => handleDeleteItem(item.id)}
-                            disabled={isDeleting}
+                            disabled={isDeleting || isGenerating}
                             className={`p-2 rounded-lg transition-colors ${
                               isDarkMode 
                                 ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300 disabled:text-red-600' 
@@ -605,7 +712,11 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                             }`}
                             title="Delete item"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {isDeleting ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </td>
