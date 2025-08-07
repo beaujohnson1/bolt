@@ -86,6 +86,8 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       console.log('📥 [OPENAI-CLIENT] Server response:', { ok: json.ok, hasData: !!json.data, hasError: !!json.error });
       
       if (!json.ok) {
+        // Server validation failed - return the flagged data for "needs attention"
+        console.log('🚨 [OPENAI-CLIENT] Server validation failed, flagging for manual review');
         return {
           success: false,
           error: json.error || 'AI analysis validation failed',
@@ -101,21 +103,21 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       };
     };
 
-    const result = await handleServerResponse(response);
-
-    if (!response.ok) {
-      throw new Error(`Enhanced analysis failed: ${response.status} ${response.statusText}`);
-    }
-
-    const payload = await response.json();
-    if (!payload.ok) {
-      throw new Error(payload.error || "AI analysis failed");
+    const payload = await handleServerResponse(response);
+    
+    if (!payload.success) {
+      // Server validation failed - return the flagged data for "needs attention"
+      console.log('🚨 [OPENAI-CLIENT] Server validation failed, flagging for manual review');
+      return {
+        success: true, // Don't throw - let the UI handle it
+        analysis: payload.data, // Contains __needsAttention flag
+        source: 'openai-vision-enhanced',
+        validationError: payload.error,
+        validationIssues: payload.issues
+      };
     }
     
     const ai = payload.data;
-    if (!ai || typeof ai !== "object" || Array.isArray(ai)) {
-      throw new Error("AI payload is not an object");
-    }
     
     // Step 4: Post-processing (last line of defense)
     console.log('🔧 [OPENAI-CLIENT] Step 4: Post-processing AI results...');
@@ -155,17 +157,7 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       console.log('🏗️ [POST-PROCESS] Rebuilt title:', newTitle);
       ai.title = newTitle;
     }
-    
-    // Optional coercions/guards
-    if (typeof ai.suggested_price === 'string') {
-      const parsed = parseFloat(safeTrim(ai.suggested_price));
-      ai.suggested_price = isNaN(parsed) ? 25 : parsed;
-    }
-    if (!safeTrim(ai.title)) {
-      throw new Error("AI payload missing title");
-    }
-    
-    console.log('✅ [OPENAI-CLIENT] Enhanced analysis completed successfully');
+      
     console.log('📊 [OPENAI-CLIENT] Final AI data:', {
       title: ai.title,
       brand: ai.brand,
