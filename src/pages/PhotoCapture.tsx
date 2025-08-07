@@ -337,58 +337,59 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
           />
         </>
       ) : (
-                  <div 
-                    key={index} 
-                    className={`relative group cursor-move transition-all duration-200 ${
-                      draggedIndex === index ? 'scale-105 rotate-2 z-10' : ''
-                    } ${
-                      dragOverIndex === index ? 'scale-110 shadow-lg' : ''
-                    }`}
-                    draggable
-                    onDragStart={(e) => handlePhotoReorderStart(e, index)}
-                    onDragEnd={handlePhotoReorderEnd}
-                    onDragOver={(e) => handlePhotoReorderOver(e, index)}
-                    onDragLeave={handlePhotoReorderLeave}
-                    onDrop={(e) => handlePhotoReorderDrop(e, index)}
-                  >
+        <div>
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
               Selected Photos ({selectedImages.length})
-                      className="w-full aspect-square object-cover rounded-lg border pointer-events-none"
+            </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <div className={`absolute top-2 left-2 text-white text-xs px-2 py-1 rounded font-bold ${
-                      index === 0 ? 'bg-green-600' : 'bg-blue-600'
-                    }`}>
-                      {index === 0 ? 'PRIMARY' : index + 1}
+              {selectedImages.map((image, index) => (
+                <div 
+                  key={index} 
+                  className={`relative group cursor-move transition-all duration-200 ${
+                    draggedIndex === index ? 'scale-105 rotate-2 z-10' : ''
+                  } ${
+                    dragOverIndex === index ? 'scale-110 shadow-lg' : ''
+                  }`}
+                  draggable
+                  onDragStart={(e) => handlePhotoReorderStart(e, index)}
+                  onDragEnd={handlePhotoReorderEnd}
+                  onDragOver={(e) => handlePhotoReorderOver(e, index)}
+                  onDragLeave={handlePhotoReorderLeave}
+                  onDrop={(e) => handlePhotoReorderDrop(e, index)}
+                >
                   <img
                     src={image}
                     alt={`Selected photo ${index + 1}`}
-                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                    className="w-full aspect-square object-cover rounded-lg border pointer-events-none"
                   />
-                  <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
-                    {index + 1}
-                    
-                    {/* Drag indicator */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg">
-                      <div className="bg-white/90 rounded-full p-2">
-                        <div className="grid grid-cols-2 gap-1">
-                          <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
-                          <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
-                          <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
-                          <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
-                        </div>
+                  <div className={`absolute top-2 left-2 text-white text-xs px-2 py-1 rounded font-bold ${
+                    index === 0 ? 'bg-green-600' : 'bg-blue-600'
+                  }`}>
+                    {index === 0 ? 'PRIMARY' : index + 1}
+                  </div>
+                  
+                  {/* Drag indicator */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg">
+                    <div className="bg-white/90 rounded-full p-2">
+                      <div className="grid grid-cols-2 gap-1">
+                        <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
+                        <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
+                        <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
+                        <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
                       </div>
                     </div>
-                    
-                    {/* Drop zone indicator */}
-                    {dragOverIndex === index && draggedIndex !== index && (
-                      <div className="absolute inset-0 border-2 border-dashed border-blue-500 bg-blue-100/50 rounded-lg flex items-center justify-center">
-                        <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-                          Drop Here
-                        </div>
-                      </div>
-                    )}
                   </div>
+                  
+                  {/* Drop zone indicator */}
+                  {dragOverIndex === index && draggedIndex !== index && (
+                    <div className="absolute inset-0 border-2 border-dashed border-blue-500 bg-blue-100/50 rounded-lg flex items-center justify-center">
+                      <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                        Drop Here
+                      </div>
+                    </div>
+                  )}
+                  
                   <button
                     onClick={() => removeImage(index)}
                     className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
