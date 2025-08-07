@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, DollarSign, Package, Eye, ShoppingCart, Calendar, Target, Zap, Plus, Settings, Bell, Mic, MicOff, Upload, Camera, MessageCircle, Send, Play, Pause, Image, Trash2, Bot, User, Star } from 'lucide-react';
+import { TrendingUp, DollarSign, Package, Eye, ShoppingCart, Calendar, Target, Zap, Plus, Settings, Bell, Mic, MicOff, Upload, Camera, MessageCircle, Send, Play, Pause, Image, Trash2, Bot, User, Star, Cloud } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
 import EbayApiService, { type TrendingItem } from '../services/ebayApi';
+import DashboardLayout from '../components/DashboardLayout';
 
 // Types for dashboard data
 interface DashboardStats {
@@ -94,6 +95,12 @@ const AppDashboard = () => {
   const [loadingTrending, setLoadingTrending] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('11450'); // Default to Clothing category
   const [trendingTest, setTrendingTest] = useState({ status: 'idle', message: 'Click to test eBay trending items API' });
+
+  // New tab state for the redesigned dashboard
+  const [activeTab, setActiveTab] = useState('upload');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Fetch trending items function
   const fetchTrendingItems = async (categoryId: string = selectedCategory) => {
@@ -488,6 +495,40 @@ const AppDashboard = () => {
     return responses[Math.floor(Math.random() * responses.length)];
   };
 
+  // Handle file upload for new workflow
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      setSelectedFiles(files);
+      console.log(`📁 [DASHBOARD] Selected ${files.length} files for upload`);
+    }
+  };
+
+  // Process uploaded files
+  const processUploadedFiles = async () => {
+    if (selectedFiles.length === 0) return;
+    
+    setIsUploading(true);
+    setUploadProgress(0);
+    
+    try {
+      console.log(`🚀 [DASHBOARD] Processing ${selectedFiles.length} files...`);
+      
+      // Simulate upload progress
+      for (let i = 0; i <= selectedFiles.length; i++) {
+        setUploadProgress((i / selectedFiles.length) * 100);
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
+      // Navigate to next step
+      setActiveTab('skus');
+    } catch (error) {
+      console.error('❌ [DASHBOARD] Error processing files:', error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const callAICoach = async (message) => {
     try {
       // Add typing indicator
@@ -581,6 +622,34 @@ const AppDashboard = () => {
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       handleSendMessage();
+    }
+  };
+
+  // Render content based on active tab
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'upload':
+        return <UploadTab 
+          selectedFiles={selectedFiles}
+          onFileUpload={handleFileUpload}
+          onProcessFiles={processUploadedFiles}
+          isUploading={isUploading}
+          uploadProgress={uploadProgress}
+        />;
+      case 'skus':
+        return <SKUTab selectedFiles={selectedFiles} />;
+      case 'generate':
+        return <GenerateListingsTab />;
+      case 'publish':
+        return <PublishTab />;
+      default:
+        return <UploadTab 
+          selectedFiles={selectedFiles}
+          onFileUpload={handleFileUpload}
+          onProcessFiles={processUploadedFiles}
+          isUploading={isUploading}
+          uploadProgress={uploadProgress}
+        />;
     }
   };
 
