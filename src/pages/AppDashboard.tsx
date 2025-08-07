@@ -59,6 +59,189 @@ interface ListingWithItemImage {
   };
 }
 
+// Upload Tab Component
+const UploadTab: React.FC<{
+  selectedFiles: File[];
+  onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onProcessFiles: () => void;
+  isUploading: boolean;
+  uploadProgress: number;
+}> = ({ selectedFiles, onFileUpload, onProcessFiles, isUploading, uploadProgress }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="space-y-6">
+      {/* Upload Section Header */}
+      <div className="bg-cyber-gradient text-white p-6 rounded-2xl shadow-lg shadow-cyber-blue-500/30">
+        <h2 className="text-xl font-bold">📸 AI-Powered Photo Upload & Processing</h2>
+      </div>
+
+      {/* Upload Instructions */}
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+        <div className="space-y-3 text-white/80 dark:text-white/80">
+          <p>⚡ Upload time depends on your internet connection speed.</p>
+          <p>🌐 You can switch to another browser tab or minimize the window.</p>
+          <p><strong className="text-cyber-blue-500">⚠️ Important: Do not exit/close the browser during upload.</strong></p>
+        </div>
+      </div>
+
+      {/* Upload Area */}
+      <div 
+        className="border-2 border-dashed border-cyber-blue-500/30 dark:border-cyber-blue-500/30 rounded-3xl p-20 text-center bg-white/2 dark:bg-white/2 backdrop-blur-light transition-all duration-400 cursor-pointer hover:border-cyber-blue-500 hover:bg-cyber-blue-500/5 hover:-translate-y-1 hover:shadow-2xl hover:shadow-cyber-blue-500/20 upload-area-hover"
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <div className="w-20 h-20 bg-cyber-gradient rounded-full mx-auto mb-6 flex items-center justify-center text-3xl shadow-lg shadow-cyber-blue-500/40 transition-transform duration-300 hover:scale-110 hover:rotate-6">
+          <Cloud className="w-8 h-8 text-white" />
+        </div>
+        
+        <div className="text-2xl font-bold mb-3 text-cyber-gradient">
+          AI PHOTO UPLOAD ZONE
+        </div>
+        
+        <div className="text-white/70 dark:text-white/70 mb-4 text-lg">
+          Drag and drop or click to select your inventory photos
+        </div>
+        
+        <div className="text-white/50 dark:text-white/50 text-sm font-medium">
+          JPG, PNG, HEIC, HEIF supported • AI will optimize and categorize
+        </div>
+        
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".jpg,.jpeg,.png,.heic,.heif"
+          onChange={onFileUpload}
+          className="hidden"
+        />
+      </div>
+
+      {/* Selected Files Display */}
+      {selectedFiles.length > 0 && (
+        <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+          <h3 className="text-lg font-semibold mb-4 text-white dark:text-white">
+            Selected Files ({selectedFiles.length})
+          </h3>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {selectedFiles.slice(0, 8).map((file, index) => (
+              <div key={index} className="bg-white/10 dark:bg-white/10 rounded-lg p-3 text-center">
+                <div className="w-12 h-12 bg-cyber-gradient rounded-lg mx-auto mb-2 flex items-center justify-center">
+                  <Image className="w-6 h-6 text-white" />
+                </div>
+                <div className="text-xs text-white/80 dark:text-white/80 truncate">
+                  {file.name}
+                </div>
+                <div className="text-xs text-white/60 dark:text-white/60">
+                  {(file.size / 1024 / 1024).toFixed(1)} MB
+                </div>
+              </div>
+            ))}
+            {selectedFiles.length > 8 && (
+              <div className="bg-white/10 dark:bg-white/10 rounded-lg p-3 text-center flex items-center justify-center">
+                <div className="text-white/80 dark:text-white/80 text-sm">
+                  +{selectedFiles.length - 8} more
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Process Button */}
+          <button
+            onClick={onProcessFiles}
+            disabled={isUploading}
+            className="w-full bg-cyber-gradient hover:opacity-90 disabled:opacity-50 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
+          >
+            {isUploading ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <span>Processing... {Math.round(uploadProgress)}%</span>
+              </>
+            ) : (
+              <>
+                <Zap className="w-5 h-5" />
+                <span>Process {selectedFiles.length} Files with AI</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// SKU Tab Component
+const SKUTab: React.FC<{ selectedFiles: File[] }> = ({ selectedFiles }) => {
+  return (
+    <div className="space-y-6">
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+        <h2 className="text-xl font-bold mb-4 text-white dark:text-white">🏷️ Assign SKU Numbers</h2>
+        <p className="text-white/80 dark:text-white/80 mb-6">
+          Review and assign SKU numbers to your processed items.
+        </p>
+        
+        {selectedFiles.length > 0 ? (
+          <div className="text-center py-8">
+            <Package className="w-16 h-16 text-cyber-blue-500 mx-auto mb-4" />
+            <p className="text-white/70 dark:text-white/70">
+              {selectedFiles.length} files ready for SKU assignment
+            </p>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <Package className="w-16 h-16 text-white/30 dark:text-white/30 mx-auto mb-4" />
+            <p className="text-white/50 dark:text-white/50">
+              Upload photos first to assign SKUs
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Generate Listings Tab Component
+const GenerateListingsTab: React.FC = () => {
+  return (
+    <div className="space-y-6">
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+        <h2 className="text-xl font-bold mb-4 text-white dark:text-white">✨ Generate Listings</h2>
+        <p className="text-white/80 dark:text-white/80 mb-6">
+          AI will generate optimized listings for your items.
+        </p>
+        
+        <div className="text-center py-8">
+          <Zap className="w-16 h-16 text-white/30 dark:text-white/30 mx-auto mb-4" />
+          <p className="text-white/50 dark:text-white/50">
+            Complete SKU assignment to generate listings
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Publish Tab Component
+const PublishTab: React.FC = () => {
+  return (
+    <div className="space-y-6">
+      <div className="glass-panel dark:glass-panel backdrop-blur-glass rounded-2xl p-6">
+        <h2 className="text-xl font-bold mb-4 text-white dark:text-white">🚀 Publish to eBay</h2>
+        <p className="text-white/80 dark:text-white/80 mb-6">
+          Publish your generated listings to eBay and other platforms.
+        </p>
+        
+        <div className="text-center py-8">
+          <ShoppingCart className="w-16 h-16 text-white/30 dark:text-white/30 mx-auto mb-4" />
+          <p className="text-white/50 dark:text-white/50">
+            Generate listings first to publish them
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AppDashboard = () => {
   const { user, authUser, updateUser } = useAuth();
   const navigate = useNavigate();
@@ -69,7 +252,6 @@ const AppDashboard = () => {
   const [currentMessage, setCurrentMessage] = useState('');
   const [voiceMode, setVoiceMode] = useState(false);
   const [aiSpeaking, setAiSpeaking] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
   const chatEndRef = useRef(null);
 
   // Supabase data states
@@ -677,534 +859,9 @@ const AppDashboard = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      {/* Navigation */}
-      <nav className="bg-white shadow-lg border-b">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-8">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                EasyFlip AI
-              </h1>
-              <div className="flex space-x-6">
-                <button 
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'}`}
-                >
-                  Dashboard
-                </button>
-                <button 
-                  onClick={() => setActiveTab('coach')}
-                  className={`px-4 py-2 rounded-lg transition-colors ${activeTab === 'coach' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-blue-600'}`}
-                >
-                  AI Coach
-                </button>
-                <a
-                  href="/admin/keywords"
-                  className="px-4 py-2 rounded-lg transition-colors text-gray-600 hover:text-blue-600"
-                >
-                  Keywords
-                </a>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <select 
-                value={timeRange} 
-                onChange={(e) => setTimeRange(e.target.value)}
-                className="bg-gray-50 border-0 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="7d">Last 7 days</option>
-                <option value="30d">Last 30 days</option>
-                <option value="90d">Last 90 days</option>
-              </select>
-              <button 
-                onClick={handleNewListing}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center shadow-lg"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New Listing
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <div className="max-w-7xl mx-auto p-6">
-        {/* Dashboard Tab */}
-        {activeTab === 'dashboard' && (
-          <>
-            {/* Welcome Message */}
-            <div className="mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                Welcome back, {user?.name || 'Seller'}! 👋
-              </h2>
-              <p className="text-gray-600">
-                Here's what's happening with your listings today.
-              </p>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {loadingData ? (
-                <div className="col-span-4 flex justify-center items-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                  <span className="ml-3 text-gray-600">Loading dashboard data...</span>
-                </div>
-              ) : (
-                <>
-              <StatCard
-                icon={DollarSign}
-                title="Total Revenue"
-                value={`$${dashboardStats.totalRevenue.toLocaleString()}`}
-                change={dashboardStats.revenueChange}
-                gradient="from-green-500 to-emerald-600"
-                metric="revenue"
-                subtitle="This week"
-              />
-              <StatCard
-                icon={ShoppingCart}
-                title="Total Sales"
-                value={dashboardStats.totalSales.toString()}
-                change={dashboardStats.salesChange}
-                gradient="from-blue-500 to-cyan-600"
-                metric="sales"
-                subtitle="Items sold"
-              />
-              <StatCard
-                icon={Eye}
-                title="Total Views"
-                value={dashboardStats.totalViews.toLocaleString()}
-                change={dashboardStats.viewsChange}
-                gradient="from-purple-500 to-pink-600"
-                metric="views"
-                subtitle="Listing views"
-              />
-              <StatCard
-                icon={Package}
-                title="Active Listings"
-                value={dashboardStats.activeListings.toString()}
-                change={dashboardStats.listingsChange}
-                gradient="from-orange-500 to-red-600"
-                metric="listings"
-                subtitle="Currently listed"
-              />
-                </>
-              )}
-            </div>
-
-            {/* Charts Section */}
-            {!loadingData && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              {/* Performance Chart */}
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Performance Trend</h2>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={performanceData}>
-                    <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="date" stroke="#666" />
-                    <YAxis stroke="#666" />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'white', 
-                        border: 'none', 
-                        borderRadius: '12px', 
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' 
-                      }} 
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey={selectedMetric} 
-                      stroke="#8b5cf6" 
-                      fillOpacity={1} 
-                      fill="url(#colorRevenue)" 
-                      strokeWidth={3}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Category Breakdown */}
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Sales by Category</h2>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}%`}
-                    >
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              </div>
-            )}
-
-            {/* Active Listings */}
-            {!loadingData && (
-              <div className="bg-white rounded-2xl p-6 shadow-lg mt-8">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Active Listings</h2>
-                {allListings.filter(listing => listing.status === 'active').length > 0 ? (
-                  <div className="space-y-4">
-                    {allListings
-                      .filter(listing => listing.status === 'active')
-                      .map((listing) => {
-                        const listingDate = new Date(listing.listed_at || listing.created_at);
-                        const now = new Date();
-                        const diffHours = Math.floor((now.getTime() - listingDate.getTime()) / (1000 * 60 * 60));
-                        const timeAgo = diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
-                        
-                        return (
-                          <div
-                            key={listing.id}
-                           className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                          >
-                            <div 
-                              className="flex items-center space-x-4 flex-1 cursor-pointer"
-                              onClick={() => navigate(`/details/${listing.item_id}`)}
-                            >
-                              {listing.items?.primary_image_url ? (
-                                <img
-                                  src={listing.items.primary_image_url}
-                                  alt={listing.title}
-                                  className="w-12 h-12 object-cover rounded-lg"
-                                />
-                              ) : (
-                                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-blue-600 rounded-lg flex items-center justify-center">
-                                  <Package className="w-6 h-6 text-white" />
-                                </div>
-                              )}
-                              <div>
-                                <h3 className="font-semibold text-gray-900">{listing.title}</h3>
-                                <p className="text-gray-600 text-sm">Listed {timeAgo}</p>
-                              </div>
-                            </div>
-                            <div className="text-right mr-4">
-                              <p className="font-bold text-gray-900">${listing.price}</p>
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <span className="flex items-center">
-                                  <Eye className="w-4 h-4 mr-1" />
-                                  {listing.total_views || 0}
-                                </span>
-                                <span className="flex items-center">
-                                  <Target className="w-4 h-4 mr-1" />
-                                  {listing.total_watchers || 0}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                                {listing.status === 'active' ? 'Live on eBay' : 'Active'}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteListing(listing.id, listing.item_id);
-                                }}
-                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Delete listing"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p>No active listings yet. Create your first listing to get started!</p>
-                    <button
-                      onClick={handleNewListing}
-                      className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Create New Listing
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Trending Items Section */}
-            <div className="bg-white rounded-2xl p-6 shadow-lg mt-8">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">🔥 Trending on eBay</h2>
-                <div className="flex items-center space-x-4">
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className="bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-                  >
-                    {ebayService.getPopularCategories().map(category => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => fetchTrendingItems(selectedCategory)}
-                    disabled={loadingTrending}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm transition-colors flex items-center space-x-2"
-                  >
-                    {loadingTrending ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        <span>Loading...</span>
-                      </>
-                    ) : (
-                      <>
-                        <TrendingUp className="w-4 h-4" />
-                        <span>Refresh</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {loadingTrending ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {[...Array(8)].map((_, i) => (
-                    <div key={i} className="animate-pulse">
-                      <div className="bg-gray-200 h-48 rounded-lg mb-3"></div>
-                      <div className="bg-gray-200 h-4 rounded mb-2"></div>
-                      <div className="bg-gray-200 h-4 rounded w-3/4"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : trendingItems.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {trendingItems.map((item) => {
-                    const listingDate = new Date(item.listingDate);
-                    const now = new Date();
-                    const diffHours = Math.floor((now.getTime() - listingDate.getTime()) / (1000 * 60 * 60));
-                    const timeAgo = diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
-                    
-                    return (
-                      <div
-                        key={item.itemId}
-                        className="bg-gray-50 rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer group"
-                        onClick={() => window.open(item.itemWebUrl, '_blank')}
-                      >
-                        <div className="relative mb-3">
-                          <img
-                            src={item.imageUrl}
-                            alt={item.title}
-                            className="w-full h-40 object-cover rounded-lg group-hover:scale-105 transition-transform duration-200"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.src = 'https://via.placeholder.com/200x200?text=No+Image';
-                            }}
-                          />
-                          <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white px-2 py-1 rounded text-xs">
-                            {item.condition}
-                          </div>
-                          {item.watchCount > 0 && (
-                            <div className="absolute bottom-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs flex items-center space-x-1">
-                              <Eye className="w-3 h-3" />
-                              <span>{item.watchCount}</span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <h3 className="font-medium text-gray-900 text-sm line-clamp-2 group-hover:text-blue-600 transition-colors">
-                            {item.title}
-                          </h3>
-                          
-                          <div className="flex items-center justify-between">
-                            <span className="text-lg font-bold text-green-600">
-                              ${item.price.toLocaleString()}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              Listed {timeAgo}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center justify-between text-xs text-gray-600">
-                            <span className="truncate">{item.seller.username}</span>
-                            <span className="flex items-center space-x-1">
-                              <Star className="w-3 h-3 text-yellow-500" />
-                              <span>{item.seller.feedbackPercentage}%</span>
-                            </span>
-                          </div>
-                          
-                          <div className="pt-2 border-t border-gray-200">
-                            <span className="text-xs text-blue-600 font-medium">
-                              {item.categoryName}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <TrendingUp className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>No trending items found for this category.</p>
-                  <button
-                    onClick={() => fetchTrendingItems(selectedCategory)}
-                    className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                  >
-                    Try Again
-                  </button>
-                </div>
-              )}
-              
-              {/* Trending Items Info */}
-              <div className="mt-6 bg-blue-50 rounded-xl p-4">
-                <h4 className="font-semibold text-blue-900 mb-2">💡 How to Use This Data:</h4>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• <strong>Sourcing Ideas:</strong> Look for similar items at thrift stores, garage sales, or estate sales</li>
-                  <li>• <strong>Pricing Reference:</strong> See what similar items are selling for in real-time</li>
-                  <li>• <strong>Market Trends:</strong> Identify which categories and brands are hot right now</li>
-                  <li>• <strong>Competition Analysis:</strong> Study successful listings for title and description ideas</li>
-                </ul>
-              </div>
-            </div>
-            {/* Recent Sales */}
-            {!loadingData && (
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Sales</h2>
-              {recentSales.length > 0 ? (
-                <div className="space-y-4">
-                {recentSales.map((sale) => (
-                  <div key={sale.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                        <Package className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{sale.item}</h3>
-                        <p className="text-gray-600 text-sm">{sale.time}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-900">${sale.price}</p>
-                      <p className="text-green-600 text-sm">+${sale.profit} profit</p>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      sale.status === 'sold' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {sale.status}
-                    </span>
-                  </div>
-                ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>No sales yet. Create your first listing to get started!</p>
-                </div>
-              )}
-            </div>
-            )}
-          </>
-        )}
-
-        {/* AI Coach Tab */}
-        {activeTab === 'coach' && (
-          <div className="bg-white rounded-2xl shadow-lg h-[600px] flex flex-col">
-            {/* Chat Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-t-2xl flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                  <Bot className="w-6 h-6" />
-                </div>
-                <div>
-                  <h2 className="font-semibold">AI Reseller Coach</h2>
-                  <p className="text-sm text-blue-100">Online • Ready to help</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={toggleRecording}
-                  className={`p-2 rounded-lg transition-colors ${isRecording ? 'bg-red-500' : 'hover:bg-white hover:bg-opacity-10'}`}
-                >
-                  {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {chatMessages.map((message) => (
-                <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                    message.sender === 'user' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-100 text-gray-900'
-                  }`}>
-                    <div className="flex items-start space-x-2">
-                      {message.sender === 'ai' && (
-                        <Bot className="w-5 h-5 mt-0.5 text-blue-600" />
-                      )}
-                      <p className="text-sm">{message.text}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {aiSpeaking && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-100 px-4 py-2 rounded-2xl">
-                    <div className="flex items-center space-x-2">
-                      <Bot className="w-5 h-5 text-blue-600" />
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            {/* Chat Input */}
-            <div className="border-t p-4">
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={currentMessage}
-                  onChange={(e) => setCurrentMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask about pricing, sourcing, or anything reselling related..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <button
-                  onClick={handleSendMessage}
-                  className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
-              </div>
-              {isRecording && (
-                <div className="mt-2 flex items-center justify-center text-red-600">
-                  <Mic className="w-4 h-4 mr-2 animate-pulse" />
-                  <span className="text-sm">Listening...</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    <DashboardLayout activeTab={activeTab} onTabChange={setActiveTab}>
+      {renderTabContent()}
+    </DashboardLayout>
   );
 };
 
