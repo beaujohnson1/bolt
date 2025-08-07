@@ -45,6 +45,8 @@ export interface Item {
   status: string;
   created_at: string;
   updated_at: string;
+  sku?: string;
+  ai_suggested_keywords?: string[];
 }
 
 export interface Listing {

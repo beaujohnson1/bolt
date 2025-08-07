@@ -7,8 +7,6 @@ import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
 import EbayApiService, { type TrendingItem } from '../services/ebayApi';
 import DashboardLayout from '../components/DashboardLayout';
 import { resizeImage, calculateImageHash, processImagesWithEnhancement } from '../utils/imageUtils';
-import { normalizeCondition, normalizeCategory, generateSKU } from '../utils/itemUtils';
-import KeywordOptimizationService from '../services/KeywordOptimizationService';
 
 // Types for dashboard data
 interface DashboardStats {
@@ -905,27 +903,23 @@ const AppDashboard = () => {
     setProcessingStatus('Starting image processing...');
     
     try {
-      const processedItems: Item[] = [];
+      const processedItems = [];
 
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         setProcessingStatus(`Processing image ${i + 1}/${selectedFiles.length}: ${file.name}`);
         setUploadProgress(((i + 1) / selectedFiles.length) * 100);
 
-        // Resize and enhance image
+        // Resize image for storage
         const resizedFile = await resizeImage(file, 800);
-        const [enhancedFile] = await processImagesWithEnhancement([resizedFile]);
-
-        // Calculate image hash for caching
-        const imageHash = await calculateImageHash(enhancedFile);
 
         // Upload image to Supabase Storage
-        const fileExt = enhancedFile.name.split('.').pop();
+        const fileExt = resizedFile.name.split('.').pop();
         const fileName = `${authUser.id}/${Date.now()}_${i}.${fileExt}`;
 
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('item-images')
-          .upload(fileName, enhancedFile);
+          .upload(fileName, resizedFile);
 
         if (uploadError) {
           console.error(`❌ [DASHBOARD] Upload error for image ${i + 1}:`, uploadError);
@@ -936,62 +930,30 @@ const AppDashboard = () => {
           .from('item-images')
           .getPublicUrl(fileName);
 
-        // Analyze the image using its public URL
-        setProcessingStatus(`Analyzing image ${i + 1}/${selectedFiles.length} with AI...`);
-        const analysisResponse = await fetch('/.netlify/functions/analyze-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: publicUrl, imageHash })
-        });
-
-        if (!analysisResponse.ok) {
-          let errorBody = '';
-          try { errorBody = await analysisResponse.text(); } catch (e) {}
-          throw new Error(`AI analysis failed for image ${i + 1}: ${analysisResponse.status} ${analysisResponse.statusText}. Body: ${errorBody}`);
-        }
-
-        const analysisResult = await analysisResponse.json();
-        const analysis = analysisResult.analysis;
-
-        // SAFETY: Ensure priceRange exists
-        if (!analysis.priceRange || typeof analysis.priceRange !== 'object') {
-          const basePrice = analysis.suggestedPrice || 25;
-          analysis.priceRange = { min: Math.round(basePrice * 0.8), max: Math.round(basePrice * 1.3) };
-        }
-        // SAFETY: Ensure keyFeatures exists
-        if (!analysis.keyFeatures || !Array.isArray(analysis.keyFeatures)) {
-          analysis.keyFeatures = [];
-        }
-
-        // Create item in database with analysis results
+        // Create item in database with placeholder values (AI analysis will happen later)
         setProcessingStatus(`Saving item ${i + 1}/${selectedFiles.length} details...`);
         const { data: itemData, error: itemError } = await supabase
           .from('items')
           .insert([
             {
               user_id: authUser.id,
-              title: analysis.suggestedTitle,
-              description: analysis.suggestedDescription,
-              category: normalizeCategory(analysis.category),
-              condition: normalizeCondition(analysis.condition),
-              brand: analysis.brand,
-              model_number: analysis.model_number,
-              size: analysis.size,
-              color: analysis.color,
-              suggested_price: analysis.suggestedPrice,
-              price_range_min: analysis.priceRange.min,
-              price_range_max: analysis.priceRange.max,
+              title: `Item ${i + 1} (Analysis Pending)`,
+              description: 'AI analysis will be performed after SKU assignment.',
+              category: 'other',
+              condition: 'good',
+              brand: 'Unknown',
+              model_number: null,
+              size: 'Unknown',
+              color: 'Unknown',
+              suggested_price: 0,
+              price_range_min: 0,
+              price_range_max: 0,
               images: [publicUrl],
               primary_image_url: publicUrl,
-              ai_confidence: analysis.confidence,
-              ai_analysis: {
-                detected_category: analysis.category,
-                detected_brand: analysis.brand,
-                detected_condition: analysis.condition,
-                key_features: analysis.keyFeatures,
-                model_number: analysis.model_number
-              },
-              status: 'draft' // Set status to draft for SKU assignment
+              ai_confidence: 0,
+              ai_analysis: {},
+              ai_suggested_keywords: [],
+              status: 'draft'
             }
           ])
           .select()
@@ -1004,32 +966,6 @@ const AppDashboard = () => {
         processedItems.push(itemData);
 
         // Generate keyword suggestions
-        setProcessingStatus(`Generating SEO keywords for item ${i + 1}...`);
-        try {
-          const keywordService = new KeywordOptimizationService(supabase);
-          const keywordSuggestions = await keywordService.getKeywordSuggestions(
-            publicUrl,
-            analysis.brand || 'Unknown',
-            analysis.category || 'other',
-            itemData.id,
-            analysis.suggestedTitle,
-            undefined,
-            analysis.confidence
-          );
-
-          const { error: updateError } = await supabase
-            .from('items')
-            .update({ ai_suggested_keywords: keywordSuggestions.keywords })
-            .eq('id', itemData.id);
-
-          if (updateError) {
-            console.error('❌ [DASHBOARD] Error updating item with keywords:', updateError);
-          }
-        } catch (keywordError) {
-          console.error('❌ [DASHBOARD] Error generating keyword suggestions:', keywordError);
-        }
-      }
-
       // Update user's listing count
       setProcessingStatus('Updating user listing count...');
       await updateUser({ listings_used: user.listings_used + processedItems.length });
