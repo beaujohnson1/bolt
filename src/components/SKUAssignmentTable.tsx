@@ -47,7 +47,7 @@ const SKUAssignmentTable: React.FC<SKUAssignmentTableProps> = ({ isDarkMode, onA
         .from('uploaded_photos')
         .select('*')
         .eq('user_id', authUser.id)
-        .order('created_at', { ascending: false });
+        .order('upload_order', { ascending: true }); // Order by upload_order for correct sequence
 
       if (fetchError) {
         console.error('❌ [SKU-ASSIGNMENT] Error fetching photos:', fetchError);
@@ -383,7 +383,7 @@ const SKUAssignmentTable: React.FC<SKUAssignmentTableProps> = ({ isDarkMode, onA
                   <img
                     src={photo.image_url}
                     alt={photo.filename}
-                    className="w-full h-24 object-cover"
+                    className="w-full aspect-square object-cover"
                   />
                   <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
                     {photo.upload_order + 1}
@@ -459,7 +459,7 @@ const SKUAssignmentTable: React.FC<SKUAssignmentTableProps> = ({ isDarkMode, onA
                       <img
                         src={photo.image_url}
                         alt={photo.filename}
-                        className="w-full h-16 object-cover rounded border"
+                        className="w-full aspect-square object-cover rounded border"
                       />
                       <div className="absolute top-1 left-1 bg-black/50 text-white text-xs px-1 rounded">
                         {photo.upload_order + 1}

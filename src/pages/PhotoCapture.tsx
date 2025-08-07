@@ -284,7 +284,7 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
                   <img
                     src={image}
                     alt={`Selected photo ${index + 1}`}
-                    className="w-full h-32 object-cover rounded-lg border"
+                    className="w-full aspect-square object-cover rounded-lg border"
                   />
                   <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
                     {index + 1}
