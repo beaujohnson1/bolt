@@ -21,12 +21,14 @@ type RawAI = {
 export function mapAIToListing(ai: RawAI) {
   console.log('🔄 [AI-MAPPER] Sanitizing AI payload before UI use...');
   
-  // Extract title first
-  const titleRaw = safeTrim(ai.title);
-  
-  // Extract title first
-  const titleRaw = safeTrim(ai.title);
-  
+  // strings (nullable Unknown collapsed to null)
+  const brand = nullIfUnknown(ai.brand);
+  const size = nullIfUnknown(ai.size);
+  const color = nullIfUnknown(ai.color);
+  const item_type = safeTrim(ai.item_type) || "Jacket";
+  const condition = safeTrim(ai.condition) || "good";
+  const model_number = nullIfUnknown(ai.model_number);
+
   // arrays - safely filter and trim
   const keywords = Array.isArray(ai.keywords)
     ? ai.keywords.filter(isStr).map(safeTrim).filter(Boolean).slice(0, 20)
@@ -36,25 +38,15 @@ export function mapAIToListing(ai: RawAI) {
     ? ai.key_features.filter(isStr).map(safeTrim).filter(Boolean).slice(0, 20)
     : [];
 
-  // numbers - safe conversion
+  // numeric-ish
   const suggested_price =
     typeof ai.suggested_price === "number"
       ? ai.suggested_price
       : Number(toStr(ai.suggested_price)) || 25; // Default fallback price
 
-  // strings (coerced) + "Unknown" -> null
-  const brand = nullIfUnknown(ai.brand);
-  const size = nullIfUnknown(ai.size);
-  const color = nullIfUnknown(ai.color);
-  const model_number = nullIfUnknown(ai.model_number);
-  const condition = safeTrim(ai.condition) || "good";
-  const item_type = safeTrim(ai.item_type) || "Item";
-  let title = titleRaw;
-
-  // Rebuild title if missing or invalid
-  if (!title || title.length < 3) {
-    title = buildTitle({ brand, item_type, color, size });
-  }
+  // title once - extract and build if needed
+  const titleRaw = safeTrim(ai.title);
+  const title = titleRaw || buildTitle({ brand, item_type, color, size });
 
   // Safe description handling
   const description = safeTrim(ai.description) || 
