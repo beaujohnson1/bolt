@@ -65,8 +65,7 @@ const ListingRow: React.FC<ListingRowProps> = ({
     const entries = Object.entries(specifics).filter(([key, value]) => {
       const trimmedValue = safeTrim(value);
       return trimmedValue && trimmedValue !== 'Unknown' && trimmedValue !== 'Unknown Brand';
-    }
-    );
+    });
     
     if (entries.length === 0) return 'No specifics available';
     
@@ -229,11 +228,11 @@ const ListingRow: React.FC<ListingRowProps> = ({
             
             <button
               onClick={onDelete}
-            Brand: item.brand ?? 'Unknown',
-            Size: item.size ?? 'Unknown',
-            Condition: item.condition ?? 'Unknown',
-            Color: item.color ?? 'Unknown',
-            Category: item.category ?? 'Unknown'
+              className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+              title="Delete listing"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
