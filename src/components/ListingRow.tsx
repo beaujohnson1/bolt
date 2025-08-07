@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Edit, Trash2, Zap, Eye, ExternalLink } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 
-interface ListingItem {
+interface GeneratedItem {
   id: string;
   sku: string;
   photos: string[];
@@ -10,24 +10,22 @@ interface ListingItem {
   title: string;
   description: string;
   price: number;
-  categoryPath: string;
-  categoryId: string;
-  itemSpecifics: Record<string, string>;
-  keywords: string[];
+  category: string;
+  condition: string;
+  brand?: string;
+  size?: string;
+  color?: string;
+  model_number?: string;
+  ai_suggested_keywords: string[];
+  ai_confidence: number;
+  ai_analysis: any;
   status: 'not_started' | 'analyzing' | 'ready' | 'needs_attention' | 'complete';
   generationError?: string;
   lastUpdated: Date;
-  aiConfidence: number;
-  brand?: string;
-  size?: string;
-  condition?: string;
-  category?: string;
-  color?: string;
-  material?: string;
 }
 
 interface ListingRowProps {
-  item: ListingItem;
+  item: GeneratedItem;
   isSelected: boolean;
   onSelect: () => void;
   onGenerate: () => void;
@@ -187,14 +185,20 @@ const ListingRow: React.FC<ListingRowProps> = ({
           <StatusBadge 
             status={item.status} 
             error={item.generationError}
-            confidence={item.aiConfidence}
+            confidence={item.ai_confidence}
           />
         </div>
 
         {/* Item Specifics */}
         <div className="col-span-2">
-          <div className="text-xs text-gray-600" title={JSON.stringify(item.itemSpecifics, null, 2)}>
-            {formatItemSpecifics(item.itemSpecifics)}
+          <div className="text-xs text-gray-600">
+            {formatItemSpecifics({
+              Brand: item.brand || 'Unknown',
+              Size: item.size || 'Unknown',
+              Condition: item.condition || 'Unknown',
+              Color: item.color || 'Unknown',
+              Category: item.category || 'Unknown'
+            })}
           </div>
         </div>
 

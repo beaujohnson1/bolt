@@ -1,7 +1,7 @@
 import React from 'react';
 import ListingRow from './ListingRow';
 
-interface ListingItem {
+interface GeneratedItem {
   id: string;
   sku: string;
   photos: string[];
@@ -9,29 +9,27 @@ interface ListingItem {
   title: string;
   description: string;
   price: number;
-  categoryPath: string;
-  categoryId: string;
-  itemSpecifics: Record<string, string>;
-  keywords: string[];
+  category: string;
+  condition: string;
+  brand?: string;
+  size?: string;
+  color?: string;
+  model_number?: string;
+  ai_suggested_keywords: string[];
+  ai_confidence: number;
+  ai_analysis: any;
   status: 'not_started' | 'analyzing' | 'ready' | 'needs_attention' | 'complete';
   generationError?: string;
   lastUpdated: Date;
-  aiConfidence: number;
-  brand?: string;
-  size?: string;
-  condition?: string;
-  category?: string;
-  color?: string;
-  material?: string;
 }
 
 interface ListingsTableProps {
-  items: ListingItem[];
+  items: GeneratedItem[];
   selectedItems: Set<string>;
   onSelectItem: (itemSku: string) => void;
   onSelectAll: () => void;
-  onGenerateItem: (item: ListingItem) => void;
-  onEditItem: (item: ListingItem) => void;
+  onGenerateItem: (item: GeneratedItem) => void;
+  onEditItem: (item: GeneratedItem) => void;
   onDeleteItem: (itemSku: string) => void;
   isGenerating: boolean;
 }

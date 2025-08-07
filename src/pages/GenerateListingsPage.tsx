@@ -17,7 +17,7 @@ interface SKUGroup {
   }>;
 }
 
-interface ListingItem {
+interface GeneratedItem {
   id: string;
   sku: string;
   photos: string[];
@@ -25,20 +25,18 @@ interface ListingItem {
   title: string;
   description: string;
   price: number;
-  categoryPath: string;
-  categoryId: string;
-  itemSpecifics: Record<string, string>;
-  keywords: string[];
+  category: string;
+  condition: string;
+  brand?: string;
+  size?: string;
+  color?: string;
+  model_number?: string;
+  ai_suggested_keywords: string[];
+  ai_confidence: number;
+  ai_analysis: any;
   status: 'not_started' | 'analyzing' | 'ready' | 'needs_attention' | 'complete';
   generationError?: string;
   lastUpdated: Date;
-  aiConfidence: number;
-  brand?: string;
-  size?: string;
-  condition?: string;
-  category?: string;
-  color?: string;
-  material?: string;
 }
 
 const GenerateListingsPage = () => {
@@ -47,12 +45,12 @@ const GenerateListingsPage = () => {
   
   // State management
   const [skuGroups, setSKUGroups] = useState<SKUGroup[]>([]);
-  const [listingItems, setListingItems] = useState<ListingItem[]>([]);
+  const [generatedItems, setGeneratedItems] = useState<GeneratedItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bulkGenerating, setBulkGenerating] = useState(false);
-  const [editingItem, setEditingItem] = useState<ListingItem | null>(null);
+  const [editingItem, setEditingItem] = useState<GeneratedItem | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
 
   // Fetch SKU groups and existing listings
@@ -100,47 +98,46 @@ const GenerateListingsPage = () => {
 
       setSKUGroups(skuGroupsArray);
 
-      // Fetch existing listings for these SKUs
-      const { data: existingListings, error: listingsError } = await supabase
-        .from('listings')
+      // Fetch existing items that were generated from these SKUs
+      // Note: We'll match by checking if any photos with this SKU were used to create items
+      const { data: existingItems, error: itemsError } = await supabase
+        .from('items')
         .select('*')
-        .eq('user_id', authUser.id)
-        .in('sku', skuGroupsArray.map(g => g.sku));
+        .eq('user_id', authUser.id);
 
-      if (listingsError) {
-        console.error('❌ [GENERATE-LISTINGS] Error fetching existing listings:', listingsError);
+      if (itemsError) {
+        console.error('❌ [GENERATE-LISTINGS] Error fetching existing items:', itemsError);
       }
 
-      // Convert to listing items format
-      const items: ListingItem[] = skuGroupsArray.map(group => {
-        const existingListing = existingListings?.find(l => l.sku === group.sku);
+      // Convert to generated items format
+      const items: GeneratedItem[] = skuGroupsArray.map(group => {
+        // For now, we'll create new items since we don't have SKU matching in items table
+        const existingItem = null; // TODO: Implement proper SKU matching when items table has sku column
         const primaryPhoto = group.photos[0]?.image_url || '';
         
         return {
-          id: existingListing?.id || `temp_${group.sku}`,
+          id: existingItem?.id || `temp_${group.sku}`,
           sku: group.sku,
           photos: group.photos.map(p => p.image_url),
           primaryPhoto,
-          title: existingListing?.title || '',
-          description: existingListing?.description || '',
-          price: existingListing?.price || 0,
-          categoryPath: existingListing?.category_path || '',
-          categoryId: existingListing?.category_id || '',
-          itemSpecifics: existingListing?.item_specifics || {},
-          keywords: existingListing?.keywords || [],
-          status: existingListing ? 'complete' : 'not_started',
-          lastUpdated: existingListing?.updated_at ? new Date(existingListing.updated_at) : new Date(),
-          aiConfidence: existingListing?.ai_confidence || 0,
-          brand: existingListing?.brand,
-          size: existingListing?.size,
-          condition: existingListing?.condition,
-          category: existingListing?.category,
-          color: existingListing?.color,
-          material: existingListing?.material
+          title: existingItem?.title || '',
+          description: existingItem?.description || '',
+          price: existingItem?.suggested_price || 0,
+          category: existingItem?.category || 'clothing',
+          condition: existingItem?.condition || 'good',
+          brand: existingItem?.brand,
+          size: existingItem?.size,
+          color: existingItem?.color,
+          model_number: existingItem?.model_number,
+          ai_suggested_keywords: existingItem?.ai_suggested_keywords || [],
+          ai_confidence: existingItem?.ai_confidence || 0,
+          ai_analysis: existingItem?.ai_analysis || {},
+          status: existingItem ? 'complete' : 'not_started',
+          lastUpdated: existingItem?.updated_at ? new Date(existingItem.updated_at) : new Date()
         };
       });
 
-      setListingItems(items);
+      setGeneratedItems(items);
       console.log('✅ [GENERATE-LISTINGS] Loaded items:', items.length);
 
     } catch (error) {
@@ -152,19 +149,19 @@ const GenerateListingsPage = () => {
   };
 
   // Generate listing for individual item
-  const handleGenerateItem = async (item: ListingItem) => {
+  const handleGenerateItem = async (item: GeneratedItem) => {
     try {
       console.log('🚀 [GENERATE-LISTINGS] Starting generation for item:', item.sku);
       
       // Update status to analyzing
-      setListingItems(prev => prev.map(i => 
+      setGeneratedItems(prev => prev.map(i => 
         i.sku === item.sku 
           ? { ...i, status: 'analyzing' }
           : i
       ));
 
       // Run AI analysis
-      const analysisResult = await analyzeItem(item.primaryPhoto, { // Use analyzeItem from useAIAnalysis hook
+      const analysisResult = await analyzeItem(item.primaryPhoto, {
         sku: item.sku,
         photos: item.photos
       });
@@ -180,75 +177,78 @@ const GenerateListingsPage = () => {
       const extractedData = extractListingDataFromAI(aiData);
       console.log('📊 [GENERATE-LISTINGS] Extracted data:', extractedData);
 
-      // Create or update listing in database
-      const listingData = {
+      // Create or update item in database
+      const itemData = {
         user_id: authUser.id,
-        sku: item.sku,
         title: extractedData.title,
         description: extractedData.description,
-        price: extractedData.price,
+        suggested_price: extractedData.price,
+        category: extractedData.category,
+        condition: extractedData.condition,
         images: item.photos,
+        primary_image_url: item.primaryPhoto,
         brand: extractedData.brand,
         size: extractedData.size,
-        condition: extractedData.condition,
-        category: extractedData.category,
         color: extractedData.color,
-        material: extractedData.material,
-        category_path: extractedData.categoryPath || 'Clothing, Shoes & Accessories > Clothing',
-        category_id: extractedData.categoryId || '11450',
-        item_specifics: extractedData.item_specifics,
-        keywords: extractedData.keywords || [],
+        model_number: extractedData.model_number,
+        ai_suggested_keywords: extractedData.keywords || [],
         ai_confidence: extractedData.confidence || 0.8,
+        ai_analysis: {
+          detected_category: extractedData.category,
+          detected_brand: extractedData.brand,
+          detected_condition: extractedData.condition,
+          key_features: extractedData.keyFeatures || [],
+          market_comparisons: marketResearchData || {},
+          category_suggestions: categoryAnalysisData?.suggestions || []
+        },
         status: 'draft',
-        platforms: ['ebay'],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      let savedListing;
+      let savedItem;
       if (item.id.startsWith('temp_')) {
-        // Create new listing
+        // Create new item
         const { data, error } = await supabase
-          .from('listings')
-          .insert(listingData)
+          .from('items')
+          .insert(itemData)
           .select('*')
           .single();
 
         if (error) throw error;
-        savedListing = data;
+        savedItem = data;
       } else {
-        // Update existing listing
+        // Update existing item
         const { data, error } = await supabase
-          .from('listings')
-          .update(listingData)
+          .from('items')
+          .update(itemData)
           .eq('id', item.id)
           .select('*')
           .single();
 
         if (error) throw error;
-        savedListing = data;
+        savedItem = data;
       }
 
       // Update local state
-      setListingItems(prev => prev.map(i => 
+      setGeneratedItems(prev => prev.map(i => 
         i.sku === item.sku 
           ? {
               ...i,
-              id: savedListing.id,
+              id: savedItem.id,
               title: extractedData.title,
               description: extractedData.description,
               price: extractedData.price,
+              category: extractedData.category,
+              condition: extractedData.condition,
               brand: extractedData.brand,
               size: extractedData.size,
-              condition: extractedData.condition,
-              category: extractedData.category,
               color: extractedData.color,
-              material: extractedData.material,
-              categoryPath: extractedData.categoryPath || 'Clothing, Shoes & Accessories > Clothing',
-              itemSpecifics: extractedData.item_specifics,
-              keywords: extractedData.keywords || [],
+              model_number: extractedData.model_number,
+              ai_suggested_keywords: extractedData.keywords || [],
+              ai_confidence: extractedData.confidence || 0.8,
+              ai_analysis: itemData.ai_analysis,
               status: 'ready',
-              aiConfidence: extractedData.confidence || 0.8,
               lastUpdated: new Date()
             }
           : i
@@ -260,7 +260,7 @@ const GenerateListingsPage = () => {
       console.error('❌ [GENERATE-LISTINGS] Generation failed:', error);
       
       // Update status to error
-      setListingItems(prev => prev.map(i => 
+      setGeneratedItems(prev => prev.map(i => 
         i.sku === item.sku 
           ? { 
               ...i, 
@@ -273,22 +273,21 @@ const GenerateListingsPage = () => {
   };
   
   // Fallback listing generation for error handling
-  const generateFallbackListing = (item: ListingItem) => {
+  const generateFallbackListing = (item: GeneratedItem) => {
     return {
       ...item,
       title: `Item ${item.sku} - Manual Review Required`,
       description: 'This item requires manual review and editing due to an AI analysis failure.',
       price: 0,
-      categoryPath: '',
-      categoryId: '',
-      itemSpecifics: {},
-      keywords: [],
+      category: 'other',
+      condition: 'good',
+      ai_suggested_keywords: []
     };
   };
 
   // Generate all listings
   const handleGenerateAll = async () => {
-    const itemsToGenerate = listingItems.filter(item => 
+    const itemsToGenerate = generatedItems.filter(item => 
       item.status === 'not_started' || item.status === 'needs_attention'
     );
 
@@ -305,7 +304,7 @@ const GenerateListingsPage = () => {
       for (const item of itemsToGenerate) {
         try {
           // Set item status to "analyzing"
-          setListingItems(prev => prev.map(i => 
+          setGeneratedItems(prev => prev.map(i => 
             i.sku === item.sku 
               ? { ...i, status: 'analyzing', generationError: undefined }
               : i
@@ -315,7 +314,7 @@ const GenerateListingsPage = () => {
           await new Promise(resolve => setTimeout(resolve, 1000)); 
         } catch (error) {
           console.error(`❌ [GENERATE-LISTINGS] Bulk generation failed for item ${item.sku}:`, error);
-          setListingItems(prev => prev.map(i => 
+          setGeneratedItems(prev => prev.map(i => 
             i.sku === item.sku 
               ? { ...generateFallbackListing(item), status: 'needs_attention', generationError: error.message }
               : i
@@ -343,39 +342,38 @@ const GenerateListingsPage = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedItems.size === listingItems.length) {
+    if (selectedItems.size === generatedItems.length) {
       setSelectedItems(new Set());
     } else {
-      setSelectedItems(new Set(listingItems.map(item => item.sku)));
+      setSelectedItems(new Set(generatedItems.map(item => item.sku)));
     }
   };
 
   // Handle editing
-  const handleEditItem = (item: ListingItem) => {
+  const handleEditItem = (item: GeneratedItem) => {
     setEditingItem(item);
     setShowEditModal(true);
   };
 
-  const handleSaveEdit = async (updatedData: Partial<ListingItem>) => {
+  const handleSaveEdit = async (updatedData: Partial<GeneratedItem>) => {
     if (!editingItem) return;
 
     try {
       console.log('💾 [GENERATE-LISTINGS] Saving edit for:', editingItem.sku);
 
       const { data, error } = await supabase
-        .from('listings')
+        .from('items')
         .update({
           title: updatedData.title,
           description: updatedData.description,
-          price: updatedData.price,
+          suggested_price: updatedData.price,
+          category: updatedData.category,
+          condition: updatedData.condition,
           brand: updatedData.brand,
           size: updatedData.size,
-          condition: updatedData.condition,
-          category: updatedData.category,
           color: updatedData.color,
-          material: updatedData.material,
-          item_specifics: updatedData.itemSpecifics,
-          keywords: updatedData.keywords,
+          model_number: updatedData.model_number,
+          ai_suggested_keywords: updatedData.ai_suggested_keywords,
           updated_at: new Date().toISOString()
         })
         .eq('id', editingItem.id)
@@ -385,7 +383,7 @@ const GenerateListingsPage = () => {
       if (error) throw error;
 
       // Update local state
-      setListingItems(prev => prev.map(item => 
+      setGeneratedItems(prev => prev.map(item => 
         item.sku === editingItem.sku 
           ? { ...item, ...updatedData, lastUpdated: new Date() }
           : item
@@ -403,10 +401,10 @@ const GenerateListingsPage = () => {
 
   // Delete item
   const handleDeleteItem = async (itemSku: string) => {
-    const item = listingItems.find(i => i.sku === itemSku);
+    const item = generatedItems.find(i => i.sku === itemSku);
     if (!item) return;
 
-    if (!window.confirm(`Are you sure you want to delete the listing for SKU ${itemSku}? This action cannot be undone.`)) {
+    if (!window.confirm(`Are you sure you want to delete the item for SKU ${itemSku}? This action cannot be undone.`)) {
       return;
     }
 
@@ -414,7 +412,7 @@ const GenerateListingsPage = () => {
       // Delete from database if it exists
       if (!item.id.startsWith('temp_')) {
         const { error } = await supabase
-          .from('listings')
+          .from('items')
           .delete()
           .eq('id', item.id);
 
@@ -422,7 +420,7 @@ const GenerateListingsPage = () => {
       }
 
       // Remove from local state
-      setListingItems(prev => prev.filter(i => i.sku !== itemSku));
+      setGeneratedItems(prev => prev.filter(i => i.sku !== itemSku));
       setSelectedItems(prev => {
         const newSet = new Set(prev);
         newSet.delete(itemSku);
@@ -474,7 +472,7 @@ const GenerateListingsPage = () => {
                     aiAnalysis?.item_type || 
                     'Clothing';
     const color = aiAnalysis?.color || 'Multi-Color';
-    const material = aiAnalysis?.material || 'Mixed Materials';
+    const model_number = aiAnalysis?.model_number || aiAnalysis?.modelNumber || null;
     
     // Enhanced keywords from multiple sources
     const keywords = [
@@ -486,44 +484,77 @@ const GenerateListingsPage = () => {
     ).slice(0, 10); // Limit to 10 keywords
     
     const description = generateListingDescription({
-      title, brand, size, condition, category, color, material, keywords
+      title, brand, size, condition, category, color, keywords
     });
     
-    const itemSpecifics = {
-      Brand: brand,
-      Size: size,
-      Condition: condition,
-      Color: color,
-      Material: material,
-      Category: category
-    };
-    
-    // Use eBay category data if available
-    const categoryPath = aiAnalysis?.recommended_category?.categoryPath || getCategoryPath(category);
-    const categoryId = aiAnalysis?.recommended_category?.categoryId || getCategoryId(category);
+    // Extract key features for AI analysis
+    const keyFeatures = [
+      ...(aiAnalysis?.key_features || []),
+      ...(aiAnalysis?.keyFeatures || []),
+      ...(aiAnalysis?.features || [])
+    ].filter((feature, index, array) => 
+      feature && array.indexOf(feature) === index
+    ).slice(0, 8);
     
     const extractedData = {
       title,
       description,
       price,
+      category: normalizeCategory(category),
+      condition: normalizeCondition(condition),
       brand,
       size,
-      condition,
-      category,
       color,
-      material,
+      model_number,
       keywords,
-      item_specifics: itemSpecifics,
-      categoryPath,
-      categoryId,
-      confidence: aiAnalysis?.market_confidence || aiAnalysis?.confidence || 0.8,
-      // Add eBay-specific data
-      market_research: aiAnalysis?.marketResearch || null,
-      category_analysis: aiAnalysis?.categoryAnalysis || null
+      keyFeatures,
+      confidence: aiAnalysis?.market_confidence || aiAnalysis?.confidence || 0.8
     };
     
     console.log('📋 [EXTRACT] Final extracted data:', extractedData);
     return extractedData;
+  };
+
+  // Normalize category to match database enum
+  const normalizeCategory = (category: string): string => {
+    const categoryMap: { [key: string]: string } = {
+      'clothing': 'clothing',
+      'jacket': 'clothing',
+      'shirt': 'clothing',
+      'pants': 'clothing',
+      'dress': 'clothing',
+      'shoes': 'shoes',
+      'sneakers': 'shoes',
+      'boots': 'shoes',
+      'accessories': 'accessories',
+      'jewelry': 'jewelry',
+      'electronics': 'electronics',
+      'home': 'home_garden',
+      'toys': 'toys_games',
+      'books': 'books_media',
+      'sports': 'sports_outdoors',
+      'collectibles': 'collectibles'
+    };
+    
+    const normalized = category.toLowerCase();
+    return categoryMap[normalized] || 'other';
+  };
+
+  // Normalize condition to match database enum
+  const normalizeCondition = (condition: string): string => {
+    const conditionMap: { [key: string]: string } = {
+      'new': 'like_new',
+      'like new': 'like_new',
+      'excellent': 'like_new',
+      'very good': 'good',
+      'good': 'good',
+      'fair': 'fair',
+      'poor': 'poor',
+      'damaged': 'poor'
+    };
+    
+    const normalized = condition.toLowerCase();
+    return conditionMap[normalized] || 'good';
   };
 
   // Debug AI response
@@ -559,7 +590,7 @@ const GenerateListingsPage = () => {
     
     // Check other important fields
     console.log('🔍 [DEBUG] OTHER IMPORTANT FIELDS:');
-    ['brand', 'size', 'condition', 'category', 'item_type', 'color', 'material'].forEach(field => {
+    ['brand', 'size', 'condition', 'category', 'item_type', 'color', 'model_number'].forEach(field => {
       if (aiAnalysis[field] !== undefined) {
         console.log(`🔍 [DEBUG] ✅ ${field.toUpperCase()}: "${aiAnalysis[field]}"`);
       }
@@ -578,13 +609,12 @@ const GenerateListingsPage = () => {
     return `${brand} ${category}${size}${condition}`;
   };
 
-  const generateListingDescription = ({ title, brand, size, condition, category, color, material, keywords }) => {
+  const generateListingDescription = ({ title, brand, size, condition, category, color, keywords }) => {
     const features = [];
     if (brand !== 'Unknown Brand') features.push(`Brand: ${brand}`);
     if (size !== 'Unknown') features.push(`Size: ${size}`);
     if (condition) features.push(`Condition: ${condition}`);
     if (color !== 'Multi-Color') features.push(`Color: ${color}`);
-    if (material !== 'Mixed Materials') features.push(`Material: ${material}`);
     
     const featureText = features.length > 0 ? features.join(' | ') : 'Quality item in great condition';
     const keywordText = keywords.length > 0 ? `\n\nKeywords: ${keywords.join(', ')}` : '';
@@ -598,40 +628,14 @@ This item is carefully inspected and ready to ship. Check out our other listings
 Fast shipping and excellent customer service guaranteed.`;
   };
 
-  const getCategoryPath = (category: string) => {
-    const categoryPaths: Record<string, string> = {
-      'clothing': 'Clothing, Shoes & Accessories > Clothing',
-      'jacket': 'Clothing, Shoes & Accessories > Clothing > Coats & Jackets',
-      'shirt': 'Clothing, Shoes & Accessories > Clothing > Shirts',
-      'pants': 'Clothing, Shoes & Accessories > Clothing > Pants',
-      'dress': 'Clothing, Shoes & Accessories > Clothing > Dresses',
-      'shoes': 'Clothing, Shoes & Accessories > Shoes',
-      'accessories': 'Clothing, Shoes & Accessories > Accessories'
-    };
-    return categoryPaths[category.toLowerCase()] || 'Clothing, Shoes & Accessories > Clothing';
-  };
-
-  const getCategoryId = (category: string) => {
-    const categoryIds: Record<string, string> = {
-      'clothing': '11450',
-      'jacket': '57988',
-      'shirt': '57990',
-      'pants': '57989',
-      'dress': '63861',
-      'shoes': '93427',
-      'accessories': '169291'
-    };
-    return categoryIds[category.toLowerCase()] || '11450';
-  };
-
   // Calculate stats
   const stats = {
-    total: listingItems.length,
-    notStarted: listingItems.filter(i => i.status === 'not_started').length,
-    analyzing: listingItems.filter(i => i.status === 'analyzing').length,
-    ready: listingItems.filter(i => i.status === 'ready').length,
-    needsAttention: listingItems.filter(i => i.status === 'needs_attention').length,
-    complete: listingItems.filter(i => i.status === 'complete').length
+    total: generatedItems.length,
+    notStarted: generatedItems.filter(i => i.status === 'not_started').length,
+    analyzing: generatedItems.filter(i => i.status === 'analyzing').length,
+    ready: generatedItems.filter(i => i.status === 'ready').length,
+    needsAttention: generatedItems.filter(i => i.status === 'needs_attention').length,
+    complete: generatedItems.filter(i => i.status === 'complete').length
   };
 
   if (loading) {
@@ -699,9 +703,9 @@ Fast shipping and excellent customer service guaranteed.`;
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Page Header */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Items Ready for Listing</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Generate AI-Powered Items</h2>
           <p className="text-gray-600 mb-6">
-            Generate AI-powered listings for your SKU groups. Review and edit before posting to eBay.
+            Generate AI-powered item details for your SKU groups. Review and edit before creating listings.
           </p>
           
           {/* Stats Cards */}
@@ -738,7 +742,7 @@ Fast shipping and excellent customer service guaranteed.`;
               <label className="flex items-center space-x-2">
                 <input
                   type="checkbox"
-                  checked={selectedItems.size === listingItems.length && listingItems.length > 0}
+                  checked={selectedItems.size === generatedItems.length && generatedItems.length > 0}
                   onChange={handleSelectAll}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
@@ -762,7 +766,7 @@ Fast shipping and excellent customer service guaranteed.`;
                 ) : (
                   <>
                     <Zap className="w-4 h-4" />
-                    <span>Generate All Listings ({stats.notStarted})</span>
+                    <span>Generate All Items ({stats.notStarted})</span>
                   </>
                 )}
               </button>
@@ -770,10 +774,10 @@ Fast shipping and excellent customer service guaranteed.`;
           </div>
         </div>
 
-        {/* Listings Table */}
-        {listingItems.length > 0 ? (
+        {/* Generated Items Table */}
+        {generatedItems.length > 0 ? (
           <ListingsTable
-            items={listingItems}
+            items={generatedItems}
             selectedItems={selectedItems}
             onSelectItem={handleSelectItem}
             onSelectAll={handleSelectAll}

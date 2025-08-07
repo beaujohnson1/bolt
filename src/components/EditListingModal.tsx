@@ -3,7 +3,7 @@ import { X, Save, Image, Package, Tag, Truck } from 'lucide-react';
 import CategorySelector from './CategorySelector';
 import ItemSpecifics from './ItemSpecifics';
 
-interface ListingItem {
+interface GeneratedItem {
   id: string;
   sku: string;
   photos: string[];
@@ -11,27 +11,25 @@ interface ListingItem {
   title: string;
   description: string;
   price: number;
-  categoryPath: string;
-  categoryId: string;
-  itemSpecifics: Record<string, string>;
-  keywords: string[];
+  category: string;
+  condition: string;
+  brand?: string;
+  size?: string;
+  color?: string;
+  model_number?: string;
+  ai_suggested_keywords: string[];
+  ai_confidence: number;
+  ai_analysis: any;
   status: 'not_started' | 'analyzing' | 'ready' | 'needs_attention' | 'complete';
   generationError?: string;
   lastUpdated: Date;
-  aiConfidence: number;
-  brand?: string;
-  size?: string;
-  condition?: string;
-  category?: string;
-  color?: string;
-  material?: string;
 }
 
 interface EditListingModalProps {
-  item: ListingItem;
+  item: GeneratedItem;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (updatedData: Partial<ListingItem>) => void;
+  onSave: (updatedData: Partial<GeneratedItem>) => void;
 }
 
 const EditListingModal: React.FC<EditListingModalProps> = ({
@@ -51,11 +49,8 @@ const EditListingModal: React.FC<EditListingModalProps> = ({
     condition: '',
     category: '',
     color: '',
-    material: '',
-    categoryPath: '',
-    categoryId: '',
-    itemSpecifics: {} as Record<string, string>,
-    keywords: [] as string[]
+    model_number: '',
+    ai_suggested_keywords: [] as string[]
   });
 
   // Initialize form data when item changes
@@ -70,11 +65,8 @@ const EditListingModal: React.FC<EditListingModalProps> = ({
         condition: item.condition || '',
         category: item.category || '',
         color: item.color || '',
-        material: item.material || '',
-        categoryPath: item.categoryPath || '',
-        categoryId: item.categoryId || '',
-        itemSpecifics: item.itemSpecifics || {},
-        keywords: item.keywords || []
+        model_number: item.model_number || '',
+        ai_suggested_keywords: item.ai_suggested_keywords || []
       });
     }
   }, [item]);
@@ -254,14 +246,31 @@ const EditListingModal: React.FC<EditListingModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Material</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Model Number</label>
                   <input
                     type="text"
-                    value={formData.material}
-                    onChange={(e) => updateFormData('material', e.target.value)}
+                    value={formData.model_number}
+                    onChange={(e) => updateFormData('model_number', e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Primary material"
+                    placeholder="Model or style number"
                   />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Keywords
+                </label>
+                <textarea
+                  value={formData.ai_suggested_keywords.join(', ')}
+                  onChange={(e) => updateFormData('ai_suggested_keywords', e.target.value.split(',').map(k => k.trim()).filter(k => k))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="Enter keywords separated by commas"
+                />
+                <div className="text-xs text-gray-500 mt-1">
+                  Keywords help buyers find your item. Separate with commas.
                 </div>
               </div>
 
@@ -317,20 +326,26 @@ const EditListingModal: React.FC<EditListingModalProps> = ({
 
           {activeTab === 'category' && (
             <div className="space-y-6">
-              <CategorySelector
-                selectedPath={formData.categoryPath}
-                selectedId={formData.categoryId}
-                onSelect={(path, id) => {
-                  updateFormData('categoryPath', path);
-                  updateFormData('categoryId', id);
-                }}
-              />
-              
-              <ItemSpecifics
-                specifics={formData.itemSpecifics}
-                categoryId={formData.categoryId}
-                onChange={(specifics) => updateFormData('itemSpecifics', specifics)}
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => updateFormData('category', e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="clothing">Clothing</option>
+                  <option value="shoes">Shoes</option>
+                  <option value="accessories">Accessories</option>
+                  <option value="electronics">Electronics</option>
+                  <option value="home_garden">Home & Garden</option>
+                  <option value="toys_games">Toys & Games</option>
+                  <option value="sports_outdoors">Sports & Outdoors</option>
+                  <option value="books_media">Books & Media</option>
+                  <option value="jewelry">Jewelry</option>
+                  <option value="collectibles">Collectibles</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
             </div>
           )}
 
