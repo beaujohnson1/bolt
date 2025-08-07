@@ -50,37 +50,11 @@ export const normalizeCategory = (category: string): string => {
     'watch': 'jewelry',
     'necklace': 'jewelry',
     'bracelet': 'jewelry',
-    'electronics': 'electronics',
-    'phone': 'electronics',
-    'laptop': 'electronics',
-    'tablet': 'electronics',
-    'camera': 'electronics',
-    'home & garden': 'home_garden',
-    'home garden': 'home_garden',
-    'furniture': 'home_garden',
-    'decor': 'home_garden',
-    'toys': 'toys_games',
-    'games': 'toys_games',
-    'toy': 'toys_games',
-    'game': 'toys_games',
-    'sports': 'sports_outdoors',
-    'outdoor': 'sports_outdoors',
-    'fitness': 'sports_outdoors',
-    'books': 'books_media',
-    'book': 'books_media',
-    'media': 'books_media',
-    'dvd': 'books_media',
-    'cd': 'books_media',
-    'collectibles': 'collectibles',
-    'collectible': 'collectibles',
-    'vintage': 'collectibles',
-    'antique': 'collectibles'
-  };
-  
+/**
+ * Generate SKU based on item properties
  * @param item - Item object with brand, category, size properties
  * @returns Generated SKU string
  */
-}
 export const generateSKU = (item: { brand?: string; category?: string; size?: string }): string => {
   try {
     const brand = item.brand || 'UNK';
@@ -105,6 +79,30 @@ export const generateSKU = (item: { brand?: string; category?: string; size?: st
 
 /**
  * Generate sequential SKU numbers (legacy function for backwards compatibility)
+ * @param index - Sequential index number
+ * @param prefix - SKU prefix (default: 'SKU')
+ * @returns Sequential SKU string
+ */
+export const generateSequentialSKU = (index: number, prefix: string = 'SKU'): string => {
+  return `${prefix}-${String(index + 1).padStart(3, '0')}`;
+};
+
+// Format price for display
+export const formatPrice = (price: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(price);
+};
+
+// Format date for display
+export const formatDate = (dateString: string): string => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
   return categoryMap[normalized] || 'other';
 };
 
