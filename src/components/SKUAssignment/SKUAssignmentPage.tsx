@@ -171,11 +171,23 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
       // Refresh the photos
       await fetchUploadedPhotos();
       
-      // Call completion callback if provided
+      // Auto-advance workflow: if no more photos to assign, suggest moving to Generate Listings
       if (onAssignmentComplete) {
-        setTimeout(() => {
-          onAssignmentComplete();
-        }, 2000);
+        // Check if there are any remaining unassigned photos
+        const { data: remainingPhotos, error } = await supabase
+          .from('uploaded_photos')
+          .select('id')
+          .eq('user_id', authUser.id)
+          .eq('status', 'uploaded');
+        
+        if (!error && remainingPhotos && remainingPhotos.length === 0) {
+          // No more photos to assign, suggest moving to Generate Listings
+          setTimeout(() => {
+            if (window.confirm('All photos have been assigned SKUs! Would you like to move to Generate Listings to create your item details?')) {
+              onAssignmentComplete();
+            }
+          }, 1500);
+        }
       }
     } catch (error) {
       console.error('❌ [SKU-ASSIGNMENT] Error assigning SKU:', error);
@@ -341,9 +353,21 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
             <li>• <strong>Select photos</strong> that belong to the same item by clicking on them</li>
             <li>• <strong>Enter a unique SKU</strong> number (must end with digits, e.g., ABC-123)</li>
             <li>• <strong>Click "Assign SKU"</strong> to group the selected photos</li>
-            <li>• <strong>Repeat</strong> for each item you want to sell</li>
+            <li>• <strong>Repeat</strong> for each item - assigned photos will disappear automatically</li>
             <li>• <strong>Go to "Generate Listings"</strong> tab when all photos are assigned</li>
           </ul>
+          
+          <div className={`mt-4 p-4 rounded-lg ${
+            isDarkMode ? 'bg-green-900/20 border border-green-700' : 'bg-green-50 border border-green-200'
+          }`}>
+            <h4 className={`font-medium mb-2 ${isDarkMode ? 'text-green-400' : 'text-green-800'}`}>
+              💡 Pro Tip: Multi-Item Workflow
+            </h4>
+            <p className={`text-sm ${isDarkMode ? 'text-green-300' : 'text-green-700'}`}>
+              After assigning a SKU to photos, they'll automatically disappear from this view. 
+              The next set of unassigned photos will appear, making it easy to assign SKUs to multiple items in sequence.
+            </p>
+          </div>
         </div>
       )}
     </div>

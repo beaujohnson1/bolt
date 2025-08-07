@@ -69,12 +69,12 @@ const GenerateListingsPage = () => {
 
       console.log('🔍 [GENERATE-LISTINGS] Fetching SKU groups...');
 
-      // Fetch photos grouped by SKU
+      // Fetch photos grouped by SKU that are assigned but not yet processed
       const { data: photos, error: photosError } = await supabase
         .from('uploaded_photos')
         .select('*')
         .eq('user_id', authUser.id)
-        .eq('status', 'assigned')
+        .in('status', ['assigned', 'processed']) // Include both assigned and processed photos
         .not('assigned_sku', 'is', null)
         .order('assigned_sku')
         .order('upload_order');
@@ -98,7 +98,7 @@ const GenerateListingsPage = () => {
 
       setSKUGroups(skuGroupsArray);
 
-      // Fetch existing items for this user (no SKU matching since items table doesn't have sku column)
+      // Fetch existing items for this user
       const { data: existingItems, error: itemsError } = await supabase
         .from('items')
         .select('*')
@@ -107,17 +107,16 @@ const GenerateListingsPage = () => {
 
       if (itemsError) {
         console.error('❌ [GENERATE-LISTINGS] Error fetching existing items:', itemsError);
-        // Don't throw here - continue with empty items array
       }
 
       // Convert to generated items format
       const items: GeneratedItem[] = skuGroupsArray.map(group => {
-        // Try to find existing item by matching primary photo URL
+        // Find existing item by checking if any photo in this group has assigned_item_id
         const primaryPhotoUrl = group.photos[0]?.image_url;
-        const existingItem = existingItems?.find(item => 
-          item.primary_image_url === primaryPhotoUrl ||
-          item.images?.includes(primaryPhotoUrl)
-        ) || null;
+        const photoWithItemId = group.photos.find(photo => photo.assigned_item_id);
+        const existingItem = photoWithItemId && existingItems?.find(item => 
+          item.id === photoWithItemId.assigned_item_id
+        );
         
         const primaryPhoto = group.photos[0]?.image_url || '';
         
@@ -255,6 +254,9 @@ const GenerateListingsPage = () => {
         if (error) throw error;
         savedItem = data;
         console.log('✅ [GENERATE-LISTINGS] New item created:', savedItem.id);
+        
+        // Link photos to the newly created item
+        await linkPhotosToItem(item.sku, savedItem.id);
       } else {
         // Update existing item
         const { data, error } = await supabase
@@ -449,6 +451,8 @@ const GenerateListingsPage = () => {
     }
 
     try {
+      console.log('🗑️ [GENERATE-LISTINGS] Starting deletion process for SKU:', itemSku);
+      
       // Delete from database if it exists
       if (!item.id.startsWith('temp_')) {
         const { error } = await supabase
@@ -457,8 +461,12 @@ const GenerateListingsPage = () => {
           .eq('id', item.id);
 
         if (error) throw error;
+        console.log('✅ [GENERATE-LISTINGS] Item deleted from database:', item.id);
       }
 
+      // Reset photos associated with this SKU to make them available for re-assignment
+      await resetPhotosForSKU(itemSku);
+      
       // Remove from local state
       setGeneratedItems(prev => prev.filter(i => i.sku !== itemSku));
       setSelectedItems(prev => {
@@ -563,6 +571,55 @@ const GenerateListingsPage = () => {
     
     console.log('📋 [EXTRACT] Final extracted data:', extractedData);
     return extractedData;
+  };
+
+  // Helper function to link photos to a generated item
+  const linkPhotosToItem = async (sku: string, itemId: string) => {
+    try {
+      console.log('🔗 [GENERATE-LISTINGS] Linking photos to item:', { sku, itemId });
+      
+      const { error } = await supabase
+        .from('uploaded_photos')
+        .update({
+          assigned_item_id: itemId,
+          status: 'processed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('assigned_sku', sku)
+        .eq('user_id', authUser.id);
+      
+      if (error) throw error;
+      
+      console.log('✅ [GENERATE-LISTINGS] Photos linked to item successfully');
+    } catch (error) {
+      console.error('❌ [GENERATE-LISTINGS] Error linking photos to item:', error);
+      throw error;
+    }
+  };
+
+  // Helper function to reset photos when item is deleted
+  const resetPhotosForSKU = async (sku: string) => {
+    try {
+      console.log('🔄 [GENERATE-LISTINGS] Resetting photos for SKU:', sku);
+      
+      const { error } = await supabase
+        .from('uploaded_photos')
+        .update({
+          assigned_item_id: null,
+          assigned_sku: null,
+          status: 'uploaded',
+          updated_at: new Date().toISOString()
+        })
+        .eq('assigned_sku', sku)
+        .eq('user_id', authUser.id);
+      
+      if (error) throw error;
+      
+      console.log('✅ [GENERATE-LISTINGS] Photos reset successfully - now available for re-assignment');
+    } catch (error) {
+      console.error('❌ [GENERATE-LISTINGS] Error resetting photos:', error);
+      throw error;
+    }
   };
 
   // Normalize category to match database enum
