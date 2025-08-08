@@ -7,9 +7,9 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 const corsAwareFetch: typeof fetch = async (input, init = {}) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
-    console.warn('[SUPABASE-FETCH] Request timeout after 20 seconds');
+    console.warn('[SUPABASE-FETCH] Request timeout after 30 seconds');
     controller.abort();
-  }, 20000); // 20 second timeout for production
+  }, 30000); // 30 second timeout for auth requests
   
   try {
     const url = typeof input === 'string' ? input : input.toString();
@@ -19,11 +19,10 @@ const corsAwareFetch: typeof fetch = async (input, init = {}) => {
     const response = await fetch(input as any, { 
       ...init, 
       signal: controller.signal,
-      // Add CORS and connectivity headers
+      // Add proper headers for Supabase requests
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Request-Method': init.method || 'GET',
-        'Access-Control-Request-Headers': 'Content-Type, Authorization, apikey',
+        'X-Client-Info': 'easyflip-web@1.0.0',
         ...init.headers
       }
     });
@@ -46,11 +45,13 @@ const corsAwareFetch: typeof fetch = async (input, init = {}) => {
     
     // Provide more specific error messages
     if (error.name === 'AbortError') {
-      throw new Error('Request timed out - please check your internet connection');
+      throw new Error('Request timed out after 30 seconds - please check your internet connection');
     } else if (error.message?.includes('CORS')) {
       throw new Error(`CORS error - Supabase is blocking requests from ${window.location.origin}. Please update Supabase dashboard settings.`);
     } else if (error.message?.includes('Failed to fetch')) {
       throw new Error(`Unable to connect to Supabase from ${window.location.origin} - please check CORS settings in Supabase dashboard`);
+    } else if (error.message?.includes('ERR_CONNECTION_RESET') || error.message?.includes('ERR_NETWORK_CHANGED')) {
+      throw new Error(`Network connection was reset. This may be a temporary issue - please try again in a moment.`);
     } else {
       throw new Error(`Network connection failed. Please check your internet connection or try again. If the problem persists, verify Supabase CORS settings.`);
     }
@@ -80,7 +81,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    debug: import.meta.env.DEV, // Enable debug logging in development
+    debug: false, // Disable debug to reduce noise
     // Production-specific auth settings
     redirectTo: import.meta.env.PROD ? 'https://easyflip.ai/auth/callback' : undefined,
     storage: {
@@ -111,7 +112,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   global: { 
     fetch: corsAwareFetch,
     headers: {
-      'X-Client-Info': 'easyflip-web-app',
+      'X-Client-Info': 'easyflip-web@1.0.0',
       'X-Client-Origin': window.location.origin
     }
   }

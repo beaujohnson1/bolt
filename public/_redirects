@@ -1,0 +1,14 @@
+# Netlify redirects to handle Supabase auth requests
+# This bypasses any Netlify proxy issues with POST requests
+
+# Redirect auth API calls directly to Supabase
+/api/auth/* https://kstmyodjnckgoosidsbb.supabase.co/auth/v1/:splat 200
+
+# Redirect REST API calls directly to Supabase  
+/api/rest/* https://kstmyodjnckgoosidsbb.supabase.co/rest/v1/:splat 200
+
+# Redirect storage API calls directly to Supabase
+/api/storage/* https://kstmyodjnckgoosidsbb.supabase.co/storage/v1/:splat 200
+
+# Fallback for SPA routing
+/* /index.html 200
