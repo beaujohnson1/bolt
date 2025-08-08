@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, RefreshCw, Zap, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getSupabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import ListingsTable from '../components/ListingsTable';
 import EditListingModal from '../components/EditListingModal';
 import { useAIAnalysis } from '../hooks/useAIAnalysis';
@@ -67,13 +67,6 @@ const GenerateListingsPage = () => {
   const fetchSKUGroups = async () => {
     if (!authUser) return;
     
-    const supabase = getSupabase();
-    if (!supabase) {
-      setError('Database connection not available. Please check your configuration.');
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);

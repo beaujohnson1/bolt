@@ -155,13 +155,7 @@ export class KeywordOptimizationService {
     style?: string
   ): Promise<string[]> {
     try {
-      const supabase = this.supabase;
-      if (!supabase) {
-        console.error('❌ [KEYWORDS] Supabase client not available for database keywords');
-        return [];
-      }
-      
-      const { data, error } = await supabase
+      const { data, error } = await this.supabase
         .rpc('get_keyword_suggestions', {
           p_brand: brand,
           p_category: category,
@@ -353,13 +347,7 @@ export class KeywordOptimizationService {
    */
   private async savePhotoAnalysis(analysis: PhotoAnalysis): Promise<string | null> {
     try {
-      const supabase = this.supabase;
-      if (!supabase) {
-        console.error('❌ [KEYWORDS] Supabase client not available for saving analysis');
-        return null;
-      }
-      
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await this.supabase.auth.getUser();
       
       if (!user) {
         console.error('❌ [KEYWORDS] No authenticated user found');
@@ -371,7 +359,7 @@ export class KeywordOptimizationService {
         user_id: user.id
       };
 
-      const { data, error } = await supabase
+      const { data, error } = await this.supabase
         .from('photo_analysis')
         .insert([analysisData])
         .select()

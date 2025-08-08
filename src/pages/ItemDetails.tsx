@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, ExternalLink, Trash2, Save, X, Package, Eye, Target, MessageCircle, Zap, Star } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { getSupabase, type Item, type Listing } from '../lib/supabase';
+import { supabase, type Item, type Listing } from '../lib/supabase';
 import { KeywordOptimizationService } from '../services/KeywordOptimizationService';
 
 const ItemDetails = () => {
@@ -23,12 +23,6 @@ const ItemDetails = () => {
     const fetchItemData = async () => {
       if (!itemId || !authUser) return;
       
-      const supabase = getSupabase();
-      if (!supabase) {
-        alert('Database connection not available. Please check your configuration.');
-        return;
-      }
-
       try {
         console.log('🔍 [ITEM-DETAILS] Fetching item with ID:', itemId);
         

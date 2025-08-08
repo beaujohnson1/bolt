@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { getSupabase, type User as AppUser } from '../lib/supabase';
+import { supabase, type User as AppUser } from '../lib/supabase';
 import { withTimeout, withRetry, debounceAsync } from '../utils/promiseUtils';
 
 // Timeout constants
@@ -41,11 +41,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchUserProfile = async (supabaseUser: User): Promise<AppUser | null> => {
     try {
       console.log('🔍 [AUTH] Starting fetchUserProfile for user:', supabaseUser.id);
-      
-      const supabase = getSupabase();
-      if (!supabase) {
-        throw new Error('Supabase client not available - check environment variables');
-      }
       
       const userName = 
         supabaseUser.user_metadata?.full_name || 
@@ -146,11 +141,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('No authenticated user');
     }
     
-    const supabase = getSupabase();
-    if (!supabase) {
-      throw new Error('Supabase client not available - check environment variables');
-    }
-
     try {
       const { data, error } = await withTimeout(
         supabase
@@ -240,15 +230,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authEffectInitialized.current = true;
     console.log('🔄 [AUTH] Auth effect triggered - setting up authentication listeners');
     
-    // Set up auth state change listener
-    const supabase = getSupabase();
-    if (!supabase) {
-      console.error('❌ [AUTH] Supabase client not available - cannot set up auth listeners');
-      setLoading(false);
-      return;
-    }
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    // Set up auth state change listener with resilience
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Handle token refresh failures to prevent infinite loops
+      if (event === 'TOKEN_REFRESH_FAILED') {
+        console.warn('[AUTH] Token refresh failed; forcing logout to recover');
+        try { 
+          await supabase.auth.signOut(); 
+        } catch (signOutError) {
+          console.error('[AUTH] Error during forced sign out:', signOutError);
+        }
+        
+        // Clear all local storage to reset state
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Optional: Clear IndexedDB if supported
+        try {
+          const dbs = await (indexedDB as any).databases?.();
+          if (Array.isArray(dbs)) {
+            await Promise.all(dbs.map((d: any) => d.name && indexedDB.deleteDatabase(d.name)));
+          }
+        } catch (dbError) {
+          console.warn('[AUTH] Could not clear IndexedDB:', dbError);
+        }
+        
+        // Force page reload to reset application state
+        window.location.reload();
+        return;
+      }
+      
+      // Handle normal auth state changes
+      await handleAuthStateChange(event, session);
+    });
 
     // Get initial session and trigger auth state change handler
     supabase.auth.getSession().then(({ data: { session }, error }) => {
@@ -272,11 +286,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, name: string) => {
     try {
       console.log('📝 [AUTH] Attempting to sign up:', email);
-      
-      const supabase = getSupabase();
-      if (!supabase) {
-        return { error: new Error('Supabase client not available - check environment variables') };
-      }
       
       const { error } = await supabase.auth.signUp({
         email,
@@ -307,11 +316,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('🔑 [AUTH] Attempting to sign in:', email);
       
-      const supabase = getSupabase();
-      if (!supabase) {
-        return { error: new Error('Supabase client not available - check environment variables') };
-      }
-      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -333,11 +337,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     try {
       console.log('🔑 [AUTH] Attempting to sign in with Google');
-      
-      const supabase = getSupabase();
-      if (!supabase) {
-        return { error: new Error('Supabase client not available - check environment variables') };
-      }
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -363,18 +362,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('👋 [AUTH] Signing out...');
       
-      const supabase = getSupabase();
-      if (!supabase) {
-        console.error('❌ [AUTH] Supabase client not available for sign out');
-        return;
-      }
-      
       await supabase.auth.signOut();
       setUser(null);
       setAuthUser(null);
       console.log('✅ [AUTH] Sign out successful');
     } catch (error) {
       console.error('❌ [AUTH] Sign out error:', error);
+    }
+  };
+
+  // Panic logout function for emergency reset
+  const panicLogout = async () => {
+    try {
+      console.log('🚨 [AUTH] Emergency logout and reset...');
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('❌ [AUTH] Error during panic logout:', error);
+    } finally {
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.reload();
     }
   };
 
@@ -389,6 +396,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signInWithGoogle,
     signOut,
     updateUser
+    panicLogout
   };
 
   return (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, AlertCircle, Package } from 'lucide-react';
-import { getSupabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import ControlBar from './ControlBar';
 import PhotoGrid from './PhotoGrid';
@@ -59,13 +59,6 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
   const fetchUploadedPhotos = async () => {
     if (!authUser) return;
     
-    const supabase = getSupabase();
-    if (!supabase) {
-      setError('Database connection not available. Please check your configuration.');
-      setLoading(false);
-      return;
-    }
-
     try {
       console.log('🔍 [SKU-ASSIGNMENT] Fetching uploaded photos...');
       setLoading(true);

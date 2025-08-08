@@ -1,44 +1,28 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-let client: SupabaseClient | null = null;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.trim();
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
-export function getSupabase(): SupabaseClient | null {
-  if (client) return client;
-
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-  if (!url || !anon) {
-    console.warn(
-      'Missing Supabase environment variables. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file.'
-    );
-    console.warn('Current values:', {
-      VITE_SUPABASE_URL_present: !!url,
-      VITE_SUPABASE_ANON_KEY_present: !!anon,
-      VITE_SUPABASE_URL_host: url ? new URL(url).host : null
-    });
-    // Return null so callers can render a friendly UI instead of crashing
-    return null;
-  }
-
-  try {
-    client = createClient(url, anon, { 
-      auth: { 
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
-    });
-    console.log('✅ Supabase client initialized successfully');
-    return client;
-  } catch (error) {
-    console.error('❌ Failed to initialize Supabase client:', error);
-    return null;
-  }
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn('[SUPABASE] Missing env. Got:', {
+    VITE_SUPABASE_URL_present: !!SUPABASE_URL,
+    VITE_SUPABASE_ANON_KEY_present: !!SUPABASE_ANON_KEY,
+  });
+  throw new Error('Supabase config missing');
 }
 
-// Legacy export for backward compatibility - will be removed gradually
-export const supabase = getSupabase();
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
+
+// Legacy function for backward compatibility
+export function getSupabase(): SupabaseClient | null {
+  return supabase;
+}
 
 // Database types (generated from your schema)
 export interface User {

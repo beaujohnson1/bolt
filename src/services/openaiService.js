@@ -4,6 +4,7 @@ import { extractTagText, cropAndReocr } from '../utils/imageUtils';
 import { extractSize, extractBrand, buildTitle } from '../utils/itemUtils';
 import { visionClient } from '../lib/googleVision';
 import { safeTrim, nullIfUnknown, safeUpper, toStr } from '../utils/strings';
+import { callFunction, mockFunction } from '../lib/functions';
 
 // Primary clothing analysis function - now accepts URL or base64
 export const analyzeClothingItem = async (imageUrls, options = {}) => {
@@ -56,12 +57,7 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     // Step 3: Enhanced AI analysis with constraints
     console.log('🤖 [OPENAI-CLIENT] Step 3: Calling enhanced AI analysis...');
     
-    const response = await fetch('/.netlify/functions/openai-vision-analysis', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    const payload = {
         imageUrls: imageArray,
         ocrText,
         candidates: {
@@ -71,39 +67,40 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
         analysisType: 'enhanced_listing',
         ebayAspects: options.ebayAspects || [],
         originalInput: imageUrls
-      }),
+    };
+    
+    const response = await callFunction('openai-vision-analysis', {
+      method: 'POST',
+      body: JSON.stringify(payload)
     });
-
-    // Handle server response with new ok/error structure
-    const handleServerResponse = async (response) => {
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ [OPENAI-CLIENT] Server response not ok:', response.status, errorText);
-        throw new Error(`Server error: ${response.status} ${response.statusText}`);
-      }
-
-      const json = await response.json();
-      console.log('📥 [OPENAI-CLIENT] Server response:', { ok: json.ok, hasData: !!json.data, hasError: !!json.error });
-      
-      if (!json.ok) {
-        // Server validation failed - return the flagged data for "needs attention"
-        console.log('🚨 [OPENAI-CLIENT] Server validation failed, flagging for manual review');
-        return {
-          success: false,
-          error: json.error || 'AI analysis validation failed',
-          issues: json.issues || [],
-          data: { __needsAttention: true } // Flag for mapAIToListing
-        };
-      }
-
+    
+    // Handle mock response in development
+    if (response.mock) {
+      console.log('🔧 [OPENAI-CLIENT] Using mock response in development');
       return {
         success: true,
-        data: json.data,
-        usage: json.usage
+        analysis: response.data,
+        source: 'mock-development'
       };
-    };
+    }
 
-    const payload = await handleServerResponse(response);
+    // Handle server response with new ok/error structure
+    if (!response.ok) {
+      // Server validation failed - return the flagged data for "needs attention"
+      console.log('🚨 [OPENAI-CLIENT] Server validation failed, flagging for manual review');
+      return {
+        success: false,
+        error: response.error || 'AI analysis validation failed',
+        issues: response.issues || [],
+        data: { __needsAttention: true } // Flag for mapAIToListing
+      };
+    }
+
+    const payload = {
+      success: true,
+      data: response.data,
+      usage: response.usage
+    };
     
     if (!payload.success) {
       // Server validation failed - return the flagged data for "needs attention"
@@ -223,26 +220,31 @@ export const analyzeClothingTags = async (imageBase64) => {
   try {
     console.log('🏷️ [OPENAI-CLIENT] Starting tag-specific analysis via Netlify Function...');
     
-    const response = await fetch('/.netlify/functions/openai-vision-analysis', {
+    const response = await callFunction('openai-vision-analysis', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         imageBase64,
         analysisType: 'tags'
-      }),
+      })
     });
 
-    if (!response.ok) {
-      throw new Error(`Tag analysis failed: ${response.status} ${response.statusText}`);
+    if (response.mock) {
+      console.log('🔧 [OPENAI-CLIENT] Using mock tag analysis in development');
+      return {
+        success: true,
+        data: { tags: ['mock', 'tag', 'analysis'] },
+        source: 'mock-development'
+      };
     }
 
-    const result = await response.json();
-    console.log('✅ [OPENAI-CLIENT] Tag analysis response received');
-    console.log('📊 [OPENAI-CLIENT] Tag analysis result:', result);
+    if (!response.ok) {
+      throw new Error(`Tag analysis failed: ${response.error}`);
+    }
     
-    return result;
+    console.log('✅ [OPENAI-CLIENT] Tag analysis response received');
+    console.log('📊 [OPENAI-CLIENT] Tag analysis result:', response);
+    
+    return response;
   } catch (error) {
     console.error('❌ [OPENAI-CLIENT] Tag Analysis Error:', error);
     return {
@@ -273,28 +275,32 @@ export const testOpenAIConnection = async () => {
     // Create a simple test image (1x1 pixel base64)
     const testImageBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
     
-    const response = await fetch('/.netlify/functions/openai-vision-analysis', {
+    const response = await callFunction('openai-vision-analysis', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         imageBase64: testImageBase64,
         analysisType: 'clothing'
-      }),
+      })
     });
 
-    if (!response.ok) {
-      throw new Error(`Connection test failed: ${response.status} ${response.statusText}`);
+    if (response.mock) {
+      return {
+        success: true,
+        message: 'Mock OpenAI connection test - functions not available in sandbox',
+        data: response
+      };
     }
 
-    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(`Connection test failed: ${response.error}`);
+    }
+    
     console.log('✅ [OPENAI-CLIENT] Connection test successful');
     
     return {
       success: true,
       message: 'OpenAI connection via Netlify Function successful',
-      data: result
+      data: response
     };
   } catch (error) {
     console.error('❌ [OPENAI-CLIENT] Connection test failed:', error);

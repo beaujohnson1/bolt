@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Header = () => {
-  const { user, authUser, signIn, signUp, signInWithGoogle, signOut } = useAuth();
+  const { user, authUser, signIn, signUp, signInWithGoogle, signOut, panicLogout } = useAuth();
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = React.useState(false);
   const [isSignUp, setIsSignUp] = React.useState(false);
@@ -120,6 +120,13 @@ const Header = () => {
                   className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors"
                 >
                   Sign Out
+                </button>
+                <button
+                  onClick={panicLogout}
+                  className="text-red-600 hover:text-red-700 font-medium text-xs transition-colors"
+                  title="Emergency logout and reset"
+                >
+                  Reset
                 </button>
               </div>
             ) : (

@@ -6,7 +6,7 @@ import EbayApiService from '../services/ebayApi';
 import EbayCategoryManager from '../services/EbayCategoryManager';
 import EbayMarketResearch from '../services/EbayMarketResearch';
 import { withRetry } from '../utils/promiseUtils'; // Import withRetry
-import { getSupabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
 interface AnalysisOptions {
   sku?: string;
@@ -29,9 +29,8 @@ export const useAIAnalysis = () => {
   
   // Initialize eBay services
   const ebayService = new EbayApiService();
-  const supabase = getSupabase();
-  const categoryManager = supabase ? new EbayCategoryManager(ebayService, supabase) : null;
-  const marketResearch = supabase ? new EbayMarketResearch(ebayService, supabase) : null;
+  const categoryManager = new EbayCategoryManager(ebayService, supabase);
+  const marketResearch = new EbayMarketResearch(ebayService, supabase);
 
   const analyzeItem = async (imageUrl: string, options: AnalysisOptions = {}): Promise<AnalysisResult> => {
     console.log('🤖 [AI-ANALYSIS] Starting analysis for:', { imageUrl: imageUrl.substring(0, 50) + '...', options });
