@@ -1,5 +1,6 @@
 const OpenAI = require('openai');
 const { z } = require('zod');
+const { getVisionClient } = require('./_shared/googleVisionClient');
 
 // Define the expected AI response schema
 const AiListing = z.object({
@@ -62,6 +63,61 @@ function safeStringify(obj) {
   }
 }
 
+// Enhanced OCR function using Google Vision API
+async function getOcrText(imageUrl) {
+  try {
+    console.log('📝 [OCR] Starting Google Vision OCR for image...');
+    
+    const visionClient = getVisionClient();
+    
+    // Convert image URL to base64 if needed
+    let imageBase64;
+    if (imageUrl.startsWith('data:image/')) {
+      // Already base64 data URL
+      imageBase64 = imageUrl.split(',')[1];
+    } else if (imageUrl.startsWith('http')) {
+      // Fetch image and convert to base64
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+      }
+      const buffer = await response.arrayBuffer();
+      imageBase64 = Buffer.from(buffer).toString('base64');
+    } else {
+      // Assume it's already base64
+      imageBase64 = imageUrl;
+    }
+    
+    console.log('🔍 [OCR] Calling Google Vision text detection...');
+    
+    // Call Google Vision API
+    const [result] = await visionClient.textDetection({
+      image: { content: imageBase64 }
+    });
+    
+    const extractedText = result?.fullTextAnnotation?.text || '';
+    const textAnnotations = result?.textAnnotations || [];
+    
+    console.log('✅ [OCR] Text extraction completed:', {
+      textLength: extractedText.length,
+      annotationCount: textAnnotations.length
+    });
+    
+    return {
+      fullText: extractedText,
+      textAnnotations: textAnnotations
+    };
+    
+  } catch (error) {
+    console.error('❌ [OCR] Google Vision OCR failed:', error);
+    
+    // Return empty result instead of throwing to allow AI analysis to continue
+    return {
+      fullText: '',
+      textAnnotations: []
+    };
+  }
+}
 exports.handler = async (event, context) => {
   // Handle CORS preflight requests
   if (event.httpMethod === 'OPTIONS') {
@@ -157,6 +213,22 @@ exports.handler = async (event, context) => {
       hasKnownFields: Object.keys(knownFields).length > 0
     });
 
+    // Enhanced OCR processing if no OCR text provided
+    let enhancedOcrText = ocrText;
+    if (!ocrText || ocrText.trim().length === 0) {
+      console.log('📝 [OPENAI-FUNCTION] No OCR text provided, extracting from primary image...');
+      try {
+        const ocrResult = await getOcrText(imageArray[0]);
+        enhancedOcrText = ocrResult.fullText;
+        console.log('✅ [OPENAI-FUNCTION] OCR extraction completed:', {
+          textLength: enhancedOcrText.length,
+          annotationCount: ocrResult.textAnnotations.length
+        });
+      } catch (ocrError) {
+        console.error('❌ [OPENAI-FUNCTION] OCR extraction failed:', ocrError);
+        // Continue without OCR text
+      }
+    }
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -174,7 +246,7 @@ exports.handler = async (event, context) => {
           content: [
             {
               type: "text",
-              text: getAnalysisPrompt(analysisType, ocrText, candidates, ebayAspects, knownFields)
+              text: getAnalysisPrompt(analysisType, enhancedOcrText, candidates, ebayAspects, knownFields)
             },
             // Send all images to the LLM
             ...imageArray.map(url => ({
