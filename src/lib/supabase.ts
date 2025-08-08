@@ -77,13 +77,134 @@ console.log('[SUPABASE] Initializing client with:', {
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'implicit',
-    debug: false, // Disable debug to reduce noise
-    // Production-specific auth settings
-    redirectTo: import.meta.env.PROD ? 'https://easyflip.ai/auth/callback' : undefined,
+    autoRefreshToken: false, // Disable auto-refresh
+    persistSession: false,   // Disable session persistence
+    detectSessionInUrl: false, // Disable URL detection
+    flowType: 'implicit'
+  },
+  global: {
+    fetch: async (url, options = {}) => {
+      console.log('[SUPABASE-FETCH] Making request to:', url);
+      console.log('[SUPABASE-FETCH] Method:', options.method || 'GET');
+      
+      // Retry logic for auth endpoints
+      const maxRetries = 3;
+      let lastError;
+      
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          const response = await fetch(url, {
+            ...options,
+            headers: {
+              ...options.headers,
+              'Content-Type': 'application/json',
+            }
+          });
+          
+          if (response.ok || response.status < 500) {
+            return response;
+          }
+          
+          throw new Error(`HTTP ${response.status}`);
+        } catch (error) {
+          lastError = error;
+          console.log(`[SUPABASE-FETCH] Attempt ${i + 1} failed:`, error.message);
+          
+          if (i < maxRetries - 1) {
+            // Wait before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+          }
+        }
+      }
+      
+      console.error('[SUPABASE-FETCH] All retries failed:', lastError);
+      throw new Error(`Connection failed after ${maxRetries} attempts: ${lastError.message}`);
+    }
+  }
+});
+
+// Manual auth handling
+export const customAuth = {
+  async signInWithPassword(email: string, password: string) {
+    // Use REST API instead of auth API
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/custom_signin`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, password })
+    });
+    
+    return response.json();
+  }
+};
+
+// Remove the complex retry logic from the original implementation
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    autoRefreshToken: false, // Disable auto-refresh
+    persistSession: false,   // Disable session persistence
+    detectSessionInUrl: false, // Disable URL detection
+    flowType: 'implicit'
+  },
+  global: {
+    fetch: async (url, options = {}) => {
+      console.log('[SUPABASE-FETCH] Making request to:', url);
+      console.log('[SUPABASE-FETCH] Method:', options.method || 'GET');
+      
+      // Retry logic for auth endpoints
+      const maxRetries = 3;
+      let lastError;
+      
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          const response = await fetch(url, {
+            ...options,
+            headers: {
+              ...options.headers,
+              'Content-Type': 'application/json',
+            }
+          });
+          
+          if (response.ok || response.status < 500) {
+            return response;
+          }
+          
+          throw new Error(`HTTP ${response.status}`);
+        } catch (error) {
+          lastError = error;
+          console.log(`[SUPABASE-FETCH] Attempt ${i + 1} failed:`, error.message);
+          
+          if (i < maxRetries - 1) {
+            // Wait before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+          }
+        }
+      }
+      
+      console.error('[SUPABASE-FETCH] All retries failed:', lastError);
+      throw new Error(`Connection failed after ${maxRetries} attempts: ${lastError.message}`);
+    }
+  }
+});
+
+// Manual auth handling
+export const customAuth = {
+  async signInWithPassword(email: string, password: string) {
+    // Use REST API instead of auth API
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/custom_signin`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, password })
+    });
+    
+    return response.json();
+  }
+};
     storage: {
       getItem: (key: string) => {
         try {
