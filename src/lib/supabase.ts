@@ -52,10 +52,10 @@ const corsAwareFetch: typeof fetch = async (input, init = {}) => {
     } else if (error.message?.includes('Failed to fetch')) {
       throw new Error(`Unable to connect to Supabase from ${window.location.origin} - please check CORS settings in Supabase dashboard`);
     }
-    throw new Error(`CORS error: Access from ${window.location.origin} to ${url} has been blocked. Please update Supabase dashboard settings.`);
-  } else if (error.message?.includes('Failed to fetch') || error.message?.includes('ERR_CONNECTION_RESET')) {
-    // This covers ERR_CONNECTION_RESET, ERR_NETWORK_CHANGED, etc.
     throw new Error(`Network connection failed. Please check your internet connection or try again. If the problem persists, verify Supabase CORS settings.`);
+  } else {
+    throw error;
+  }
   } finally {
     clearTimeout(timeoutId);
   }
