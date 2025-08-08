@@ -11,6 +11,7 @@ import ListingPreview from './pages/ListingPreview';
 import ConnectionTestPage from './pages/ConnectionTestPage';
 import EnvGuard from './components/EnvGuard';
 import AutoPromotionDashboard from './components/AutoPromotionDashboard';
+import EnvDebug from './pages/EnvDebug';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/test-connection" element={<ConnectionTestPage />} />
+            <Route path="/env-debug" element={<EnvDebug />} />
             <Route
               path="/admin/keywords"
               element={
