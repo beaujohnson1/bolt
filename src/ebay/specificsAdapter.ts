@@ -123,6 +123,8 @@ function fromTaxonomy(resp: TaxonomyResponse, ai: AiData): BuildResult {
     } else if (required) {
       missingRequired.push(name);
       notes.push(`Missing required aspect: ${name}${selectionOnly && allowed?.length ? ` (allowed: ${allowed.slice(0,6).join(" | ")}${allowed.length>6?\'…\':\'\'})` : ""}`);
+      )
+    }
     }
   }
 
@@ -176,6 +178,7 @@ function fromTrading(resp: TradingResponse, ai: AiData): BuildResult {
       notes.push(`Missing required aspect: ${name}${selectionOnly && allowed?.length ? ` (allowed: ${allowed.slice(0,6).join(" | ")}${allowed.length>6?\'…\':\'\'})` : ""}`);
     }
     }
+    }
   }
 
   return { specifics, missingRequired, notes };
@@ -200,5 +203,7 @@ export function buildItemSpecificsFromEbayPayload(
   return { specifics: [], missingRequired: [], notes: ["Unrecognized eBay specifics payload shape"] };
 }
 '>Create src/ebay/specificsAdapter.ts
+  }
+}
   }
 }
