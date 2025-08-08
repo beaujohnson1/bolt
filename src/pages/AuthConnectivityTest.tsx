@@ -14,7 +14,7 @@ export default function AuthConnectivityTest() {
       };
       // 1) ping rest (GET)
       try {
-        const resp = await fetch(\`${r.url}/auth/v1/health`, { method: 'GET' });
+        const resp = await fetch(`${r.url}/auth/v1/health`, { method: 'GET' });
         r.health = { ok: resp.ok, status: resp.status };
       } catch (e:any) {
         r.health = { error: String(e) };
