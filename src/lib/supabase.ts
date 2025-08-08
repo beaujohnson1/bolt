@@ -9,12 +9,13 @@ export function getSupabase(): SupabaseClient | null {
   const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   if (!url || !anon) {
-    console.error(
+    console.warn(
       'Missing Supabase environment variables. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file.'
     );
-    console.error('Current values:', {
-      VITE_SUPABASE_URL: url ? 'Set' : 'Missing',
-      VITE_SUPABASE_ANON_KEY: anon ? 'Set' : 'Missing'
+    console.warn('Current values:', {
+      VITE_SUPABASE_URL_present: !!url,
+      VITE_SUPABASE_ANON_KEY_present: !!anon,
+      VITE_SUPABASE_URL_host: url ? new URL(url).host : null
     });
     // Return null so callers can render a friendly UI instead of crashing
     return null;
