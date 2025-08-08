@@ -6,7 +6,7 @@ Email confirmation links are expiring or not working properly, showing "otp_expi
 ## 🔧 **Quick Solution - Disable Email Confirmation for Development:**
 
 ### **1. In Supabase Dashboard:**
-1. Go to: **https://supabase.com/dashboard/project/glcreocjgiqywlqwfphi**
+1. Go to: **https://supabase.com/dashboard/project/kstmyodjnckgoosidsbb**
 2. Navigate to: **Authentication** → **Settings**
 3. Scroll down to **"Email Confirmation"**
 4. **Turn OFF** "Enable email confirmations"
