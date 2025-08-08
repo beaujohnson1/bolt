@@ -9,7 +9,7 @@ const corsAwareFetch: typeof fetch = async (input, init = {}) => {
   const timeoutId = setTimeout(() => {
     console.warn('[SUPABASE-FETCH] Request timeout after 20 seconds');
     controller.abort();
-  }, 20000); // Increased to 20 seconds for production
+  }, 20000); // 20 second timeout for production
   
   try {
     const url = typeof input === 'string' ? input : input.toString();
@@ -48,9 +48,9 @@ const corsAwareFetch: typeof fetch = async (input, init = {}) => {
     if (error.name === 'AbortError') {
       throw new Error('Request timed out - please check your internet connection');
     } else if (error.message?.includes('CORS')) {
-      throw new Error('CORS error - please check Supabase dashboard settings for allowed origins');
+      throw new Error(`CORS error - Supabase is blocking requests from ${window.location.origin}. Please update Supabase dashboard settings.`);
     } else if (error.message?.includes('Failed to fetch')) {
-      throw new Error(`Unable to connect to Supabase from ${window.location.origin} - please check CORS settings`);
+      throw new Error(`Unable to connect to Supabase from ${window.location.origin} - please check CORS settings in Supabase dashboard`);
     } else {
       throw new Error(`Connection failed: ${error.message}`);
     }
@@ -60,12 +60,19 @@ const corsAwareFetch: typeof fetch = async (input, init = {}) => {
 };
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn('[SUPABASE] Missing env. Got:', {
+  console.error('[SUPABASE] Missing environment variables:', {
     VITE_SUPABASE_URL_present: !!SUPABASE_URL,
     VITE_SUPABASE_ANON_KEY_present: !!SUPABASE_ANON_KEY,
+    currentOrigin: window.location.origin
   });
-  throw new Error('Supabase env missing: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
+  throw new Error('Supabase environment variables missing: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required');
 }
+
+console.log('[SUPABASE] Initializing client with:', {
+  url: SUPABASE_URL,
+  origin: window.location.origin,
+  hasKey: !!SUPABASE_ANON_KEY
+});
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -74,7 +81,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: true,
     flowType: 'pkce',
     debug: import.meta.env.DEV, // Enable debug logging in development
-    // Add production-specific auth settings
+    // Production-specific auth settings
     redirectTo: import.meta.env.PROD ? 'https://easyflip.ai/auth/callback' : undefined,
     storage: {
       getItem: (key: string) => {
