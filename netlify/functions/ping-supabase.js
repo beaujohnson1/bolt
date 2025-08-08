@@ -6,7 +6,7 @@ export const handler = async () => {
     return { statusCode: 500, body: 'VITE_SUPABASE_URL missing in env' };
   }
   try {
-    const resp = await fetch(`${url}/auth/v1/health`, { method: 'GET' });
+    const resp = await fetch(\`${url}/auth/v1/health`, { method: 'GET' });
     const text = await resp.text();
     return {
       statusCode: 200,
