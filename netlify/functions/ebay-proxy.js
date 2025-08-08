@@ -136,20 +136,42 @@ exports.handler = async (event, context) => {
         responseData = JSON.parse(responseText);
         console.log('✅ [EBAY-PROXY] Successfully parsed JSON response');
       } catch (parseError) {
-        // If it's not JSON, return as text
-        responseData = responseText;
-        console.log('⚠️ [EBAY-PROXY] Response is not JSON, returning as text:', parseError.message);
+        // If JSON parsing fails, return a structured error response
+        console.log('⚠️ [EBAY-PROXY] JSON parsing failed, creating error response:', parseError.message);
+        responseData = {
+          error: 'Invalid JSON response from eBay API',
+          message: parseError.message,
+          rawResponse: responseText.substring(0, 500), // Include first 500 chars for debugging
+          responseLength: responseText.length,
+          parseError: true
+        };
       }
     }
 
-    // Return the response with CORS headers
+    // Ensure we always return valid JSON
+    let responseBody;
+    try {
+      responseBody = typeof responseData === 'string' ? responseData : JSON.stringify(responseData);
+      // Validate that the response body is valid JSON if it's supposed to be JSON
+      if (responseContentType.includes('json') || (!responseContentType.includes('xml') && !responseText.trim().startsWith('<?xml'))) {
+        JSON.parse(responseBody); // This will throw if invalid JSON
+      }
+    } catch (stringifyError) {
+      console.error('❌ [EBAY-PROXY] Failed to create valid JSON response:', stringifyError);
+      responseBody = JSON.stringify({
+        error: 'Failed to process eBay API response',
+        message: stringifyError.message,
+        originalError: true
+      });
+    }
+
     return {
       statusCode: response.status,
       headers: {
         ...headers,
         'Content-Type': response.headers.get('Content-Type') || expectedContentType
       },
-      body: typeof responseData === 'string' ? responseData : JSON.stringify(responseData)
+      body: responseBody
     };
 
   } catch (error) {
