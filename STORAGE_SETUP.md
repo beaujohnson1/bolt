@@ -5,7 +5,7 @@
 Your Supabase database is connected, but you need to create a storage bucket for image uploads.
 
 ### **1. Create Storage Bucket**
-1. Go to your Supabase dashboard: https://glcreocjgiqywlqwfphi.supabase.co
+1. Go to your Supabase dashboard: https://kstmyodjnckgoosidsbb.supabase.co
 2. Click **Storage** in the left sidebar
 3. Click **New bucket**
 4. Enter bucket name: `item-images`
