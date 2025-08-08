@@ -3,12 +3,27 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.trim();
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
+// tiny fetch with timeout + better error surfacing
+const timeoutFetch: typeof fetch = async (input, init={}) => {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(input as any, { ...init, signal: ctrl.signal });
+    return res;
+  } catch (e) {
+    console.warn('[SUPABASE-FETCH] network error', { input, err: String(e) });
+    throw e;
+  } finally {
+    clearTimeout(id);
+  }
+};
+
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn('[SUPABASE] Missing env. Got:', {
     VITE_SUPABASE_URL_present: !!SUPABASE_URL,
     VITE_SUPABASE_ANON_KEY_present: !!SUPABASE_ANON_KEY,
   });
-  throw new Error('Supabase config missing');
+  throw new Error('Supabase env missing: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -16,7 +31,9 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    flowType: 'pkce',
   },
+  global: { fetch: timeoutFetch },
 });
 
 // Legacy function for backward compatibility

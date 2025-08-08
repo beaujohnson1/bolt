@@ -260,6 +260,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
+      // Handle TOKEN_REFRESH_FAILED specifically
+      if (event === 'TOKEN_REFRESH_FAILED') {
+        console.warn('[AUTH] Token refresh failed; forcing logout to recover');
+        try { 
+          await supabase.auth.signOut(); 
+        } catch (signOutError) {
+          console.error('[AUTH] Error during forced sign out:', signOutError);
+        }
+        // Redirect to login or home page after forced logout
+        window.location.href = '/'; // Or '/login?reason=refresh_failed'
+        return;
+      }
+
       // Handle normal auth state changes
       await handleAuthStateChange(event, session);
     });
