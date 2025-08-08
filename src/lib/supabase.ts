@@ -3,18 +3,51 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.trim();
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
-// tiny fetch with timeout + better error surfacing
-const timeoutFetch: typeof fetch = async (input, init={}) => {
-  const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), 8000);
+// Enhanced fetch with better timeout and error handling
+const timeoutFetch: typeof fetch = async (input, init = {}) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.warn('[SUPABASE-FETCH] Request timeout after 15 seconds');
+    controller.abort();
+  }, 15000); // Increased to 15 seconds
+  
   try {
-    const res = await fetch(input as any, { ...init, signal: ctrl.signal });
-    return res;
-  } catch (e) {
-    console.warn('[SUPABASE-FETCH] network error', { input, err: String(e) });
-    throw e;
+    console.log('[SUPABASE-FETCH] Making request to:', typeof input === 'string' ? input : input.toString());
+    
+    const response = await fetch(input as any, { 
+      ...init, 
+      signal: controller.signal,
+      // Add additional headers for better connectivity
+      headers: {
+        'Content-Type': 'application/json',
+        ...init.headers
+      }
+    });
+    
+    console.log('[SUPABASE-FETCH] Response received:', {
+      status: response.status,
+      ok: response.ok,
+      url: response.url
+    });
+    
+    return response;
+  } catch (error: any) {
+    console.error('[SUPABASE-FETCH] Network error:', {
+      message: error.message,
+      name: error.name,
+      url: typeof input === 'string' ? input : input.toString()
+    });
+    
+    // Provide more specific error messages
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out - please check your internet connection');
+    } else if (error.message?.includes('Failed to fetch')) {
+      throw new Error('Unable to connect to Supabase - please check your network connection');
+    } else {
+      throw new Error(`Connection failed: ${error.message}`);
+    }
   } finally {
-    clearTimeout(id);
+    clearTimeout(timeoutId);
   }
 };
 
@@ -32,8 +65,38 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
+    debug: import.meta.env.DEV, // Enable debug logging in development
+    storage: {
+      getItem: (key: string) => {
+        try {
+          return localStorage.getItem(key);
+        } catch (error) {
+          console.warn('[SUPABASE-STORAGE] Error getting item:', error);
+          return null;
+        }
+      },
+      setItem: (key: string, value: string) => {
+        try {
+          localStorage.setItem(key, value);
+        } catch (error) {
+          console.warn('[SUPABASE-STORAGE] Error setting item:', error);
+        }
+      },
+      removeItem: (key: string) => {
+        try {
+          localStorage.removeItem(key);
+        } catch (error) {
+          console.warn('[SUPABASE-STORAGE] Error removing item:', error);
+        }
+      }
+    }
   },
-  global: { fetch: timeoutFetch },
+  global: { 
+    fetch: timeoutFetch,
+    headers: {
+      'X-Client-Info': 'easyflip-web-app'
+    }
+  },
 });
 
 // Legacy function for backward compatibility

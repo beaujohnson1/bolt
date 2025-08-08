@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { CheckCircle, XCircle, AlertCircle, Database, Shield, Image, ShoppingCart } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Database, Shield, Image, ShoppingCart, RefreshCw, Wifi } from 'lucide-react';
 import EbayApiService from '../services/ebayApi';
 import { callFunction } from '../lib/functions';
+import { runHealthCheck, getEnvironmentStatus } from '../utils/connectionUtils';
 
 const ConnectionTest = () => {
-  const { user, authUser } = useAuth();
+  const { user, authUser, error: authError, retryConnection } = useAuth();
   const [tests, setTests] = useState({
     supabaseConnection: { status: 'testing', message: 'Testing...' },
     authentication: { status: 'testing', message: 'Testing...' },
@@ -15,6 +16,8 @@ const ConnectionTest = () => {
     googleOAuth: { status: 'testing', message: 'Testing...' },
     ebayApi: { status: 'testing', message: 'Testing...' }
   });
+  const [healthCheck, setHealthCheck] = useState<any>(null);
+  const [runningHealthCheck, setRunningHealthCheck] = useState(false);
   const [trendingTest, setTrendingTest] = useState({
     status: 'idle',
     message: 'Click Test to check eBay trending items API'
@@ -223,6 +226,19 @@ const ConnectionTest = () => {
     }
   };
 
+  const runComprehensiveHealthCheck = async () => {
+    setRunningHealthCheck(true);
+    try {
+      console.log('🏥 [CONNECTION-TEST] Running comprehensive health check...');
+      const result = await runHealthCheck();
+      setHealthCheck(result);
+      console.log('✅ [CONNECTION-TEST] Health check completed:', result.overall);
+    } catch (error) {
+      console.error('❌ [CONNECTION-TEST] Health check failed:', error);
+    } finally {
+      setRunningHealthCheck(false);
+    }
+  };
   const testTrendingItems = useCallback(async () => {
     console.log('🧪 [CONNECTION-TEST] Testing trending items API...');
     setTrendingTest({ status: 'testing', message: 'Testing eBay trending items API...' });
@@ -279,6 +295,71 @@ const ConnectionTest = () => {
           <span>Supabase Connection Test</span>
         </h2>
         
+        {/* Auth Error Alert */}
+        {authError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <div>
+                <h4 className="font-medium text-red-900">Authentication Error</h4>
+                <p className="text-sm text-red-700 mt-1">{authError}</p>
+                <button
+                  onClick={retryConnection}
+                  className="mt-2 text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded transition-colors"
+                >
+                  Retry Connection
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Health Check Section */}
+        <div className="mb-8 p-6 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">System Health Check</h3>
+            <button
+              onClick={runComprehensiveHealthCheck}
+              disabled={runningHealthCheck}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
+            >
+              <Wifi className={`w-4 h-4 ${runningHealthCheck ? 'animate-pulse' : ''}`} />
+              <span>{runningHealthCheck ? 'Running...' : 'Run Health Check'}</span>
+            </button>
+          </div>
+          
+          {healthCheck && (
+            <div className={`p-4 rounded-lg border-2 ${
+              healthCheck.overall === 'healthy' ? 'bg-green-50 border-green-200' :
+              healthCheck.overall === 'degraded' ? 'bg-yellow-50 border-yellow-200' :
+              'bg-red-50 border-red-200'
+            }`}>
+              <div className="flex items-center space-x-2 mb-2">
+                {healthCheck.overall === 'healthy' ? (
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                ) : healthCheck.overall === 'degraded' ? (
+                  <AlertCircle className="w-5 h-5 text-yellow-600" />
+                ) : (
+                  <XCircle className="w-5 h-5 text-red-600" />
+                )}
+                <span className="font-medium">
+                  System Status: {healthCheck.overall.toUpperCase()}
+                </span>
+              </div>
+              <div className="text-sm text-gray-600">
+                {Object.entries(healthCheck.tests).map(([testName, result]: [string, any]) => (
+                  <div key={testName} className="flex justify-between">
+                    <span>{testName}:</span>
+                    <span className={result.success ? 'text-green-600' : 'text-red-600'}>
+                      {result.success ? '✓' : '✗'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        
         <div className="space-y-4">
           {Object.entries(tests).map(([testName, result]) => (
             <div key={testName} className={`p-4 rounded-lg border-2 ${getStatusColor(result.status)}`}>
@@ -325,10 +406,27 @@ const ConnectionTest = () => {
                 <p>✅ <strong>Signed in as:</strong> {authUser.email}</p>
                 <p>✅ <strong>User ID:</strong> {authUser.id}</p>
                 <p>✅ <strong>Provider:</strong> {authUser.app_metadata?.provider || 'email'}</p>
+                <p>✅ <strong>Session expires:</strong> {authUser.session?.expires_at ? new Date(authUser.session.expires_at * 1000).toLocaleString() : 'Unknown'}</p>
               </div>
             ) : (
               <p>ℹ️ <strong>Not signed in</strong> - Use the sign-in button in the header to test authentication</p>
             )}
+            
+            {/* Environment Status */}
+            <div className="mt-4 pt-4 border-t border-blue-200">
+              <h4 className="font-medium text-blue-900 mb-2">Environment Configuration:</h4>
+              {(() => {
+                const envStatus = getEnvironmentStatus();
+                return (
+                  <div className="space-y-1">
+                    <p>🌐 <strong>Environment:</strong> {envStatus.environment}</p>
+                    <p>🔗 <strong>Supabase URL:</strong> {envStatus.supabaseUrl.present ? '✅ Set' : '❌ Missing'}</p>
+                    <p>🔑 <strong>Supabase Key:</strong> {envStatus.supabaseKey.present ? '✅ Set' : '❌ Missing'}</p>
+                    <p>🤖 <strong>OpenAI Key:</strong> {envStatus.openaiKey.present ? '✅ Set' : '⚠️ Optional'}</p>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         </div>
 

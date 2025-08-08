@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase, type User as AppUser } from '../lib/supabase';
 import { withTimeout, withRetry, debounceAsync } from '../utils/promiseUtils';
+import ConnectionError from '../components/ConnectionError';
 
 // Timeout constants
 const PROFILE_FETCH_TIMEOUT = 120000; // 120 seconds
@@ -12,8 +13,10 @@ interface AuthContextType {
   user: AppUser | null;
   authUser: User | null;
   loading: boolean;
+  error: string | null;
   redirectPath: string | null;
   setRedirectPath: (path: string | null) => void;
+  retryConnection: () => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
@@ -35,8 +38,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AppUser | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const authEffectInitialized = React.useRef(false);
+  const retryCount = React.useRef(0);
+  const maxRetries = 3;
 
   const fetchUserProfile = async (supabaseUser: User): Promise<AppUser | null> => {
     try {
@@ -171,6 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     debounceAsync(async (event: string, session: any) => {
       // Always set loading to true at the start of processing any auth state change
       setLoading(true);
+      setError(null);
       
       console.log('🔄 [AUTH] Auth state change detected:', {
         event,
@@ -200,6 +207,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             user_id: profile?.id
           });
           setUser(profile);
+          retryCount.current = 0; // Reset retry count on success
         } else {
           console.log('❌ [AUTH] No session, clearing user state...');
           setUser(null);
@@ -207,6 +215,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error('❌ [AUTH] Error in auth state change handler:', error);
+        
+        // Handle specific connection errors
+        if (error.message?.includes('Failed to fetch') || 
+            error.message?.includes('Connection failed') ||
+            error.message?.includes('network')) {
+          
+          if (retryCount.current < maxRetries) {
+            retryCount.current++;
+            console.log(`🔄 [AUTH] Retrying connection (${retryCount.current}/${maxRetries})...`);
+            
+            // Exponential backoff retry
+            setTimeout(() => {
+              handleAuthStateChange(event, session);
+            }, 2000 * retryCount.current);
+            return;
+          } else {
+            setError(`Connection failed after ${maxRetries} attempts. Please check your internet connection.`);
+          }
+        } else {
+          setError(error.message || 'Authentication failed');
+        }
+        
         // Don't clear user state on timeout - they might still be valid
         if (!error.message.includes('timed out')) {
           setUser(null);
@@ -235,6 +265,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Handle token refresh failures to prevent infinite loops
       if (event === 'TOKEN_REFRESH_FAILED') {
         console.warn('[AUTH] Token refresh failed; forcing logout to recover');
+        setError('Session expired. Please sign in again.');
         try { 
           await supabase.auth.signOut(); 
         } catch (signOutError) {
@@ -255,8 +286,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.warn('[AUTH] Could not clear IndexedDB:', dbError);
         }
         
-        // Force page reload to reset application state
-        window.location.reload();
+        // Don't force reload, let user retry
+        setLoading(false);
         return;
       }
       
@@ -278,15 +309,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Get initial session and trigger auth state change handler
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error('❌ [AUTH] Error getting initial session:', error);
-        handleAuthStateChange('INITIAL_SESSION_ERROR', null);
-      } else {
+    const initializeSession = async () => {
+      try {
+        console.log('📱 [AUTH] Getting initial session...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ [AUTH] Error getting initial session:', error);
+          
+          if (error.message?.includes('Failed to fetch') || 
+              error.message?.includes('Connection failed')) {
+            setError('Unable to connect to authentication service. Please check your internet connection.');
+          } else {
+            setError(error.message);
+          }
+          setLoading(false);
+          return;
+        }
+        
         console.log('📱 [AUTH] Initial session check:', session ? 'found' : 'not found');
-        handleAuthStateChange('INITIAL_SESSION', session);
+        await handleAuthStateChange('INITIAL_SESSION', session);
+      } catch (error: any) {
+        console.error('❌ [AUTH] Critical error during session initialization:', error);
+        setError('Failed to initialize authentication. Please refresh the page.');
+        setLoading(false);
       }
-    });
+    };
+    
+    initializeSession();
 
     console.log('✅ [AUTH] Auth listeners set up successfully');
 
@@ -388,6 +438,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const panicLogout = async () => {
     try {
       console.log('🚨 [AUTH] Emergency logout and reset...');
+      setError(null);
       await supabase.auth.signOut();
     } catch (error) {
       console.error('❌ [AUTH] Error during panic logout:', error);
@@ -398,12 +449,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Retry connection function
+  const retryConnection = async () => {
+    console.log('🔄 [AUTH] Retrying connection...');
+    setLoading(true);
+    setError(null);
+    retryCount.current = 0;
+    
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      
+      await handleAuthStateChange('RETRY_CONNECTION', session);
+    } catch (error: any) {
+      console.error('❌ [AUTH] Retry connection failed:', error);
+      setError(error.message || 'Connection retry failed');
+      setLoading(false);
+    }
+  };
   const value = {
     user,
     authUser,
     loading,
+    error,
     redirectPath,
     setRedirectPath,
+    retryConnection,
     signUp,
     signIn,
     signInWithGoogle,
@@ -411,6 +482,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateUser,
     panicLogout
   };
+
+  // Show connection error if there's a persistent error
+  if (error && !loading && !user) {
+    return <ConnectionError error={error} onRetry={retryConnection} loading={loading} />;
+  }
 
   return (
     <AuthContext.Provider value={value}>

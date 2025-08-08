@@ -40,7 +40,11 @@ const Header = () => {
       await signInWithGoogle();
     } catch (error) {
       console.error('Login failed:', error);
-      setError('Google sign-in failed. Please try email/password instead.');
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('Connection failed')) {
+        setError('Connection failed. Please check your internet connection and try again.');
+      } else {
+        setError('Google sign-in failed. Please try email/password instead.');
+      }
     } finally {
       setAuthLoading(false);
     }
@@ -55,16 +59,20 @@ const Header = () => {
       if (isSignUp) {
         const { error } = await signUp(email, password, name);
         if (error) throw error;
-        if (error) throw error;
       } else {
         const { error } = await signIn(email, password);
-        if (error) throw error;
         if (error) throw error;
         // Don't show success message, let the auth flow handle navigation
       }
     } catch (error: any) {
       console.error('Auth failed:', error);
-      setError(error.message || 'Authentication failed. Please try again.');
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('Connection failed')) {
+        setError('Connection failed. Please check your internet connection and try again.');
+      } else if (error.message?.includes('Invalid login credentials')) {
+        setError('Invalid email or password. Please check your credentials.');
+      } else {
+        setError(error.message || 'Authentication failed. Please try again.');
+      }
     } finally {
       setAuthLoading(false);
     }
