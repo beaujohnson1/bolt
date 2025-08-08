@@ -96,21 +96,21 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       };
     }
 
-    const payload = {
+    const apiResponse = {
       success: true,
       data: response.data,
       usage: response.usage
     };
     
-    if (!payload.success) {
+    if (!apiResponse.success) {
       // Server validation failed - return the flagged data for "needs attention"
       console.log('🚨 [OPENAI-CLIENT] Server validation failed, flagging for manual review');
       return {
         success: true, // Don't throw - let the UI handle it
-        analysis: payload.data, // Contains __needsAttention flag
+        analysis: apiResponse.data, // Contains __needsAttention flag
         source: 'openai-vision-enhanced',
-        validationError: payload.error,
-        validationIssues: payload.issues
+        validationError: apiResponse.error,
+        validationIssues: apiResponse.issues
       };
     }
     
