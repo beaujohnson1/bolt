@@ -94,9 +94,21 @@ class EbayApiService {
         };
       }
 
-      // Test with a simple category request
-      const categories = await this.getCategories(1); // Get just 1 level
+      // Check if we're in development mode without Netlify functions
+      const isDev = import.meta.env.DEV;
       
+      if (isDev) {
+        // In development, just verify credentials are present
+        return {
+          success: true,
+          message: 'eBay API credentials configured. Use "netlify dev" to test full functionality.',
+          environment: this.environment
+        };
+      }
+
+      // Test with a simple category request in production/netlify environment
+      const categories = await this.getCategories(1); // Get just 1 level
+
       return {
         success: true,
         message: `Connected successfully. Found ${categories.length} categories.`,
@@ -104,6 +116,16 @@ class EbayApiService {
       };
     } catch (error) {
       console.error('❌ [EBAY-API] Connection test failed:', error);
+      
+      // Check if this is the development proxy error
+      if (error.message && error.message.includes('eBay API proxy not available in development mode')) {
+        return {
+          success: true,
+          message: 'eBay API credentials configured. Use "netlify dev" to test full functionality.',
+          environment: this.environment
+        };
+      }
+      
       return {
         success: false,
         message: error.message,
