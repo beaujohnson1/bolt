@@ -367,7 +367,50 @@ class EbayApiService {
       return trendingItems;
     } catch (error) {
       console.error('❌ [EBAY-API] Error getting trending items:', error);
-      return [];
+      
+      // In development mode, return mock data instead of throwing
+      if (import.meta.env.DEV && error.message && error.message.includes('eBay API proxy not available in development mode')) {
+        console.log('🔧 [EBAY-API] Returning mock trending items for development');
+        return [
+          {
+            title: 'Vintage Nike Air Jordan 1 Retro High',
+            categoryId: '15709',
+            price: 150.00,
+            imageUrl: 'https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg',
+            popularity: 95
+          },
+          {
+            title: 'Apple iPhone 14 Pro Max 256GB',
+            categoryId: '9355',
+            price: 899.99,
+            imageUrl: 'https://images.pexels.com/photos/788946/pexels-photo-788946.jpeg',
+            popularity: 92
+          },
+          {
+            title: 'Levi\'s 501 Original Fit Jeans',
+            categoryId: '11483',
+            price: 45.00,
+            imageUrl: 'https://images.pexels.com/photos/1598507/pexels-photo-1598507.jpeg',
+            popularity: 88
+          },
+          {
+            title: 'Sony WH-1000XM4 Wireless Headphones',
+            categoryId: '14969',
+            price: 249.99,
+            imageUrl: 'https://images.pexels.com/photos/3394650/pexels-photo-3394650.jpeg',
+            popularity: 85
+          },
+          {
+            title: 'Coach Leather Handbag',
+            categoryId: '169291',
+            price: 125.00,
+            imageUrl: 'https://images.pexels.com/photos/1152077/pexels-photo-1152077.jpeg',
+            popularity: 82
+          }
+        ];
+      }
+      
+      throw error;
     }
   }
 
