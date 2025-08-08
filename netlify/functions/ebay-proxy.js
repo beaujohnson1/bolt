@@ -192,6 +192,7 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('❌ [EBAY-PROXY] Proxy error:', error);
+  }
   // Ensure we always return valid JSON for the client
   let responseBody;
   try {
