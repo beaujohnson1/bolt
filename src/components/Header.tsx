@@ -146,6 +146,13 @@ const Header = () => {
             >
               Test Connection
             </Link>
+            
+            <Link
+              to="/integration-test"
+              className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors"
+            >
+              Integration Test
+            </Link>
           </div>
         </div>
       </div>
