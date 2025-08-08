@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase, type User as AppUser } from '../lib/supabase';
+import { getSupabase, type User as AppUser } from '../lib/supabase';
 import { withTimeout, withRetry, debounceAsync } from '../utils/promiseUtils';
 
 // Timeout constants
@@ -41,6 +41,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchUserProfile = async (supabaseUser: User): Promise<AppUser | null> => {
     try {
       console.log('🔍 [AUTH] Starting fetchUserProfile for user:', supabaseUser.id);
+      
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error('Supabase client not available - check environment variables');
+      }
       
       const userName = 
         supabaseUser.user_metadata?.full_name || 
@@ -140,6 +145,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!authUser) {
       throw new Error('No authenticated user');
     }
+    
+    const supabase = getSupabase();
+    if (!supabase) {
+      throw new Error('Supabase client not available - check environment variables');
+    }
 
     try {
       const { data, error } = await withTimeout(
@@ -231,6 +241,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('🔄 [AUTH] Auth effect triggered - setting up authentication listeners');
     
     // Set up auth state change listener
+    const supabase = getSupabase();
+    if (!supabase) {
+      console.error('❌ [AUTH] Supabase client not available - cannot set up auth listeners');
+      setLoading(false);
+      return;
+    }
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
 
     // Get initial session and trigger auth state change handler
@@ -255,6 +272,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, name: string) => {
     try {
       console.log('📝 [AUTH] Attempting to sign up:', email);
+      
+      const supabase = getSupabase();
+      if (!supabase) {
+        return { error: new Error('Supabase client not available - check environment variables') };
+      }
+      
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -283,6 +306,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     try {
       console.log('🔑 [AUTH] Attempting to sign in:', email);
+      
+      const supabase = getSupabase();
+      if (!supabase) {
+        return { error: new Error('Supabase client not available - check environment variables') };
+      }
+      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -304,6 +333,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     try {
       console.log('🔑 [AUTH] Attempting to sign in with Google');
+      
+      const supabase = getSupabase();
+      if (!supabase) {
+        return { error: new Error('Supabase client not available - check environment variables') };
+      }
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -327,6 +362,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       console.log('👋 [AUTH] Signing out...');
+      
+      const supabase = getSupabase();
+      if (!supabase) {
+        console.error('❌ [AUTH] Supabase client not available for sign out');
+        return;
+      }
+      
       await supabase.auth.signOut();
       setUser(null);
       setAuthUser(null);

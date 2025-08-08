@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, RefreshCw, Zap, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../lib/supabase';
 import ListingsTable from '../components/ListingsTable';
 import EditListingModal from '../components/EditListingModal';
 import { useAIAnalysis } from '../hooks/useAIAnalysis';
@@ -66,6 +66,13 @@ const GenerateListingsPage = () => {
 
   const fetchSKUGroups = async () => {
     if (!authUser) return;
+    
+    const supabase = getSupabase();
+    if (!supabase) {
+      setError('Database connection not available. Please check your configuration.');
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -304,6 +311,11 @@ const GenerateListingsPage = () => {
       let savedItem;
       if (item.id.startsWith('temp_')) {
         // Create new item
+        const supabase = getSupabase();
+        if (!supabase) {
+          throw new Error('Database connection not available');
+        }
+        
         const { data, error } = await supabase
           .from('items')
           .insert(itemData)
@@ -318,6 +330,11 @@ const GenerateListingsPage = () => {
         await linkPhotosToItem(item.sku, savedItem.id);
       } else {
         // Update existing item
+        const supabase = getSupabase();
+        if (!supabase) {
+          throw new Error('Database connection not available');
+        }
+        
         const { data, error } = await supabase
           .from('items')
           .update(itemData)
@@ -501,6 +518,11 @@ const GenerateListingsPage = () => {
       
       // Delete from database if it exists
       if (!item.id.startsWith('temp_')) {
+        const supabase = getSupabase();
+        if (!supabase) {
+          throw new Error('Database connection not available');
+        }
+        
         const { error } = await supabase
           .from('items')
           .delete()
@@ -533,6 +555,11 @@ const GenerateListingsPage = () => {
     try {
       console.log('🔗 [GENERATE-LISTINGS] Linking photos to item:', { sku, itemId });
       
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error('Database connection not available');
+      }
+      
       const { error } = await supabase
         .from('uploaded_photos')
         .update({
@@ -556,6 +583,11 @@ const GenerateListingsPage = () => {
   const resetPhotosForSKU = async (sku: string) => {
     try {
       console.log('🔄 [GENERATE-LISTINGS] Resetting photos for SKU:', sku);
+      
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error('Database connection not available');
+      }
       
       const { error } = await supabase
         .from('uploaded_photos')

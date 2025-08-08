@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, AlertCircle, Package } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { getSupabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import ControlBar from './ControlBar';
 import PhotoGrid from './PhotoGrid';
@@ -58,6 +58,13 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
 
   const fetchUploadedPhotos = async () => {
     if (!authUser) return;
+    
+    const supabase = getSupabase();
+    if (!supabase) {
+      setError('Database connection not available. Please check your configuration.');
+      setLoading(false);
+      return;
+    }
 
     try {
       console.log('🔍 [SKU-ASSIGNMENT] Fetching uploaded photos...');
@@ -141,6 +148,12 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
         sku: skuInput.trim(),
         photoCount: selectedPhotos.size
       });
+      
+      const supabase = getSupabase();
+      if (!supabase) {
+        setErrorMessage('Database connection not available. Please check your configuration.');
+        return;
+      }
 
       const selectedPhotoIds = Array.from(selectedPhotos);
 
@@ -174,6 +187,12 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
       // Auto-advance workflow: if no more photos to assign, suggest moving to Generate Listings
       if (onAssignmentComplete) {
         // Check if there are any remaining unassigned photos
+        const supabase = getSupabase();
+        if (!supabase) {
+          console.error('❌ [SKU-ASSIGNMENT] Cannot check remaining photos - Supabase not available');
+          return;
+        }
+        
         const { data: remainingPhotos, error } = await supabase
           .from('uploaded_photos')
           .select('id')
@@ -226,6 +245,12 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
     
     try {
       const selectedPhotoIds = Array.from(selectedPhotos);
+      
+      const supabase = getSupabase();
+      if (!supabase) {
+        setErrorMessage('Database connection not available. Please check your configuration.');
+        return;
+      }
 
       const { error: deleteError } = await supabase
         .from('uploaded_photos')

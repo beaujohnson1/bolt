@@ -1,16 +1,43 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+let client: SupabaseClient | null = null;
 
-// Check for required environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables. Please check your .env file.');
-  console.error('Required variables: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY');
-  throw new Error('Supabase configuration is missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.');
+export function getSupabase(): SupabaseClient | null {
+  if (client) return client;
+
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!url || !anon) {
+    console.error(
+      'Missing Supabase environment variables. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file.'
+    );
+    console.error('Current values:', {
+      VITE_SUPABASE_URL: url ? 'Set' : 'Missing',
+      VITE_SUPABASE_ANON_KEY: anon ? 'Set' : 'Missing'
+    });
+    // Return null so callers can render a friendly UI instead of crashing
+    return null;
+  }
+
+  try {
+    client = createClient(url, anon, { 
+      auth: { 
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    });
+    console.log('✅ Supabase client initialized successfully');
+    return client;
+  } catch (error) {
+    console.error('❌ Failed to initialize Supabase client:', error);
+    return null;
+  }
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Legacy export for backward compatibility - will be removed gradually
+export const supabase = getSupabase();
 
 // Database types (generated from your schema)
 export interface User {

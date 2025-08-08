@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Camera, Upload, ArrowLeft, X, CheckCircle, Image } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../lib/supabase';
 import { resizeImage } from '../utils/imageUtils';
 
 interface PhotoCaptureProps {
@@ -88,6 +88,12 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
 
   const handleUpload = async () => {
     if (selectedImages.length === 0 || selectedFiles.length === 0 || !authUser) return;
+    
+    const supabase = getSupabase();
+    if (!supabase) {
+      alert('Database connection not available. Please check your configuration.');
+      return;
+    }
 
     setIsUploading(true);
     setUploadStatus('Uploading photos...');

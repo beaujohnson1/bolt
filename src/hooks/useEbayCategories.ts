@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import EbayCategoryManager, { type EbayCategory } from '../services/EbayCategoryManager';
 import EbayApiService from '../services/ebayApi';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../lib/supabase';
 
 export const useEbayCategories = () => {
   const [categories, setCategories] = useState<EbayCategory[]>([]);
@@ -10,12 +10,35 @@ export const useEbayCategories = () => {
   
   // Initialize eBay services
   const ebayService = new EbayApiService();
-  const categoryManager = new EbayCategoryManager(ebayService, supabase);
+  const supabase = getSupabase();
+  const categoryManager = supabase ? new EbayCategoryManager(ebayService, supabase) : null;
 
 
   const fetchCategories = async () => {
     setLoading(true);
     setError(null);
+    
+    if (!categoryManager) {
+      setError('Database connection not available. Using fallback categories.');
+      setCategories([
+        {
+          categoryId: '11450',
+          categoryName: 'Clothing',
+          categoryPath: 'Clothing, Shoes & Accessories > Clothing',
+          isLeafCategory: true,
+          categoryLevel: 2
+        },
+        {
+          categoryId: '93427',
+          categoryName: 'Shoes',
+          categoryPath: 'Clothing, Shoes & Accessories > Shoes',
+          isLeafCategory: true,
+          categoryLevel: 2
+        }
+      ]);
+      setLoading(false);
+      return;
+    }
 
     try {
       console.log('📂 [EBAY-CATEGORIES] Fetching categories from eBay API...');
@@ -70,6 +93,11 @@ export const useEbayCategories = () => {
 
   const suggestCategory = async (title: string, description: string = '', brand?: string) => {
     try {
+      if (!categoryManager) {
+        console.error('❌ [EBAY-CATEGORIES] Category manager not available');
+        return [];
+      }
+      
       return await categoryManager.suggestCategory(title, description, { brand });
     } catch (error) {
       console.error('❌ [EBAY-CATEGORIES] Error suggesting category:', error);
@@ -79,6 +107,11 @@ export const useEbayCategories = () => {
 
   const getCategorySpecifics = async (categoryId: string) => {
     try {
+      if (!categoryManager) {
+        console.error('❌ [EBAY-CATEGORIES] Category manager not available');
+        return [];
+      }
+      
       return await categoryManager.getCategorySpecifics(categoryId);
     } catch (error) {
       console.error('❌ [EBAY-CATEGORIES] Error getting category specifics:', error);

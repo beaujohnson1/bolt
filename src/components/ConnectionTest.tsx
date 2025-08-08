@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { CheckCircle, XCircle, AlertCircle, Database, Shield, Image, ShoppingCart } from 'lucide-react';
 import EbayApiService from '../services/ebayApi';
@@ -45,6 +45,11 @@ const ConnectionTest = () => {
       setTests(prev => ({ ...prev, supabaseConnection: { status: 'testing', message: 'Testing...' } }));
       try {
         console.log('🔍 [CONNECTION-TEST] Testing Supabase connection...');
+        const supabase = getSupabase();
+        if (!supabase) {
+          throw new Error('Supabase client not initialized - check environment variables');
+        }
+        
         const { data, error } = await supabase.from('users').select('count').limit(1);
         if (error) throw error;
         
@@ -94,6 +99,11 @@ const ConnectionTest = () => {
       if (authUser) {
         try {
           console.log('🔍 [CONNECTION-TEST] Testing database access...');
+          const supabase = getSupabase();
+          if (!supabase) {
+            throw new Error('Supabase client not available');
+          }
+          
           const { data, error } = await supabase
             .from('users')
             .select('*')
@@ -134,6 +144,11 @@ const ConnectionTest = () => {
       setTests(prev => ({ ...prev, storage: { status: 'testing', message: 'Testing...' } }));
       try {
         console.log('🔍 [CONNECTION-TEST] Testing storage access...');
+        const supabase = getSupabase();
+        if (!supabase) {
+          throw new Error('Supabase client not available');
+        }
+        
         const storageClient = supabase.storage;
         if (!storageClient) {
           throw new Error('Storage client not initialized');
@@ -162,6 +177,11 @@ const ConnectionTest = () => {
       setTests(prev => ({ ...prev, googleOAuth: { status: 'testing', message: 'Testing...' } }));
       try {
         console.log('🔍 [CONNECTION-TEST] Testing Google OAuth...');
+        const supabase = getSupabase();
+        if (!supabase) {
+          throw new Error('Supabase client not available');
+        }
+        
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
         

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Users, Award, RefreshCw, Play, Eye, BarChart3 } from 'lucide-react';
 import KeywordOptimizationService from '../services/KeywordOptimizationService';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../lib/supabase';
 
 interface PromotableBrand {
   brand: string;
@@ -25,13 +25,20 @@ const AutoPromotionDashboard: React.FC = () => {
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [brandStatus, setBrandStatus] = useState<BrandLearningStatus | null>(null);
 
-  const keywordService = new KeywordOptimizationService(supabase);
+  const supabase = getSupabase();
+  const keywordService = supabase ? new KeywordOptimizationService(supabase) : null;
 
   // Load brands ready for promotion
   const loadPromotableBrands = async () => {
     setLoading(true);
     try {
       console.log('🔄 [ADMIN] Loading promotable brands...');
+      if (!keywordService) {
+        console.error('❌ [ADMIN] Keyword service not available - database connection missing');
+        setPromotableBrands([]);
+        return;
+      }
+      
       const brands = await keywordService.getPromotableBrands(10); // Lower threshold for testing
       console.log('📊 [ADMIN] Loaded promotable brands:', brands);
       setPromotableBrands(brands);
@@ -47,6 +54,11 @@ const AutoPromotionDashboard: React.FC = () => {
     setPromoting(true);
     try {
       console.log('🚀 [ADMIN] Running auto-promotion...');
+      if (!keywordService) {
+        alert('Keyword service not available - database connection missing');
+        return;
+      }
+      
       const results = await keywordService.runAutoPromotion(10, 0.50); // Lower thresholds for testing
       console.log('✅ [ADMIN] Promotion results:', results);
       
@@ -66,6 +78,11 @@ const AutoPromotionDashboard: React.FC = () => {
   const checkBrandStatus = async (brand: string, category: string) => {
     try {
       console.log('🔍 [ADMIN] Checking brand status:', brand, category);
+      if (!keywordService) {
+        alert('Keyword service not available - database connection missing');
+        return;
+      }
+      
       const status = await keywordService.getBrandLearningStatus(brand, category);
       console.log('📊 [ADMIN] Brand status:', status);
       setBrandStatus(status);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, Package, TrendingUp, DollarSign, Upload, Zap, Bot, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase, type Item, type Listing, type Sale } from '../lib/supabase';
+import { getSupabase, type Item, type Listing, type Sale } from '../lib/supabase';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import GenerateListingsTable from '../components/GenerateListingsTable';
@@ -35,6 +35,12 @@ const AppDashboard = () => {
 
   const fetchDashboardData = async () => {
     if (!authUser) return;
+    
+    const supabase = getSupabase();
+    if (!supabase) {
+      console.error('❌ [DASHBOARD] Supabase client not available');
+      return;
+    }
 
     try {
       setLoading(true);

@@ -155,7 +155,13 @@ export class KeywordOptimizationService {
     style?: string
   ): Promise<string[]> {
     try {
-      const { data, error } = await this.supabase
+      const supabase = this.supabase;
+      if (!supabase) {
+        console.error('❌ [KEYWORDS] Supabase client not available for database keywords');
+        return [];
+      }
+      
+      const { data, error } = await supabase
         .rpc('get_keyword_suggestions', {
           p_brand: brand,
           p_category: category,
@@ -347,7 +353,13 @@ export class KeywordOptimizationService {
    */
   private async savePhotoAnalysis(analysis: PhotoAnalysis): Promise<string | null> {
     try {
-      const { data: { user } } = await this.supabase.auth.getUser();
+      const supabase = this.supabase;
+      if (!supabase) {
+        console.error('❌ [KEYWORDS] Supabase client not available for saving analysis');
+        return null;
+      }
+      
+      const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
         console.error('❌ [KEYWORDS] No authenticated user found');
@@ -359,7 +371,7 @@ export class KeywordOptimizationService {
         user_id: user.id
       };
 
-      const { data, error } = await this.supabase
+      const { data, error } = await supabase
         .from('photo_analysis')
         .insert([analysisData])
         .select()
@@ -432,7 +444,12 @@ export class KeywordOptimizationService {
     try {
       console.log('📝 [KEYWORDS] Updating user-approved keywords for item:', itemId);
       
-      const { error } = await this.supabase
+      const supabase = this.supabase;
+      if (!supabase) {
+        throw new Error('Supabase client not available');
+      }
+      
+      const { error } = await supabase
         .from('photo_analysis')
         .update({ 
           user_approved_keywords: approvedKeywords 
@@ -463,7 +480,13 @@ export class KeywordOptimizationService {
     salePrice?: number
   ): Promise<void> {
     try {
-      const { error } = await this.supabase
+      const supabase = this.supabase;
+      if (!supabase) {
+        console.error('❌ [KEYWORDS] Supabase client not available for tracking');
+        return;
+      }
+      
+      const { error } = await supabase
         .rpc('update_keyword_performance', {
           p_photo_analysis_id: photoAnalysisId,
           p_views: views,
@@ -492,7 +515,13 @@ export class KeywordOptimizationService {
     autoApprove: boolean;
   }> {
     try {
-      const { data, error } = await this.supabase
+      const supabase = this.supabase;
+      if (!supabase) {
+        console.error('❌ [KEYWORDS] Supabase client not available for preferences');
+        return { preferred: [], blocked: [], autoApprove: false };
+      }
+      
+      const { data, error } = await supabase
         .from('user_keyword_preferences')
         .select('*')
         .eq('user_id', userId)
@@ -528,7 +557,13 @@ export class KeywordOptimizationService {
     ready_for_promotion: boolean;
   }>> {
     try {
-      const { data, error } = await this.supabase
+      const supabase = this.supabase;
+      if (!supabase) {
+        console.error('❌ [KEYWORDS] Supabase client not available for promotable brands');
+        return [];
+      }
+      
+      const { data, error } = await supabase
         .rpc('preview_promotable_brands', { min_submissions: minSubmissions });
 
       if (error) {
@@ -556,7 +591,13 @@ export class KeywordOptimizationService {
     submission_count: number;
   }>> {
     try {
-      const { data, error } = await this.supabase
+      const supabase = this.supabase;
+      if (!supabase) {
+        console.error('❌ [KEYWORDS] Supabase client not available for auto-promotion');
+        return [];
+      }
+      
+      const { data, error } = await supabase
         .rpc('auto_promote_brand_keywords', {
           min_submissions: minSubmissions,
           min_approval_rate: minApprovalRate
@@ -585,7 +626,13 @@ export class KeywordOptimizationService {
     topKeywords: string[];
   }> {
     try {
-      const { data, error } = await this.supabase
+      const supabase = this.supabase;
+      if (!supabase) {
+        console.error('❌ [KEYWORDS] Supabase client not available for brand status');
+        return { submissions: 0, needsMore: 15, readyForPromotion: false, topKeywords: [] };
+      }
+      
+      const { data, error } = await supabase
         .from('photo_analysis')
         .select('user_approved_keywords')
         .eq('detected_brand', brand)

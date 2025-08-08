@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Check, ExternalLink, Zap, Package, Eye, Target } from 'lucide-react';
-import { supabase, type Item, type Listing } from '../lib/supabase';
+import { getSupabase, type Item, type Listing } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import EbayApiService from '../services/ebayApi';
 
@@ -20,6 +20,13 @@ const ListingPreview = () => {
   useEffect(() => {
     const fetchItemAndListing = async () => {
       if (!itemId || !authUser) return;
+      
+      const supabase = getSupabase();
+      if (!supabase) {
+        alert('Database connection not available. Please check your configuration.');
+        setLoading(false);
+        return;
+      }
 
       try {
         // Fetch item details
@@ -133,6 +140,11 @@ const ListingPreview = () => {
       // Update or create listing in database
       if (listing) {
         // Update existing listing
+        const supabase = getSupabase();
+        if (!supabase) {
+          throw new Error('Database connection not available');
+        }
+        
         const { error: updateError } = await supabase
           .from('listings')
           .update({
@@ -145,6 +157,11 @@ const ListingPreview = () => {
         if (updateError) throw updateError;
       } else {
         // Create new listing
+        const supabase = getSupabase();
+        if (!supabase) {
+          throw new Error('Database connection not available');
+        }
+        
         const { error: createError } = await supabase
           .from('listings')
           .insert([{
