@@ -448,7 +448,6 @@ const ConnectionTest = () => {
           >
             Run Tests Again
           </button>
-                  <p>🔗 <strong>Current Origin:</strong> {window.location.origin}</p>
           
           {!user && (
             <p className="text-gray-600 text-sm flex items-center">
@@ -462,36 +461,5 @@ const ConnectionTest = () => {
   );
 };
 
-      {/* CORS Error Alert */}
-      {tests.supabaseConnection.status === 'error' && tests.supabaseConnection.message.includes('CORS') && (
-        <div className="mt-6 p-6 bg-red-50 border-2 border-red-200 rounded-lg">
-          <div className="flex items-start space-x-3">
-            <Globe className="w-6 h-6 text-red-600 mt-1" />
-            <div>
-              <h3 className="text-lg font-semibold text-red-900 mb-2">🚨 URGENT: CORS Configuration Required</h3>
-              <p className="text-red-800 mb-4">
-                Supabase is blocking requests from <code className="bg-red-100 px-2 py-1 rounded">{window.location.origin}</code>
-              </p>
-              <div className="bg-white p-4 rounded border border-red-200">
-                <h4 className="font-medium text-red-900 mb-2">Required Supabase Dashboard Changes:</h4>
-                <ol className="text-sm text-red-800 space-y-1 list-decimal list-inside">
-                  <li>Go to <strong>Supabase Dashboard → Settings → Authentication</strong></li>
-                  <li>Set <strong>Site URL</strong> to: <code className="bg-red-100 px-1 rounded">{window.location.origin}</code></li>
-                  <li>Add to <strong>Redirect URLs</strong>: <code className="bg-red-100 px-1 rounded">{window.location.origin}/auth/callback</code></li>
-                  <li>Save changes and wait 2-3 minutes for propagation</li>
-                  <li>Clear browser cache and test again</li>
-                </ol>
-              </div>
-              <button
-                onClick={() => window.open('https://supabase.com/dashboard', '_blank')}
-                className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
-              >
-                <Shield className="w-4 h-4" />
-                <span>Open Supabase Dashboard</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
 export default ConnectionTest;
