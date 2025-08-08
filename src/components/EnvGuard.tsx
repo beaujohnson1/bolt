@@ -1,4 +1,3 @@
-```tsx
 import React from 'react';
 
 export default function EnvGuard({ children }: { children: React.ReactNode }) {
@@ -13,5 +12,3 @@ export default function EnvGuard({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-```
-export default EnvGuard;
