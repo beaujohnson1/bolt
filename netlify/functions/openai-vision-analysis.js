@@ -45,13 +45,6 @@ function safeParseJson(maybeJson) {
   }
 }
 
-// Helper function to strip markdown code fences
-function stripFences(s) {
-  if (typeof s !== "string") return s;
-  const m = s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  return m ? m[1] : s;
-}
-
 // Safe string helpers for server-side processing
 function safeTrim(v) {
   return String(v || "").trim();
