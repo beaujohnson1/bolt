@@ -14,3 +14,4 @@ export default function EnvGuard({ children }: { children: React.ReactNode }) {
   );
 }
 ```
+export default EnvGuard;
