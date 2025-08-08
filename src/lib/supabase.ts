@@ -51,11 +51,9 @@ const corsAwareFetch: typeof fetch = async (input, init = {}) => {
       throw new Error(`CORS error - Supabase is blocking requests from ${window.location.origin}. Please update Supabase dashboard settings.`);
     } else if (error.message?.includes('Failed to fetch')) {
       throw new Error(`Unable to connect to Supabase from ${window.location.origin} - please check CORS settings in Supabase dashboard`);
+    } else {
+      throw new Error(`Network connection failed. Please check your internet connection or try again. If the problem persists, verify Supabase CORS settings.`);
     }
-    throw new Error(`Network connection failed. Please check your internet connection or try again. If the problem persists, verify Supabase CORS settings.`);
-  } else {
-    throw error;
-  }
   } finally {
     clearTimeout(timeoutId);
   }
@@ -116,7 +114,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       'X-Client-Info': 'easyflip-web-app',
       'X-Client-Origin': window.location.origin
     }
-  },
+  }
 });
 
 // Legacy function for backward compatibility
