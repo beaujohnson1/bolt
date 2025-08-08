@@ -10,7 +10,6 @@ import ItemDetails from './pages/ItemDetails';
 import ListingPreview from './pages/ListingPreview';
 import ConnectionTestPage from './pages/ConnectionTestPage';
 import EnvGuard from './components/EnvGuard';
-import AutoPromotionDashboard from './components/AutoPromotionDashboard';
 import EnvDebug from './pages/EnvDebug';
 import IntegrationTest from './pages/IntegrationTest';
 import AuthConnectivityTest from './pages/AuthConnectivityTest';
@@ -19,60 +18,58 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <EnvGuard>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/test-connection" element={<ConnectionTestPage />} />
-            <Route path="/env-debug" element={<EnvDebug />} />
-            <Route path="/auth-test" element={<AuthConnectivityTest />} />
-            <Route path="/integration-test" element={<IntegrationTest />} />
-            <Route
-              path="/admin/keywords"
-              element={
-                <ProtectedRoute>
-                  <div className="min-h-screen bg-gray-50 py-8">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                      <AutoPromotionDashboard />
-                    </div>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/test-connection" element={<ConnectionTestPage />} />
+          <Route path="/env-debug" element={<EnvDebug />} />
+          <Route path="/auth-test" element={<AuthConnectivityTest />} />
+          <Route path="/integration-test" element={<IntegrationTest />} />
+          <Route
+            path="/admin/keywords"
+            element={
+              <ProtectedRoute>
+                <div className="min-h-screen bg-gray-50 py-8">
+                  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    {/* <AutoPromotionDashboard /> */}
                   </div>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/app"
-              element={
-                <ProtectedRoute>
-                  <AppDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/capture"
-              element={
-                <ProtectedRoute>
-                  <PhotoCapture />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/details/:itemId"
-              element={
-                <ProtectedRoute>
-                  <ItemDetails />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/preview/:itemId"
-              element={
-                <ProtectedRoute>
-                  <ListingPreview />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </EnvGuard>
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/app"
+            element={
+              <ProtectedRoute>
+                <AppDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/capture"
+            element={
+              <ProtectedRoute>
+                <PhotoCapture />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/details/:itemId"
+            element={
+              <ProtectedRoute>
+                <ItemDetails />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/preview/:itemId"
+            element={
+              <ProtectedRoute>
+                <ListingPreview />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
       </Router>
     </AuthProvider>
   );
