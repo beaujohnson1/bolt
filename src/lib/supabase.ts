@@ -80,7 +80,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    flowType: 'pkce',
+    flowType: 'implicit',
     debug: false, // Disable debug to reduce noise
     // Production-specific auth settings
     redirectTo: import.meta.env.PROD ? 'https://easyflip.ai/auth/callback' : undefined,
