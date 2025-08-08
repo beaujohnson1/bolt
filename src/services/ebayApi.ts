@@ -403,6 +403,9 @@ class EbayApiService {
       }
 
       // Prepare request for proxy
+      // Check if we're in development and Netlify functions aren't available
+      const isDev = import.meta.env.DEV;
+      
       const proxyRequest = {
         url: fullUrl,
         method,
@@ -424,6 +427,11 @@ class EbayApiService {
         20000, // 20 second timeout
         'eBay API request timed out after 20 seconds'
       );
+
+      // Handle 404 in development (Netlify functions not available)
+      if (!response.ok && response.status === 404 && isDev) {
+        throw new Error('eBay API proxy not available in development mode. Use "netlify dev" or deploy to test eBay functionality.');
+      }
 
       console.log('📥 [EBAY-API] Proxy response received:', {
         status: response.status,
