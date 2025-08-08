@@ -39,27 +39,65 @@ const AuthCallback: React.FC = () => {
     // Process URL hash only once
     if (urlProcessed) return;
     
-    console.log('🔗 AuthCallback: Processing URL hash...');
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    const error = hashParams.get('error');
-    const errorDescription = hashParams.get('error_description');
+    const handleAuthCallback = async () => {
+      try {
+        console.log('🔗 AuthCallback: Processing URL hash...');
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        const error = hashParams.get('error');
+        const errorDescription = hashParams.get('error_description');
+        
+        setUrlProcessed(true);
+        
+        // If there's an error in the URL, clear it and redirect to home
+        if (error) {
+          console.log('❌ Auth error in URL:', error, errorDescription);
+          navigate('/');
+          return;
+        }
+        
+        // Enhanced token processing with retry logic
+        if (accessToken || refreshToken) {
+          console.log('🔑 Auth tokens found in URL, processing with enhanced logic...');
+          
+          // Give Supabase extra time to process the tokens
+          console.log('⏳ Waiting 2 seconds for Supabase to process tokens...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Manually trigger session refresh to ensure user profile is fetched
+          try {
+            console.log('🔄 Manually checking session after token processing...');
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            
+            if (sessionError) {
+              console.error('❌ Manual session check failed:', sessionError);
+              // Try refreshing the session as fallback
+              console.log('🔄 Attempting session refresh as fallback...');
+              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+              if (refreshError) {
+                console.error('❌ Session refresh also failed:', refreshError);
+              } else {
+                console.log('✅ Session refresh successful:', !!refreshData.session);
+              }
+            } else if (session) {
+              console.log('✅ Session recovered manually:', session.user.email);
+            } else {
+              console.log('⚠️ No session found after manual check');
+            }
+          } catch (manualError) {
+            console.error('❌ Manual session recovery failed:', manualError);
+          }
+        } else {
+          console.log('ℹ️ No auth tokens in URL, waiting for auth context...');
+        }
+      } catch (error) {
+        console.error('❌ AuthCallback processing error:', error);
+        setAuthError(error.message);
+      }
+    };
     
-    setUrlProcessed(true);
-    
-    // If there's an error in the URL, clear it and redirect to home
-    if (error) {
-      console.log('❌ Auth error in URL:', error, errorDescription);
-      navigate('/');
-      return;
-    }
-    
-    // Log token presence and let Supabase handle authentication
-    if (accessToken) {
-      console.log('🔑 Auth tokens found in URL, letting Supabase process...');
-    } else {
-      console.log('ℹ️ No auth tokens in URL, waiting for auth context...');
-    }
+    handleAuthCallback();
   }, [navigate, urlProcessed]);
   
   // Monitor authentication state and navigate when ready

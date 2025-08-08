@@ -110,7 +110,97 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     }
   },
   global: { 
-    fetch: corsAwareFetch,
+    fetch: async (url, options = {}) => {
+      console.log('[SUPABASE-FETCH] Making request to:', url);
+      console.log('[SUPABASE-FETCH] Method:', options.method || 'GET');
+      console.log('[SUPABASE-FETCH] Origin:', window.location.origin);
+      
+      // Retry logic for auth endpoints
+      const maxRetries = 3;
+      let lastError;
+      
+      for (let i = 0; i < maxRetries; i++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          console.warn(`[SUPABASE-FETCH] Request timeout after 30 seconds (attempt ${i + 1})`);
+          controller.abort();
+        }, 30000); // 30 second timeout
+        
+        try {
+          const response = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Client-Info': 'easyflip-web@1.0.0',
+              'X-Client-Origin': window.location.origin,
+              ...options.headers
+            }
+          });
+          
+          clearTimeout(timeoutId);
+          
+          console.log('[SUPABASE-FETCH] Response received:', {
+            status: response.status,
+            ok: response.ok,
+            url: response.url,
+            attempt: i + 1
+          });
+          
+          // Return successful responses or client errors (don't retry 4xx)
+          if (response.ok || (response.status >= 400 && response.status < 500)) {
+            return response;
+          }
+          
+          // Server errors (5xx) should be retried
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          
+        } catch (error: any) {
+          clearTimeout(timeoutId);
+          lastError = error;
+          
+          console.log(`[SUPABASE-FETCH] Attempt ${i + 1}/${maxRetries} failed:`, error.message);
+          
+          // Don't retry on abort (timeout) or client errors
+          if (error.name === 'AbortError') {
+            throw new Error('Request timed out after 30 seconds - please check your internet connection');
+          }
+          
+          // Don't retry CORS errors
+          if (error.message?.includes('CORS')) {
+            throw new Error(`CORS error - Supabase is blocking requests from ${window.location.origin}. Please update Supabase dashboard settings.`);
+          }
+          
+          // For connection errors, retry with exponential backoff
+          if (i < maxRetries - 1 && (
+            error.message?.includes('Failed to fetch') ||
+            error.message?.includes('ERR_CONNECTION') ||
+            error.message?.includes('ERR_NETWORK') ||
+            error.message?.includes('HTTP 5')
+          )) {
+            const delay = 1000 * Math.pow(2, i); // 1s, 2s, 4s
+            console.log(`[SUPABASE-FETCH] Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          
+          // Don't retry other errors
+          break;
+        }
+      }
+      
+      // All retries failed
+      console.error('[SUPABASE-FETCH] All retries exhausted:', lastError);
+      
+      if (lastError?.message?.includes('ERR_CONNECTION_CLOSED') || 
+          lastError?.message?.includes('ERR_CONNECTION_RESET')) {
+        throw new Error(`Network connection was reset. This may be a temporary issue - please try again in a moment.`);
+      } else if (lastError?.message?.includes('Failed to fetch')) {
+        throw new Error(`Unable to connect to Supabase from ${window.location.origin} - please check CORS settings in Supabase dashboard`);
+      } else {
+        throw new Error(`Network connection failed after ${maxRetries} attempts. Please check your internet connection or try again. If the problem persists, verify Supabase CORS settings.`);
+      }
+    },
     headers: {
       'X-Client-Info': 'easyflip-web@1.0.0',
       'X-Client-Origin': window.location.origin
