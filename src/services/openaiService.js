@@ -114,7 +114,7 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       };
     }
     
-    const ai = payload.data;
+    const ai = response.data;
     
     // Step 4: Post-processing (last line of defense)
     console.log('🔧 [OPENAI-CLIENT] Step 4: Post-processing AI results...');
