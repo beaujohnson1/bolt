@@ -660,41 +660,6 @@ export class KeywordOptimizationService {
   /**
    * Extract additional keywords from OpenAI clothing analysis
    */
-  private extractKeywordsFromAnalysis(analysis: any): string[] {
-    const keywords: string[] = [];
-    
-    // Add style-based keywords
-    if (analysis.item_type) {
-      keywords.push(analysis.item_type.toLowerCase());
-    }
-    
-    // Add condition-based keywords
-    if (analysis.condition) {
-      const conditionKeywords = {
-        'New': ['new', 'unworn', 'tags'],
-        'Like New': ['like new', 'excellent', 'barely worn'],
-        'Good': ['good condition', 'gently used'],
-        'Fair': ['fair condition', 'some wear']
-      };
-      const conditionKeys = conditionKeywords[analysis.condition] || [];
-      keywords.push(...conditionKeys);
-    }
-    
-    // Add marketplace-specific keywords from the analysis
-    if (analysis.marketplace_title) {
-      // Extract descriptive words from the suggested title
-      const titleWords = analysis.marketplace_title
-        .toLowerCase()
-        .split(' ')
-        .filter(word => 
-          word.length > 3 && 
-          !['size', 'the', 'and', 'for', 'with'].includes(word)
-        );
-      keywords.push(...titleWords);
-    }
-    
-    return keywords.filter(k => k && k.length > 0);
-  }
 }
 
 export default KeywordOptimizationService;
