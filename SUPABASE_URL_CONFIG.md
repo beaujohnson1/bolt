@@ -7,7 +7,7 @@ Supabase is redirecting email confirmations to `localhost:3000` instead of your 
 
 ### **1. Update Site URL in Supabase Dashboard**
 
-1. Go to your Supabase dashboard: **https://supabase.com/dashboard/project/glcreocjgiqywlqwfphi**
+1. Go to your Supabase dashboard: **https://supabase.com/dashboard/project/kstmyodjnckgoosidsbb**
 2. Navigate to **Authentication** → **Settings**
 3. Find the **Site URL** field
 4. Change it from `http://localhost:3000` to your actual app URL
