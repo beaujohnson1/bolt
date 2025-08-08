@@ -395,7 +395,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signInWithGoogle,
     signOut,
-    updateUser
+    updateUser,
     panicLogout
   };
 
