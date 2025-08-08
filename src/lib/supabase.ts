@@ -3,23 +3,27 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.trim();
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
-// Enhanced fetch with better timeout and error handling
-const timeoutFetch: typeof fetch = async (input, init = {}) => {
+// Enhanced fetch with CORS handling and better timeout
+const corsAwareFetch: typeof fetch = async (input, init = {}) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
-    console.warn('[SUPABASE-FETCH] Request timeout after 15 seconds');
+    console.warn('[SUPABASE-FETCH] Request timeout after 20 seconds');
     controller.abort();
-  }, 15000); // Increased to 15 seconds
+  }, 20000); // Increased to 20 seconds for production
   
   try {
-    console.log('[SUPABASE-FETCH] Making request to:', typeof input === 'string' ? input : input.toString());
+    const url = typeof input === 'string' ? input : input.toString();
+    console.log('[SUPABASE-FETCH] Making request to:', url);
+    console.log('[SUPABASE-FETCH] Origin:', window.location.origin);
     
     const response = await fetch(input as any, { 
       ...init, 
       signal: controller.signal,
-      // Add additional headers for better connectivity
+      // Add CORS and connectivity headers
       headers: {
         'Content-Type': 'application/json',
+        'Access-Control-Request-Method': init.method || 'GET',
+        'Access-Control-Request-Headers': 'Content-Type, Authorization, apikey',
         ...init.headers
       }
     });
@@ -27,7 +31,8 @@ const timeoutFetch: typeof fetch = async (input, init = {}) => {
     console.log('[SUPABASE-FETCH] Response received:', {
       status: response.status,
       ok: response.ok,
-      url: response.url
+      url: response.url,
+      headers: Object.fromEntries(response.headers.entries())
     });
     
     return response;
@@ -35,14 +40,17 @@ const timeoutFetch: typeof fetch = async (input, init = {}) => {
     console.error('[SUPABASE-FETCH] Network error:', {
       message: error.message,
       name: error.name,
-      url: typeof input === 'string' ? input : input.toString()
+      url: typeof input === 'string' ? input : input.toString(),
+      origin: window.location.origin
     });
     
     // Provide more specific error messages
     if (error.name === 'AbortError') {
       throw new Error('Request timed out - please check your internet connection');
+    } else if (error.message?.includes('CORS')) {
+      throw new Error('CORS error - please check Supabase dashboard settings for allowed origins');
     } else if (error.message?.includes('Failed to fetch')) {
-      throw new Error('Unable to connect to Supabase - please check your network connection');
+      throw new Error(`Unable to connect to Supabase from ${window.location.origin} - please check CORS settings`);
     } else {
       throw new Error(`Connection failed: ${error.message}`);
     }
@@ -66,6 +74,8 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: true,
     flowType: 'pkce',
     debug: import.meta.env.DEV, // Enable debug logging in development
+    // Add production-specific auth settings
+    redirectTo: import.meta.env.PROD ? 'https://easyflip.ai/auth/callback' : undefined,
     storage: {
       getItem: (key: string) => {
         try {
@@ -92,9 +102,10 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     }
   },
   global: { 
-    fetch: timeoutFetch,
+    fetch: corsAwareFetch,
     headers: {
-      'X-Client-Info': 'easyflip-web-app'
+      'X-Client-Info': 'easyflip-web-app',
+      'X-Client-Origin': window.location.origin
     }
   },
 });

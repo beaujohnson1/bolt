@@ -15,6 +15,7 @@ export interface ConnectionTestResult {
 export const testSupabaseConnection = async (): Promise<ConnectionTestResult> => {
   try {
     console.log('🧪 [CONNECTION-TEST] Testing basic Supabase connection...');
+    console.log('🌐 [CONNECTION-TEST] Testing from origin:', window.location.origin);
     
     const startTime = Date.now();
     
@@ -28,6 +29,17 @@ export const testSupabaseConnection = async (): Promise<ConnectionTestResult> =>
     
     if (error) {
       console.error('❌ [CONNECTION-TEST] Supabase query failed:', error);
+      
+      // Check for CORS-specific errors
+      if (error.message?.includes('CORS') || error.message?.includes('Access-Control-Allow-Origin')) {
+        return {
+          success: false,
+          message: `CORS Error: ${window.location.origin} is not allowed. Update Supabase dashboard settings.`,
+          details: { error, duration, origin: window.location.origin },
+          timestamp: new Date().toISOString()
+        };
+      }
+      
       return {
         success: false,
         message: `Database query failed: ${error.message}`,
@@ -45,6 +57,19 @@ export const testSupabaseConnection = async (): Promise<ConnectionTestResult> =>
     };
   } catch (error: any) {
     console.error('❌ [CONNECTION-TEST] Connection test failed:', error);
+    
+    // Enhanced CORS error detection
+    if (error.message?.includes('CORS') || 
+        error.message?.includes('Access-Control-Allow-Origin') ||
+        error.message?.includes('blocked by CORS policy')) {
+      return {
+        success: false,
+        message: `CORS Error: Supabase is blocking requests from ${window.location.origin}. Please update Supabase dashboard settings.`,
+        details: { error: error.message, origin: window.location.origin },
+        timestamp: new Date().toISOString()
+      };
+    }
+    
     return {
       success: false,
       message: `Connection failed: ${error.message}`,

@@ -47,6 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchUserProfile = async (supabaseUser: User): Promise<AppUser | null> => {
     try {
       console.log('🔍 [AUTH] Starting fetchUserProfile for user:', supabaseUser.id);
+      console.log('🌐 [AUTH] Current origin:', window.location.origin);
       
       const userName = 
         supabaseUser.user_metadata?.full_name || 
@@ -400,16 +401,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     try {
       console.log('🔑 [AUTH] Attempting to sign in with Google');
+      console.log('🌐 [AUTH] Current origin for redirect:', window.location.origin);
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         }
       });
       
       if (error) {
         console.error('❌ [AUTH] Google sign in error:', error);
+        if (error.message?.includes('CORS')) {
+          throw new Error('CORS error - please check Supabase dashboard settings for allowed origins');
+        }
       } else {
         console.log('✅ [AUTH] Google sign in initiated');
       }

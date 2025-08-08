@@ -17,6 +17,8 @@ export default function EnvGuard({ children }: { children: React.ReactNode }) {
 
   const testConnection = async () => {
     try {
+      console.log('🧪 [ENV-GUARD] Testing connection from origin:', window.location.origin);
+      
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
         headers: {
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
@@ -29,13 +31,20 @@ export default function EnvGuard({ children }: { children: React.ReactNode }) {
       } else {
         setConnectionTest({ 
           status: 'error', 
-          message: `Connection failed: ${response.status} ${response.statusText}` 
+          message: `Connection failed: ${response.status} ${response.statusText} from ${window.location.origin}` 
         });
       }
     } catch (error: any) {
+      console.error('🚨 [ENV-GUARD] Connection test error:', error);
+      
+      let errorMessage = `Connection failed: ${error.message}`;
+      if (error.message?.includes('CORS') || error.message?.includes('Access-Control-Allow-Origin')) {
+        errorMessage = `🚨 CORS ERROR: ${window.location.origin} not allowed in Supabase settings. Update dashboard immediately.`;
+      }
+      
       setConnectionTest({ 
         status: 'error', 
-        message: `Connection failed: ${error.message}` 
+        message: errorMessage
       });
     }
   };

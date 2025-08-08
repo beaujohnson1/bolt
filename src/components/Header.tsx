@@ -37,11 +37,14 @@ const Header = () => {
     setError('');
     setAuthLoading(true);
     try {
+      console.log('🌐 [HEADER] Initiating Google sign-in from:', window.location.origin);
       await signInWithGoogle();
     } catch (error) {
       console.error('Login failed:', error);
       if (error.message?.includes('Failed to fetch') || error.message?.includes('Connection failed')) {
         setError('Connection failed. Please check your internet connection and try again.');
+      } else if (error.message?.includes('CORS')) {
+        setError('CORS error detected. Please contact support - this is a server configuration issue.');
       } else {
         setError('Google sign-in failed. Please try email/password instead.');
       }
@@ -68,6 +71,8 @@ const Header = () => {
       console.error('Auth failed:', error);
       if (error.message?.includes('Failed to fetch') || error.message?.includes('Connection failed')) {
         setError('Connection failed. Please check your internet connection and try again.');
+      } else if (error.message?.includes('CORS')) {
+        setError('CORS error detected. Please contact support - this is a server configuration issue.');
       } else if (error.message?.includes('Invalid login credentials')) {
         setError('Invalid email or password. Please check your credentials.');
       } else {
