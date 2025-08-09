@@ -142,12 +142,6 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
         photoCount: selectedPhotos.size
       });
       
-      const supabase = getSupabase();
-      if (!supabase) {
-        setErrorMessage('Database connection not available. Please check your configuration.');
-        return;
-      }
-
       const selectedPhotoIds = Array.from(selectedPhotos);
 
       // Update selected photos with SKU assignment
@@ -180,12 +174,6 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
       // Auto-advance workflow: if no more photos to assign, suggest moving to Generate Listings
       if (onAssignmentComplete) {
         // Check if there are any remaining unassigned photos
-        const supabase = getSupabase();
-        if (!supabase) {
-          console.error('❌ [SKU-ASSIGNMENT] Cannot check remaining photos - Supabase not available');
-          return;
-        }
-        
         const { data: remainingPhotos, error } = await supabase
           .from('uploaded_photos')
           .select('id')
@@ -239,12 +227,6 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
     try {
       const selectedPhotoIds = Array.from(selectedPhotos);
       
-      const supabase = getSupabase();
-      if (!supabase) {
-        setErrorMessage('Database connection not available. Please check your configuration.');
-        return;
-      }
-
       const { error: deleteError } = await supabase
         .from('uploaded_photos')
         .delete()
