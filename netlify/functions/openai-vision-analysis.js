@@ -407,6 +407,26 @@ CRITICAL INSTRUCTIONS:
 - Be extremely specific with item types and descriptions
 - Report evidence for how you determined brand/size (ocr|vision|null)
 
+ENHANCED SIZE DETECTION - Look for these specific patterns:
+- Standard sizes: XS, S, M, L, XL, XXL, XXXL
+- Numeric sizes: 0, 00, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28
+- Plus sizes: 1X, 2X, 3X, 4X, 5X
+- Kids sizes: 2T, 3T, 4T, 5T, 6, 7, 8, 10, 12, 14, 16
+- Youth sizes: YS, YM, YL, YXL
+- Waist x Length: 30x32, 32x34, W30 L32
+- Bra sizes: 32B, 34C, 36D, 38DD
+- Shoe sizes: 7, 8.5, 9, 10, 11 (US), EU 40, UK 8
+- Size labels: "SIZE: M", "SZ: L", "US M", "EUR 40"
+- International: EU 38, UK 10, US 8
+
+BRAND DETECTION - Examine these locations carefully:
+- Neck labels and tags (most common)
+- Care labels inside garments
+- Embroidered or printed logos
+- Hardware text (zippers, buttons)
+- Woven labels on seams
+- Small brand marks anywhere on the item
+
 CANDIDATES (pre-extracted from OCR):
 ${safeStringify(candidates)}
 

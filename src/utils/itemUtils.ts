@@ -172,11 +172,46 @@ export const extractSize = (ocrText: string): string | null => {
   try {
     const s = safeUpper(text).replace(/\s+/g, " ");
     
+    // Size label formats (most specific first)
+    const sizeLabel = s.match(/SIZE[:\s-]*([A-Z0-9]{1,6})\b/);
+    if (sizeLabel) {
+      console.log('✅ [SIZE-EXTRACT] Found labeled size:', sizeLabel[1]);
+      return sizeLabel[1];
+    }
+    
+    // SZ: format (common on tags)
+    const szFormat = s.match(/SZ[:\s-]*([A-Z0-9]{1,4})\b/);
+    if (szFormat) {
+      console.log('✅ [SIZE-EXTRACT] Found SZ format size:', szFormat[1]);
+      return szFormat[1];
+    }
+    
+    // US/EU/UK size formats
+    const regionalSize = s.match(/\b(?:US|EU|UK)\s*([A-Z]?\s*\d{1,2}(?:\.\d)?)\b/);
+    if (regionalSize) {
+      console.log('✅ [SIZE-EXTRACT] Found regional size:', regionalSize[1]);
+      return regionalSize[1].replace(/\s+/g, '');
+    }
+    
     // Alpha sizes (most common)
     const alpha = s.match(/\b(XXXS|XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL)\b/);
     if (alpha) {
       console.log('✅ [SIZE-EXTRACT] Found alpha size:', alpha[1]);
       return alpha[1];
+    }
+    
+    // Kids sizes (2T, 3T, 4T, etc.)
+    const kidsSize = s.match(/\b([2-9]T|1[0-6]T)\b/);
+    if (kidsSize) {
+      console.log('✅ [SIZE-EXTRACT] Found kids size:', kidsSize[1]);
+      return kidsSize[1];
+    }
+    
+    // Youth sizes (YS, YM, YL, etc.)
+    const youthSize = s.match(/\b(Y[XSMLXL]+|YOUTH\s*[SMLXL]+)\b/);
+    if (youthSize) {
+      console.log('✅ [SIZE-EXTRACT] Found youth size:', youthSize[1]);
+      return youthSize[1];
     }
     
     // Waist x Length (jeans/pants)
@@ -187,18 +222,39 @@ export const extractSize = (ocrText: string): string | null => {
       return size;
     }
     
-    // Size label format
-    const labeled = s.match(/SIZE[:\s-]*([A-Z0-9]{1,4})\b/);
-    if (labeled) {
-      console.log('✅ [SIZE-EXTRACT] Found labeled size:', labeled[1]);
-      return labeled[1];
+    // Bra sizes (32B, 34C, etc.)
+    const braSize = s.match(/\b(\d{2}[A-F]{1,3})\b/);
+    if (braSize) {
+      console.log('✅ [SIZE-EXTRACT] Found bra size:', braSize[1]);
+      return braSize[1];
+    }
+    
+    // Shoe sizes (more specific patterns)
+    const shoeSize = s.match(/\b(?:SIZE\s*)?(\d{1,2}(?:\.\d)?)\s*(?:US|M|W|MENS|WOMENS)?\b/);
+    if (shoeSize && parseFloat(shoeSize[1]) >= 4 && parseFloat(shoeSize[1]) <= 16) {
+      console.log('✅ [SIZE-EXTRACT] Found shoe size:', shoeSize[1]);
+      return shoeSize[1];
     }
     
     // Dress/numeric sizes
-    const dress = s.match(/\b(0|00|2|4|6|8|10|12|14|16|18|20|22|24)\b/);
+    const dress = s.match(/\b(00|0|2|4|6|8|10|12|14|16|18|20|22|24|26|28)\b/);
     if (dress) {
       console.log('✅ [SIZE-EXTRACT] Found numeric size:', dress[1]);
       return dress[1];
+    }
+    
+    // Plus sizes (1X, 2X, etc.)
+    const plusSize = s.match(/\b([1-5]X)\b/);
+    if (plusSize) {
+      console.log('✅ [SIZE-EXTRACT] Found plus size:', plusSize[1]);
+      return plusSize[1];
+    }
+    
+    // International sizes (EU, UK specific)
+    const intlSize = s.match(/\b(?:EUR?|UK)\s*(\d{2,3})\b/);
+    if (intlSize) {
+      console.log('✅ [SIZE-EXTRACT] Found international size:', `${intlSize[0]}`);
+      return intlSize[0];
     }
     
     console.log('ℹ️ [SIZE-EXTRACT] No size pattern found in OCR text');
