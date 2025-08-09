@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, AlertCircle, Package } from 'lucide-react';
-import { supabase, getSupabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import ControlBar from './ControlBar';
 import PhotoGrid from './PhotoGrid';
