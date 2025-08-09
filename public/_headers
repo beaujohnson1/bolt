@@ -1,25 +1,9 @@
 /*
-  Global headers for all routes
-*/
-/*
   X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
-  Referrer-Policy: strict-origin-when-cross-origin
 
-/*
-  Headers for Supabase requests to prevent connection issues
-*/
-/*.supabase.co/*
+# Specific rule for Supabase auth
+/auth/*
   Access-Control-Allow-Origin: *
   Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
-  Access-Control-Allow-Headers: authorization, x-client-info, apikey, content-type, x-supabase-auth-token
-  Access-Control-Max-Age: 86400
-
-/*
-  Specific headers for auth endpoints
-*/
-/auth/*
-  Access-Control-Allow-Origin: https://easyflip.ai
-  Access-Control-Allow-Credentials: true
-  Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
-  Access-Control-Allow-Headers: authorization, x-client-info, apikey, content-type, x-supabase-auth-token
+  Access-Control-Allow-Headers: authorization, x-client-info, apikey, content-type
