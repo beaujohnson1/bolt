@@ -133,11 +133,6 @@ const ListingPreview = () => {
       // Update or create listing in database
       if (listing) {
         // Update existing listing
-        const supabase = getSupabase();
-        if (!supabase) {
-          throw new Error('Database connection not available');
-        }
-        
         const { error: updateError } = await supabase
           .from('listings')
           .update({
@@ -150,11 +145,6 @@ const ListingPreview = () => {
         if (updateError) throw updateError;
       } else {
         // Create new listing
-        const supabase = getSupabase();
-        if (!supabase) {
-          throw new Error('Database connection not available');
-        }
-        
         const { error: createError } = await supabase
           .from('listings')
           .insert([{

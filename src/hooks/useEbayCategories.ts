@@ -18,36 +18,14 @@ export const useEbayCategories = () => {
     setLoading(true);
     setError(null);
     
-    if (!categoryManager) {
-      setError('Database connection not available. Using fallback categories.');
-      setCategories([
-        {
-          categoryId: '11450',
-          categoryName: 'Clothing',
-          categoryPath: 'Clothing, Shoes & Accessories > Clothing',
-          isLeafCategory: true,
-          categoryLevel: 2
-        },
-        {
-          categoryId: '93427',
-          categoryName: 'Shoes',
-          categoryPath: 'Clothing, Shoes & Accessories > Shoes',
-          isLeafCategory: true,
-          categoryLevel: 2
-        }
-      ]);
-      setLoading(false);
-      return;
-    }
-
     try {
       console.log('📂 [EBAY-CATEGORIES] Fetching categories from eBay API...');
       
       // Initialize categories if needed
-      await categoryManager.initializeCategories();
+      await categoryManager?.initializeCategories();
       
       // Get all categories
-      const fetchedCategories = await categoryManager.getAllCategories();
+      const fetchedCategories = await categoryManager?.getAllCategories() || [];
       setCategories(fetchedCategories);
       
       console.log('✅ [EBAY-CATEGORIES] Categories loaded:', fetchedCategories.length);
@@ -94,7 +72,7 @@ export const useEbayCategories = () => {
   const suggestCategory = async (title: string, description: string = '', brand?: string) => {
     try {
       if (!categoryManager) {
-        console.error('❌ [EBAY-CATEGORIES] Category manager not available');
+        console.warn('⚠️ [EBAY-CATEGORIES] Category manager not available - using fallback');
         return [];
       }
       
@@ -108,7 +86,7 @@ export const useEbayCategories = () => {
   const getCategorySpecifics = async (categoryId: string) => {
     try {
       if (!categoryManager) {
-        console.error('❌ [EBAY-CATEGORIES] Category manager not available');
+        console.warn('⚠️ [EBAY-CATEGORIES] Category manager not available - using fallback');
         return [];
       }
       

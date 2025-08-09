@@ -74,12 +74,6 @@ const ItemDetails = () => {
   const handleSaveKeywords = async () => {
     if (!item || !authUser) return;
     
-    const supabase = getSupabase();
-    if (!supabase) {
-      alert('Database connection not available. Please check your configuration.');
-      return;
-    }
-
     setSavingKeywords(true);
     try {
       console.log('💾 [ITEM-DETAILS] Saving keyword updates...');
@@ -113,12 +107,6 @@ const ItemDetails = () => {
   const handleDelete = async () => {
     if (!item || !authUser) return;
     
-    const supabase = getSupabase();
-    if (!supabase) {
-      alert('Database connection not available. Please check your configuration.');
-      return;
-    }
-
     const confirmed = window.confirm('Are you sure you want to delete this item? This action cannot be undone.');
     if (!confirmed) return;
 

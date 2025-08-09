@@ -33,13 +33,7 @@ const AutoPromotionDashboard: React.FC = () => {
     setLoading(true);
     try {
       console.log('🔄 [ADMIN] Loading promotable brands...');
-      if (!keywordService) {
-        console.error('❌ [ADMIN] Keyword service not available - database connection missing');
-        setPromotableBrands([]);
-        return;
-      }
-      
-      const brands = await keywordService.getPromotableBrands(10); // Lower threshold for testing
+      const brands = await keywordService?.getPromotableBrands(10) || []; // Lower threshold for testing
       console.log('📊 [ADMIN] Loaded promotable brands:', brands);
       setPromotableBrands(brands);
     } catch (error) {
@@ -54,12 +48,7 @@ const AutoPromotionDashboard: React.FC = () => {
     setPromoting(true);
     try {
       console.log('🚀 [ADMIN] Running auto-promotion...');
-      if (!keywordService) {
-        alert('Keyword service not available - database connection missing');
-        return;
-      }
-      
-      const results = await keywordService.runAutoPromotion(10, 0.50); // Lower thresholds for testing
+      const results = await keywordService?.runAutoPromotion(10, 0.50) || []; // Lower thresholds for testing
       console.log('✅ [ADMIN] Promotion results:', results);
       
       // Reload the list
@@ -78,12 +67,11 @@ const AutoPromotionDashboard: React.FC = () => {
   const checkBrandStatus = async (brand: string, category: string) => {
     try {
       console.log('🔍 [ADMIN] Checking brand status:', brand, category);
-      if (!keywordService) {
+      const status = await keywordService?.getBrandLearningStatus(brand, category);
+      if (!status) {
         alert('Keyword service not available - database connection missing');
         return;
       }
-      
-      const status = await keywordService.getBrandLearningStatus(brand, category);
       console.log('📊 [ADMIN] Brand status:', status);
       setBrandStatus(status);
       setSelectedBrand(`${brand} - ${category}`);

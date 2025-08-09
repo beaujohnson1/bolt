@@ -83,16 +83,12 @@ export const useAIAnalysis = () => {
       if (options.includeMarketResearch && aiData.title) {
         try {
           console.log('💰 [AI-ANALYSIS] Conducting market research...');
-          if (!marketResearch) {
-            console.warn('⚠️ [AI-ANALYSIS] Market research not available - database connection missing');
-          } else {
           marketResearchData = await marketResearch.getPriceSuggestion(
             aiData.title,
             '11450', // Default to clothing category
             aiData.condition || 'good',
             aiData.brand
           );
-          }
           console.log('✅ [AI-ANALYSIS] Market research complete');
         } catch (error) {
           console.error('❌ [AI-ANALYSIS] Market research failed:', error);
@@ -103,9 +99,6 @@ export const useAIAnalysis = () => {
       if (options.includeCategoryAnalysis && aiData.title) {
         try {
           console.log('🎯 [AI-ANALYSIS] Analyzing category suggestions...');
-          if (!categoryManager) {
-            console.warn('⚠️ [AI-ANALYSIS] Category analysis not available - database connection missing');
-          } else {
           const categoryOptions = await categoryManager.suggestCategory(
             aiData.title,
             aiData.description || '',
@@ -116,7 +109,6 @@ export const useAIAnalysis = () => {
             suggestions: categoryOptions,
             recommended: categoryOptions[0] || null
           };
-          }
           console.log('✅ [AI-ANALYSIS] Category analysis complete');
         } catch (error) {
           console.error('❌ [AI-ANALYSIS] Category analysis failed:', error);

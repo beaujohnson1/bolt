@@ -432,12 +432,7 @@ export class KeywordOptimizationService {
     try {
       console.log('📝 [KEYWORDS] Updating user-approved keywords for item:', itemId);
       
-      const supabase = this.supabase;
-      if (!supabase) {
-        throw new Error('Supabase client not available');
-      }
-      
-      const { error } = await supabase
+      const { error } = await this.supabase
         .from('photo_analysis')
         .update({ 
           user_approved_keywords: approvedKeywords 
@@ -468,13 +463,7 @@ export class KeywordOptimizationService {
     salePrice?: number
   ): Promise<void> {
     try {
-      const supabase = this.supabase;
-      if (!supabase) {
-        console.error('❌ [KEYWORDS] Supabase client not available for tracking');
-        return;
-      }
-      
-      const { error } = await supabase
+      const { error } = await this.supabase
         .rpc('update_keyword_performance', {
           p_photo_analysis_id: photoAnalysisId,
           p_views: views,
@@ -503,13 +492,7 @@ export class KeywordOptimizationService {
     autoApprove: boolean;
   }> {
     try {
-      const supabase = this.supabase;
-      if (!supabase) {
-        console.error('❌ [KEYWORDS] Supabase client not available for preferences');
-        return { preferred: [], blocked: [], autoApprove: false };
-      }
-      
-      const { data, error } = await supabase
+      const { data, error } = await this.supabase
         .from('user_keyword_preferences')
         .select('*')
         .eq('user_id', userId)
@@ -545,13 +528,7 @@ export class KeywordOptimizationService {
     ready_for_promotion: boolean;
   }>> {
     try {
-      const supabase = this.supabase;
-      if (!supabase) {
-        console.error('❌ [KEYWORDS] Supabase client not available for promotable brands');
-        return [];
-      }
-      
-      const { data, error } = await supabase
+      const { data, error } = await this.supabase
         .rpc('preview_promotable_brands', { min_submissions: minSubmissions });
 
       if (error) {
@@ -579,13 +556,7 @@ export class KeywordOptimizationService {
     submission_count: number;
   }>> {
     try {
-      const supabase = this.supabase;
-      if (!supabase) {
-        console.error('❌ [KEYWORDS] Supabase client not available for auto-promotion');
-        return [];
-      }
-      
-      const { data, error } = await supabase
+      const { data, error } = await this.supabase
         .rpc('auto_promote_brand_keywords', {
           min_submissions: minSubmissions,
           min_approval_rate: minApprovalRate
@@ -614,13 +585,7 @@ export class KeywordOptimizationService {
     topKeywords: string[];
   }> {
     try {
-      const supabase = this.supabase;
-      if (!supabase) {
-        console.error('❌ [KEYWORDS] Supabase client not available for brand status');
-        return { submissions: 0, needsMore: 15, readyForPromotion: false, topKeywords: [] };
-      }
-      
-      const { data, error } = await supabase
+      const { data, error } = await this.supabase
         .from('photo_analysis')
         .select('user_approved_keywords')
         .eq('detected_brand', brand)
