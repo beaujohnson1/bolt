@@ -1,12 +1,32 @@
+// src/lib/supabase.ts
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 let client: SupabaseClient | null = null;
 
+// tiny fetch with timeout + better error surfacing
+const timeoutFetch: typeof fetch = async (input, init={}) => {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), 8000); // 8 seconds timeout
+  try {
+    const res = await fetch(input as any, { ...init, signal: ctrl.signal });
+    return res;
+  } catch (e) {
+    console.warn('[SUPABASE-FETCH] network error', { input, err: String(e) });
+    throw e;
+  } finally {
+    clearTimeout(id);
+  }
+};
+
 export function getSupabase(): SupabaseClient | null {
   if (client) return client;
 
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const url = import.meta.env.VITE_SUPABASE_URL?.trim();
+  const anon = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+
+  console.log('[SUPABASE_DEBUG] Attempting to initialize Supabase client...');
+  console.log('[SUPABASE_DEBUG] VITE_SUPABASE_URL:', url ? 'present' : 'missing', url ? `(length: ${url.length})` : '');
+  console.log('[SUPABASE_DEBUG] VITE_SUPABASE_ANON_KEY:', anon ? 'present' : 'missing', anon ? `(length: ${anon.length})` : '');
 
   if (!url || !anon) {
     console.warn(
@@ -17,22 +37,23 @@ export function getSupabase(): SupabaseClient | null {
       VITE_SUPABASE_ANON_KEY_present: !!anon,
       VITE_SUPABASE_URL_host: url ? new URL(url).host : null
     });
-    // Return null so callers can render a friendly UI instead of crashing
     return null;
   }
 
   try {
-    client = createClient(url, anon, { 
-      auth: { 
+    client = createClient(url, anon, {
+      auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
+        detectSessionInUrl: true,
+        flowType: 'pkce', // This is important for secure authentication flows
+      },
+      global: { fetch: timeoutFetch }, // This adds the timeout to all Supabase client requests
     });
-    console.log('✅ Supabase client initialized successfully');
+    console.log('✅ [SUPABASE_DEBUG] Supabase client initialized successfully');
     return client;
   } catch (error) {
-    console.error('❌ Failed to initialize Supabase client:', error);
+    console.error('❌ [SUPABASE_DEBUG] Failed to initialize Supabase client:', error);
     return null;
   }
 }

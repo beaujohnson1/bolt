@@ -4,6 +4,7 @@ import { ArrowLeft, Edit, ExternalLink, Trash2, Save, X, Package, Eye, Target, M
 import { useAuth } from '../contexts/AuthContext';
 import { getSupabase, type Item, type Listing } from '../lib/supabase';
 import { KeywordOptimizationService } from '../services/KeywordOptimizationService';
+import PricingInsights from '../components/PricingInsights';
 
 const ItemDetails = () => {
   const { itemId } = useParams();
@@ -17,6 +18,7 @@ const ItemDetails = () => {
   const [editingKeywords, setEditingKeywords] = useState(false);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [savingKeywords, setSavingKeywords] = useState(false);
+  const [currentPrice, setCurrentPrice] = useState<number>(0);
 
   // Fetch item and listing data
   useEffect(() => {
@@ -48,6 +50,7 @@ const ItemDetails = () => {
         console.log('✅ [ITEM-DETAILS] Item fetched successfully:', itemData);
         setItem(itemData);
         setKeywords(itemData.ai_suggested_keywords || []);
+        setCurrentPrice(itemData.final_price || itemData.suggested_price || 0);
 
         // Fetch associated listing if it exists
         const { data: listingData, error: listingError } = await supabase
@@ -165,6 +168,31 @@ const ItemDetails = () => {
   // Create listing for this item
   const handleCreateListing = () => {
     navigate(`/preview/${itemId}`);
+  };
+
+  // Handle price update from pricing insights
+  const handlePriceUpdate = async (newPrice: number) => {
+    if (!item || !authUser) return;
+    
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+      const { error } = await supabase
+        .from('items')
+        .update({ final_price: newPrice })
+        .eq('id', item.id);
+
+      if (error) throw error;
+
+      setCurrentPrice(newPrice);
+      setItem(prev => prev ? { ...prev, final_price: newPrice } : null);
+      
+      console.log('✅ [ITEM-DETAILS] Price updated successfully');
+    } catch (error) {
+      console.error('❌ [ITEM-DETAILS] Error updating price:', error);
+      alert('Failed to update price. Please try again.');
+    }
   };
 
   // Loading state
@@ -311,7 +339,7 @@ const ItemDetails = () => {
               <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl font-bold text-gray-900">{item.title}</h1>
                 <div className="text-right">
-                  <div className="text-3xl font-bold text-green-600">${item.suggested_price}</div>
+                  <div className="text-3xl font-bold text-green-600">${currentPrice || item.suggested_price}</div>
                   {item.price_range_min && item.price_range_max && (
                     <div className="text-sm text-gray-500">
                       Range: ${item.price_range_min} - ${item.price_range_max}
@@ -423,6 +451,26 @@ const ItemDetails = () => {
                 )}
               </div>
             </div>
+
+            {/* Dynamic Pricing Insights */}
+            {console.log('🔍 [ITEM-DETAILS] Rendering PricingInsights for item:', itemId, 'with data:', {
+              title: item.title,
+              brand: item.brand,
+              category: item.category
+            })}
+            <PricingInsights
+              itemId={itemId!}
+              itemData={{
+                title: item.title,
+                brand: item.brand || undefined,
+                category: item.category || undefined,
+                condition: item.condition || undefined,
+                size: item.size || undefined,
+                color: item.color || undefined,
+                suggested_price: item.suggested_price || undefined
+              }}
+              onPriceUpdate={handlePriceUpdate}
+            />
 
             {/* Listing Status */}
             {listing ? (

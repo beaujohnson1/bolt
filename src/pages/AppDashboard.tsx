@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Camera, Package, TrendingUp, DollarSign, Upload, Zap, Bot, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getSupabase, type Item, type Listing, type Sale } from '../lib/supabase';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import GenerateListingsTable from '../components/GenerateListingsTable';
 import SKUAssignmentPage from '../components/SKUAssignment/SKUAssignmentPage';
@@ -12,6 +12,7 @@ import GenerateListingsPage from './GenerateListingsPage';
 
 const AppDashboard = () => {
   const { user, authUser } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [items, setItems] = useState<Item[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -101,7 +102,9 @@ const AppDashboard = () => {
     }
   };
 
-  const OverviewTab = () => (
+  const OverviewTab = () => {
+    console.log('🔍 [OVERVIEW-TAB] Rendering with items:', items.length, items.map(i => ({ id: i.id, title: i.title })));
+    return (
     <div className="space-y-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -162,7 +165,13 @@ const AppDashboard = () => {
         {items.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {items.slice(0, 6).map((item) => (
-              <div key={item.id} className={`border rounded-lg p-4 ${isDarkMode ? 'border-white/10' : 'border-gray-200'}`}>
+              <Link 
+                key={item.id} 
+                to={`/details/${item.id}`}
+                onClick={() => console.log('🔍 [DASHBOARD] Item clicked:', item.id, item.title)}
+                className={`block border rounded-lg p-4 hover:shadow-lg transition-all duration-200 cursor-pointer relative z-10 pointer-events-auto ${isDarkMode ? 'border-white/10 hover:border-white/20' : 'border-gray-200 hover:border-gray-300'}`}
+                style={{ pointerEvents: 'auto' }}
+              >
                 <img
                   src={item.primary_image_url || item.images[0]}
                   alt={item.title}
@@ -174,7 +183,20 @@ const AppDashboard = () => {
                 <p className={`text-sm ${isDarkMode ? 'text-white/70' : 'text-gray-600'}`}>
                   {formatPrice(item.suggested_price)}
                 </p>
-              </div>
+                <div className={`mt-2 text-xs font-semibold ${isDarkMode ? 'text-cyber-blue-500' : 'text-blue-600'}`}>
+                  🎯 View Details & Smart Pricing →
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔍 [DASHBOARD] Button clicked for item:', item.id);
+                    navigate(`/details/${item.id}`);
+                  }}
+                  className={`absolute inset-0 w-full h-full bg-transparent z-20`}
+                  style={{ background: 'transparent' }}
+                />
+              </Link>
             ))}
           </div>
         ) : (
@@ -187,7 +209,8 @@ const AppDashboard = () => {
         )}
       </div>
     </div>
-  );
+    );
+  };
 
   const PublishTab = () => (
     <div className={`${isDarkMode ? 'glass-panel' : 'glass-panel-light'} backdrop-blur-glass rounded-2xl p-8`}>
