@@ -11,6 +11,8 @@ import ListingPreview from './pages/ListingPreview';
 import ConnectionTestPage from './pages/ConnectionTestPage';
 import EnvGuard from './components/EnvGuard';
 import AutoPromotionDashboard from './components/AutoPromotionDashboard';
+import AuthConnectivityTest from './pages/AuthConnectivityTest'; // <--- This import is now valid
+import AIInsightsDashboard from './pages/AIInsightsDashboard';
 
 function App() {
   return (
@@ -21,6 +23,15 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/test-connection" element={<ConnectionTestPage />} />
+            <Route path="/auth-test" element={<AuthConnectivityTest />} /> {/* <--- This route is now valid */}
+            <Route 
+              path="/ai-insights" 
+              element={
+                <ProtectedRoute>
+                  <AIInsightsDashboard />
+                </ProtectedRoute>
+              } 
+            />
             <Route
               path="/admin/keywords"
               element={

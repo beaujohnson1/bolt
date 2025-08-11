@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sun, Moon, HelpCircle, User, ChevronDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -10,6 +11,7 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activeTab, onTabChange }) => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(true); // Default to dark mode
   const [showAccountMenu, setShowAccountMenu] = useState(false);
 
@@ -129,6 +131,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activeTab, 
                       }`}
                     >
                       Connect eBay Account
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigate('/ai-insights');
+                        setShowAccountMenu(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${
+                        isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/10'
+                      }`}
+                    >
+                      🧠 AI Insights
                     </button>
                     <button
                       onClick={() => {/* TODO: Settings */}}

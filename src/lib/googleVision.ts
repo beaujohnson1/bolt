@@ -18,7 +18,7 @@ class GoogleVisionClient {
   private apiKey: string;
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_GOOGLE_CLOUD_API_KEY || '';
+    this.apiKey = import.meta.env.VITE_GOOGLE_VISION_API_KEY || '';
   }
 
   async textDetection(imageUrl: string): Promise<[VisionResponse]> {
@@ -67,8 +67,12 @@ class GoogleVisionClient {
                 features: [
                   {
                     type: 'TEXT_DETECTION',
-                    maxResults: 1,
+                    maxResults: 50, // Increase to capture more text regions
                   },
+                  {
+                    type: 'DOCUMENT_TEXT_DETECTION', // Also try document detection for better OCR
+                    maxResults: 1,
+                  }
                 ],
               },
             ],
@@ -82,19 +86,34 @@ class GoogleVisionClient {
 
       const data = await visionResponse.json();
       const textAnnotations = data.responses?.[0]?.textAnnotations;
-      const fullText = textAnnotations?.[0]?.description || '';
+      const documentText = data.responses?.[0]?.fullTextAnnotation?.text;
+      
+      // Prefer document text detection if available, fallback to text annotations
+      const fullText = documentText || textAnnotations?.[0]?.description || '';
 
       console.log('✅ [GOOGLE-VISION] OCR completed, extracted text length:', fullText.length);
       
+      // Log individual text detections for debugging size detection
+      if (textAnnotations && textAnnotations.length > 1) {
+        const smallTexts = textAnnotations.slice(1, 11).map(t => t.description).filter(t => t && t.length < 10);
+        console.log('🔍 [GOOGLE-VISION] Small text detections (potential sizes):', smallTexts);
+        
+        // Also log all individual text detections for comprehensive debugging
+        const allTexts = textAnnotations.slice(1, 20).map(t => t.description).filter(t => t);
+        console.log('📝 [GOOGLE-VISION] All individual text detections:', allTexts);
+      }
+      
       return [{ 
         fullTextAnnotation: { text: fullText },
-        textAnnotations: textAnnotations || []
+        textAnnotations: textAnnotations || [],
+        individualTexts: textAnnotations ? textAnnotations.slice(1, 20).map(t => t.description).filter(t => t) : []
       }];
     } catch (error) {
       console.error('❌ [GOOGLE-VISION] OCR failed:', error);
       return [{ 
         fullTextAnnotation: { text: '' },
-        textAnnotations: []
+        textAnnotations: [],
+        individualTexts: []
       }];
     }
   }

@@ -33,8 +33,14 @@ export const useAIAnalysis = () => {
   const categoryManager = supabase ? new EbayCategoryManager(ebayService, supabase) : null;
   const marketResearch = supabase ? new EbayMarketResearch(ebayService, supabase) : null;
 
-  const analyzeItem = async (imageUrl: string, options: AnalysisOptions = {}): Promise<AnalysisResult> => {
-    console.log('🤖 [AI-ANALYSIS] Starting analysis for:', { imageUrl: imageUrl.substring(0, 50) + '...', options });
+  const analyzeItem = async (imageUrl: string | string[], options: AnalysisOptions = {}): Promise<AnalysisResult> => {
+    // Handle both single URL and array of URLs
+    const imageArray = Array.isArray(imageUrl) ? imageUrl : [imageUrl];
+    const displayUrl = Array.isArray(imageUrl) 
+      ? `${imageUrl.length} images` 
+      : imageUrl.substring(0, 50) + '...';
+    
+    console.log('🤖 [AI-ANALYSIS] Starting analysis for:', { imageUrl: displayUrl, options });
     setIsAnalyzing(true);
     setAnalysisError(null);
 
@@ -49,7 +55,7 @@ export const useAIAnalysis = () => {
       
       // Use the existing OpenAI service with retry logic
       const result = await withRetry(
-        () => analyzeClothingItem(imageUrl, {
+        () => analyzeClothingItem(imageArray, {
           includeEbayAspects: options.includeCategoryAnalysis || false,
           sku: options.sku
         }),
@@ -181,7 +187,7 @@ export const useAIAnalysis = () => {
     }
   };
 
-  const analyzeBatch = async (items: Array<{ imageUrl: string; options?: AnalysisOptions }>): Promise<AnalysisResult[]> => {
+  const analyzeBatch = async (items: Array<{ imageUrl: string | string[]; options?: AnalysisOptions }>): Promise<AnalysisResult[]> => {
     setIsAnalyzing(true);
     setAnalysisError(null);
 

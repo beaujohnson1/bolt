@@ -6,7 +6,7 @@ const AiListing = z.object({
   title: z.string().min(3).max(80),
   brand: z.string().nullable().optional(),
   size: z.string().nullable().optional(),
-  condition: z.enum(['new', 'like_new', 'good', 'fair', 'poor']).optional().default('good'),
+  condition: z.enum(['new', 'like_new', 'good', 'fair', 'poor']).or(z.string()).or(z.null()).optional().default('good'),
   category: z.string().optional().default('clothing'),
   color: z.string().nullable().optional(),
   item_type: z.string().min(2),
@@ -258,7 +258,8 @@ exports.handler = async (event, context) => {
     const validated = AiListing.safeParse(parsedAnalysis);
     
     if (!validated.success) {
-      console.error('❌ [OPENAI-FUNCTION] AI response validation failed:', validated.error.errors);
+      console.error('❌ [OPENAI-FUNCTION] AI response validation failed:', validated.error);
+      console.error('❌ [OPENAI-FUNCTION] Validation error structure:', JSON.stringify(validated.error, null, 2));
       return {
         statusCode: 200,
         headers: { 'Access-Control-Allow-Origin': '*' },
@@ -266,11 +267,11 @@ exports.handler = async (event, context) => {
           ok: false,
           error: 'AI_JSON_VALIDATION_FAILED',
           message: 'AI response does not match expected schema',
-          issues: validated.error.errors.map(e => ({ 
-            path: e.path.join('.'), 
-            message: e.message,
+          issues: validated.error?.errors?.map(e => ({ 
+            path: e.path?.join('.') || 'unknown', 
+            message: e.message || 'unknown error',
             received: e.received 
-          })),
+          })) || [],
           raw_data: parsedAnalysis
         })
       };
@@ -328,8 +329,19 @@ function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspe
   const basePrompt = `You are an expert clothing and fashion item analyzer for eBay listings. Extract MAXIMUM detail from images and OCR text to create accurate, profitable listings.
 
 CRITICAL INSTRUCTIONS:
+- LOOK FOR BRAND NAMES AND TEXT VISIBLE IN THE IMAGE - examine logos, graphics, text prints carefully
+- If you can READ text in the image (like "Wall Street Bull", brand names, sizes), extract it for the TITLE
+- Brand names in graphic designs should go in the BRAND field (e.g., "Wall Street Bull" -> brand: "Wall Street Bull")  
+- Text visible in graphics should become part of the title (e.g., "Wall Street Bull Hoodie")
+- EXAMINE ALL CLOTHING TAGS AND LABELS VERY CAREFULLY FOR SIZE INFORMATION:
+  * Look for size tags sewn into garments (neck tags, side seams, waistbands)
+  * Check care labels which often contain size info (S, M, L, XL, numeric sizes)
+  * Look for size printed on fabric tags (like "MEDIUM", "L", "32x34")
+  * Examine any visible text on clothing for size indicators
+  * Check for European sizes (38, 40, 42), US sizes (S, M, L), or numeric sizes (2, 4, 6, 8)
+  * Look for kids sizes (2T, 4T, 6Y) or shoe sizes if applicable
 - If you cannot verify a field from the image or OCR, return null (NEVER use the word "Unknown")
-- Prefer OCR text over visual guesses when available
+- Prefer OCR text over visual guesses when available, but use vision when OCR is empty
 - Use provided CANDIDATES when they match what you see
 - Choose ONLY from allowed values when provided for eBay aspects
 - Be extremely specific with item types and descriptions

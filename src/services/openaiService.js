@@ -1,9 +1,11 @@
 // Client-side OpenAI service that calls Netlify Functions
 import { convertToBase64, fetchImageAsBase64 } from '../utils/imageUtils';
 import { extractTagText, cropAndReocr } from '../utils/imageUtils';
-import { extractSize, extractBrand, buildTitle } from '../utils/itemUtils';
+import { extractSize, extractBrand, extractCondition, buildTitle } from '../utils/itemUtils';
 import { visionClient } from '../lib/googleVision';
 import { safeTrim, nullIfUnknown, safeUpper, toStr } from '../utils/strings';
+import { ocrKeywordOptimizer } from './OCRKeywordOptimizer';
+import { ebaySpecificsValidator } from './EbaySpecificsValidator';
 
 // Primary clothing analysis function - now accepts URL or base64
 export const analyzeClothingItem = async (imageUrls, options = {}) => {
@@ -21,37 +23,105 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       throw new Error('No image URL provided');
     }
 
-    // Step 1: Enhanced OCR with tag detection
-    console.log('📝 [OPENAI-CLIENT] Step 1: Enhanced OCR with tag detection...');
-    const [visionResult] = await visionClient.textDetection(primaryImageUrl);
-    const fullText = visionResult?.fullTextAnnotation?.text || '';
-    const textAnnotations = visionResult?.textAnnotations || [];
+    // Step 1: Enhanced OCR with tag detection on ALL images
+    console.log('📝 [OPENAI-CLIENT] Step 1: Enhanced OCR with tag detection on all images...');
     
-    console.log('✅ [OPENAI-CLIENT] OCR completed:', {
-      fullTextLength: fullText.length,
-      annotationCount: textAnnotations.length
+    // Run OCR on ALL uploaded images to find size tags
+    let allOcrTexts = [];
+    let allTextAnnotations = [];
+    let combinedIndividualTexts = [];
+    
+    try {
+      for (let i = 0; i < Math.min(imageArray.length, 5); i++) { // Process up to 5 images for performance
+        const imageUrl = imageArray[i];
+        console.log(`🔍 [OPENAI-CLIENT] Running OCR on image ${i + 1}/${imageArray.length}: ${imageUrl.substring(0, 100)}...`);
+        
+        try {
+          const [visionResult] = await visionClient.textDetection(imageUrl);
+          const fullText = visionResult?.fullTextAnnotation?.text || '';
+          const textAnnotations = visionResult?.textAnnotations || [];
+          
+          console.log(`📊 [OPENAI-CLIENT] Image ${i + 1} raw OCR result:`, {
+            hasFullText: !!fullText,
+            fullTextLength: fullText.length,
+            annotationCount: textAnnotations.length,
+            fullTextPreview: fullText.substring(0, 100)
+          });
+          
+          if (fullText.length > 0) {
+            allOcrTexts.push(fullText);
+            allTextAnnotations.push(...textAnnotations.slice(1)); // Skip the first (combined) annotation
+            combinedIndividualTexts.push(...(visionResult?.individualTexts || []));
+            
+            console.log(`✅ [OPENAI-CLIENT] Image ${i + 1} OCR completed:`, {
+              fullTextLength: fullText.length,
+              annotationCount: textAnnotations.length,
+              textPreview: fullText.substring(0, 50)
+            });
+          } else {
+            console.log(`⚠️ [OPENAI-CLIENT] Image ${i + 1} OCR returned no text`);
+          }
+        } catch (imageError) {
+          console.error(`❌ [OPENAI-CLIENT] OCR failed for image ${i + 1}:`, imageError);
+        }
+      }
+    } catch (overallError) {
+      console.error('❌ [OPENAI-CLIENT] Multi-image OCR processing error:', overallError);
+    }
+    
+    // Combine all OCR results
+    const fullText = allOcrTexts.join('\n');
+    const textAnnotations = allTextAnnotations;
+    
+    console.log('🎯 [OPENAI-CLIENT] Combined OCR from all images:', {
+      totalTextLength: fullText.length,
+      totalAnnotations: textAnnotations.length,
+      imagesProcessed: allOcrTexts.length,
+      combinedTextPreview: fullText.substring(0, 200).replace(/\n/g, ' | ')
     });
 
-    // Extract tag-specific text
-    const tagTexts = extractTagText(textAnnotations);
-    
-    // Simulate crop and re-OCR for tag regions
-    const croppedTexts = await cropAndReocr(primaryImageUrl, textAnnotations.slice(0, 4));
-    
-    // Combine all OCR text
-    const ocrText = [fullText, ...tagTexts, ...croppedTexts].join('\n').trim();
-    console.log('📋 [OPENAI-CLIENT] Combined OCR text length:', ocrText.length);
+    // Use the combined OCR text from all images (already combined above)
+    const ocrText = fullText.trim();
+    console.log('📋 [OPENAI-CLIENT] Final OCR text length:', ocrText.length);
+    console.log('📋 [OPENAI-CLIENT] Final OCR text preview:', ocrText.substring(0, 100).replace(/\n/g, ' | '));
 
-    // Step 2: Pre-extract size and brand deterministically
-    console.log('🔍 [OPENAI-CLIENT] Step 2: Pre-extracting size and brand...');
-    const preSize = extractSize(ocrText) || null;
+    // Step 2: Pre-extract size, brand, and condition deterministically
+    console.log('🔍 [OPENAI-CLIENT] Step 2: Pre-extracting size, brand, and condition...');
+    
+    // Extract from combined OCR text
+    let preSize = extractSize(ocrText) || null;
     const preBrand = extractBrand(ocrText) || null;
+    const preCondition = extractCondition(ocrText) || null;
+    
+    // If size not found in combined text, try individual text detections from ALL images
+    if (!preSize && (textAnnotations?.length > 0 || combinedIndividualTexts?.length > 0)) {
+      console.log('🔍 [SIZE-INDIVIDUAL] Checking individual text detections from all images for size...');
+      const individualTexts = [...combinedIndividualTexts, ...textAnnotations.map(t => t.description).filter(t => t)];
+      console.log('🔍 [SIZE-INDIVIDUAL] Individual texts from all images to check:', individualTexts);
+      
+      for (const individualText of individualTexts) {
+        console.log('🔍 [SIZE-INDIVIDUAL] Checking individual text:', JSON.stringify(individualText));
+        const foundSize = extractSize(individualText);
+        if (foundSize) {
+          console.log('✅ [SIZE-INDIVIDUAL] Found size in individual detection:', foundSize, 'from text:', individualText);
+          preSize = foundSize;
+          break;
+        }
+      }
+    }
     
     console.log('📊 [OPENAI-CLIENT] Pre-extraction results:', {
-      preSize,
-      preBrand,
-      ocrTextPreview: ocrText.substring(0, 100)
+      preSize: preSize || 'NOT_FOUND',
+      preBrand: preBrand || 'NOT_FOUND',
+      preCondition: preCondition || 'NOT_FOUND',
+      ocrTextLength: ocrText.length,
+      ocrTextPreview: ocrText.substring(0, 200).replace(/\n/g, ' | ')
     });
+    
+    // Additional logging for size detection debugging
+    if (!preSize && ocrText.length > 0) {
+      console.log('🔍 [SIZE-DEBUG] OCR text for size analysis:', ocrText.replace(/\n/g, ' ').substring(0, 300));
+    }
 
     // Step 3: Enhanced AI analysis with constraints
     console.log('🤖 [OPENAI-CLIENT] Step 3: Calling enhanced AI analysis...');
@@ -66,7 +136,8 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
         ocrText,
         candidates: {
           brand: preBrand,
-          size: preSize
+          size: preSize,
+          condition: preCondition
         },
         analysisType: 'enhanced_listing',
         ebayAspects: options.ebayAspects || [],
@@ -119,10 +190,10 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     
     const ai = payload.data;
     
-    // Step 4: Post-processing (last line of defense)
-    console.log('🔧 [OPENAI-CLIENT] Step 4: Post-processing AI results...');
+    // Step 4: Enhanced Post-processing with AI Optimization
+    console.log('🔧 [OPENAI-CLIENT] Step 4: Enhanced post-processing with AI optimization...');
     
-    // Override with deterministic finds when model returns null
+    // Override with deterministic finds when model returns null or defaults
     if (!safeTrim(toStr(ai.size)) && preSize) {
       console.log('🔄 [POST-PROCESS] Overriding AI size with pre-extracted:', preSize);
       ai.size = preSize;
@@ -130,6 +201,10 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     if (!safeTrim(toStr(ai.brand)) && preBrand) {
       console.log('🔄 [POST-PROCESS] Overriding AI brand with pre-extracted:', preBrand);
       ai.brand = preBrand;
+    }
+    if (preCondition && (ai.condition === 'good' || !ai.condition)) {
+      console.log('🔄 [POST-PROCESS] Overriding AI condition with pre-extracted:', preCondition);
+      ai.condition = preCondition;
     }
 
     // Never save literal "Unknown"
@@ -141,7 +216,61 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       }
     }
 
-    // Rebuild clean title
+    // Step 4a: Enhanced Keyword Optimization
+    try {
+      console.log('🎯 [OPENAI-CLIENT] Step 4a: Optimizing keywords...');
+      const keywordResult = await ocrKeywordOptimizer.optimizeKeywordExtraction(
+        ocrText,
+        ai.keywords || [],
+        ai.item_type || 'clothing',
+        ai.brand,
+        ai.color
+      );
+      
+      // Use optimized keywords
+      ai.keywords = keywordResult.combinedKeywords;
+      ai.keywordQualityScore = keywordResult.qualityScore;
+      
+      console.log('✅ [KEYWORD-OPT] Optimized keywords:', {
+        original: (ai.keywords || []).length,
+        optimized: keywordResult.combinedKeywords.length,
+        quality: keywordResult.qualityScore
+      });
+    } catch (error) {
+      console.error('❌ [KEYWORD-OPT] Error optimizing keywords:', error);
+    }
+
+    // Step 4b: eBay Specifics Validation
+    try {
+      console.log('✅ [OPENAI-CLIENT] Step 4b: Validating eBay specifics...');
+      const categoryId = '1059'; // Default to Men's clothing, can be enhanced later
+      const validation = await ebaySpecificsValidator.validateItemSpecifics(
+        categoryId,
+        ai.ebay_item_specifics || {},
+        {
+          title: ai.title,
+          brand: ai.brand,
+          size: ai.size,
+          color: ai.color,
+          condition: ai.condition
+        }
+      );
+      
+      // Use optimized specifics
+      ai.ebay_item_specifics = validation.optimizedSpecifics;
+      ai.ebayComplianceScore = validation.accuracy;
+      ai.ebayCompletenessScore = validation.completeness;
+      
+      console.log('✅ [EBAY-VALIDATE] eBay specifics validated:', {
+        accuracy: validation.accuracy,
+        completeness: validation.completeness,
+        errors: validation.errors.length
+      });
+    } catch (error) {
+      console.error('❌ [EBAY-VALIDATE] Error validating specifics:', error);
+    }
+
+    // Rebuild clean title with enhanced data
     const hasBrand = safeTrim(ai.brand);
     const hasItemType = safeTrim(ai.item_type);
     const hasColor = safeTrim(ai.color);
@@ -154,16 +283,19 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
         color: nullIfUnknown(ai.color),
         size: nullIfUnknown(ai.size)
       });
-      console.log('🏗️ [POST-PROCESS] Rebuilt title:', newTitle);
+      console.log('🏗️ [POST-PROCESS] Rebuilt enhanced title:', newTitle);
       ai.title = newTitle;
     }
       
-    console.log('📊 [OPENAI-CLIENT] Final AI data:', {
+    console.log('📊 [OPENAI-CLIENT] Enhanced AI analysis complete:', {
       title: ai.title,
       brand: ai.brand,
       size: ai.size,
       price: ai.suggested_price,
       confidence: ai.confidence,
+      keywordQuality: ai.keywordQualityScore,
+      ebayCompliance: ai.ebayComplianceScore,
+      ebayCompleteness: ai.ebayCompletenessScore,
       hasEvidence: !!ai.evidence
     });
     
@@ -175,7 +307,13 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
         ocrTextLength: ocrText.length,
         preSize,
         preBrand,
-        tagTextsFound: tagTexts.length
+        preCondition,
+        imagesProcessed: allOcrTexts.length
+      },
+      qualityMetrics: {
+        keywordQuality: ai.keywordQualityScore || 0,
+        ebayCompliance: ai.ebayComplianceScore || 0,
+        ebayCompleteness: ai.ebayCompletenessScore || 0
       }
     };
   } catch (error) {

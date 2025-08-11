@@ -147,7 +147,7 @@ export const getItemSpecifics = (item: { brand?: string; size?: string; color?: 
   return specifics.join(', ') || '-';
 };
 
-// Known brands list for pre-extraction
+// Known brands list for pre-extraction - expanded with additional brands
 const KNOWN_BRANDS = [
   'Lululemon', 'Nike', 'Adidas', 'North Face', 'Patagonia', 'Under Armour', 
   'Gap', 'Old Navy', 'H&M', 'Zara', 'Uniqlo', 'American Eagle', 'Hollister', 
@@ -157,11 +157,16 @@ const KNOWN_BRANDS = [
   'Target', 'Walmart', 'Costco', 'Kirkland', 'Goodfellow', 'Universal Thread',
   'Wild Fable', 'Time and Tru', 'George', 'Champion', 'Hanes', 'Fruit of the Loom',
   'Calvin Klein', 'Tommy Hilfiger', 'Ralph Lauren', 'Polo', 'Lacoste', 'Hugo Boss',
-  'Gucci', 'Prada', 'Louis Vuitton', 'Chanel', 'Versace', 'Armani', 'Burberry'
+  'Gucci', 'Prada', 'Louis Vuitton', 'Chanel', 'Versace', 'Armani', 'Burberry',
+  'Stio', 'Wall Street Bull', 'Supreme', 'Off-White', 'Stone Island', 'Yeezy',
+  'Balenciaga', 'Saint Laurent', 'Givenchy', 'Bottega Veneta', 'Moncler', 'Canada Goose',
+  'Arc\'teryx', 'Columbia', 'REI', 'Outdoor Research', 'Mammut', 'Salomon',
+  'Carhartt', 'Dickies', 'Wrangler', 'Levis', 'Lee', 'True Religion', 'Lucky Brand',
+  'Diesel', 'G-Star', 'Pepe Jeans', 'Replay', 'Scotch & Soda', 'Nudie Jeans'
 ];
 
 /**
- * Extract size from OCR text using deterministic patterns
+ * Extract size from OCR text using comprehensive patterns for clothing tags
  * @param ocrText - Raw OCR text from clothing tags/labels
  * @returns Extracted size or null if not found
  */
@@ -171,34 +176,86 @@ export const extractSize = (ocrText: string): string | null => {
   
   try {
     const s = safeUpper(text).replace(/\s+/g, " ");
+    console.log('🔍 [SIZE-EXTRACT] Analyzing OCR text:', s.substring(0, 100));
     
-    // Alpha sizes (most common)
-    const alpha = s.match(/\b(XXXS|XXS|XS|S|M|L|XL|XXL|2XL|3XL|4XL)\b/);
-    if (alpha) {
-      console.log('✅ [SIZE-EXTRACT] Found alpha size:', alpha[1]);
-      return alpha[1];
+    // Common tag formats with size indicators
+    const sizeIndicators = s.match(/(?:SIZE|SZ|TAILLE|TALLA|TAMAÑO)[:\s-]*([A-Z0-9\/]{1,6})\b/i);
+    if (sizeIndicators) {
+      console.log('✅ [SIZE-EXTRACT] Found size with indicator:', sizeIndicators[1]);
+      return normalizeSize(sizeIndicators[1]);
     }
     
-    // Waist x Length (jeans/pants)
-    const wxl = s.match(/\b(?:W)?(\d{2})\s*[-xX\/]\s*(?:L)?(\d{2})\b/);
-    if (wxl) {
+    // Alpha sizes with more variations (including full words)
+    const alpha = s.match(/\b(XXXS|XXXSMALL|XXS|XXSMALL|XS|XSMALL|EXTRASMALL|SM|SMALL|S\b|MED|MEDIUM|M\b|LG|LARGE|L\b|XL|XLARGE|EXTRALARGE|XXL|XXLARGE|2XL|3XL|4XL|5XL)\b/);
+    if (alpha) {
+      console.log('✅ [SIZE-EXTRACT] Found alpha size:', alpha[1]);
+      return normalizeSize(alpha[1]);
+    }
+    
+    // More aggressive partial matching for common sizes (especially for OCR errors)
+    if (s.includes('MEDIUM') || s.includes('MED ')) {
+      console.log('✅ [SIZE-EXTRACT] Found partial match for MEDIUM');
+      return 'M';
+    }
+    if (s.includes('SMALL') && !s.includes('XSMALL')) {
+      console.log('✅ [SIZE-EXTRACT] Found partial match for SMALL');
+      return 'S';
+    }
+    if (s.includes('LARGE') && !s.includes('XLARGE')) {
+      console.log('✅ [SIZE-EXTRACT] Found partial match for LARGE');
+      return 'L';
+    }
+    
+    // European/International sizes
+    const european = s.match(/\b(XXS|XS|S|M|L|XL|XXL)\s*[-\/]\s*(\d{2,3})\b/);
+    if (european) {
+      const size = `${european[1]}-${european[2]}`;
+      console.log('✅ [SIZE-EXTRACT] Found European size:', size);
+      return size;
+    }
+    
+    // Waist x Length (jeans/pants) - more flexible
+    const wxl = s.match(/\b(?:W)?\s*(\d{1,2})\s*[-xX\/×]\s*(?:L)?\s*(\d{1,2})\b/);
+    if (wxl && parseInt(wxl[1]) >= 24 && parseInt(wxl[1]) <= 50 && parseInt(wxl[2]) >= 26 && parseInt(wxl[2]) <= 38) {
       const size = `${wxl[1]}x${wxl[2]}`;
       console.log('✅ [SIZE-EXTRACT] Found waist x length size:', size);
       return size;
     }
     
-    // Size label format
-    const labeled = s.match(/SIZE[:\s-]*([A-Z0-9]{1,4})\b/);
-    if (labeled) {
-      console.log('✅ [SIZE-EXTRACT] Found labeled size:', labeled[1]);
-      return labeled[1];
-    }
-    
-    // Dress/numeric sizes
-    const dress = s.match(/\b(0|00|2|4|6|8|10|12|14|16|18|20|22|24)\b/);
-    if (dress) {
+    // Numeric dress/women's sizes - extended range
+    const dress = s.match(/\b(00|0|2|4|6|8|10|12|14|16|18|20|22|24|26|28|30)\b/);
+    if (dress && !s.match(/\b\d{2,4}[\s]*[MLG]\b/)) { // Avoid matching measurements
       console.log('✅ [SIZE-EXTRACT] Found numeric size:', dress[1]);
       return dress[1];
+    }
+    
+    // Kids sizes
+    const kids = s.match(/\b(\d{1,2}[YT]|\d{1,2}\s*[YT]|TODDLER|INFANT|NEWBORN|NB)\b/);
+    if (kids) {
+      console.log('✅ [SIZE-EXTRACT] Found kids size:', kids[1]);
+      return kids[1];
+    }
+    
+    // Shoe sizes (US)
+    const shoes = s.match(/\b(\d{1,2}(?:\.5)?)\s*(?:US|USA|D|B|M|W)?\b/);
+    if (shoes && parseFloat(shoes[1]) >= 4 && parseFloat(shoes[1]) <= 18) {
+      console.log('✅ [SIZE-EXTRACT] Found shoe size:', shoes[1]);
+      return shoes[1];
+    }
+    
+    // Size ranges (e.g., S/M, L/XL)
+    const range = s.match(/\b([SMLX]{1,3})\s*[\/]\s*([SMLX]{1,3})\b/);
+    if (range) {
+      const size = `${range[1]}/${range[2]}`;
+      console.log('✅ [SIZE-EXTRACT] Found size range:', size);
+      return size;
+    }
+    
+    // Final fallback: single letter matching for common sizes (very aggressive)
+    const singleLetter = s.match(/\b([SMLX]{1})\b/);
+    if (singleLetter && !s.includes('WALL') && !s.includes('STREET') && !s.includes('BULL')) {
+      console.log('✅ [SIZE-EXTRACT] Found single letter size:', singleLetter[1]);
+      return singleLetter[1];
     }
     
     console.log('ℹ️ [SIZE-EXTRACT] No size pattern found in OCR text');
@@ -210,7 +267,49 @@ export const extractSize = (ocrText: string): string | null => {
 };
 
 /**
- * Extract brand from OCR text using known brand list
+ * Normalize size format for consistency - expands abbreviations to full size names
+ * @param size - Raw size string
+ * @returns Normalized size string with full names
+ */
+const normalizeSize = (size: string): string => {
+  const s = safeUpper(safeTrim(toStr(size)));
+  
+  // Size mapping to expand abbreviations to full size names
+  const sizeMap: { [key: string]: string } = {
+    // Standard abbreviations to full names
+    'XXXS': 'Extra Extra Extra Small',
+    'XXS': 'Extra Extra Small', 
+    'XS': 'Extra Small',
+    'S': 'Small',
+    'M': 'Medium',
+    'L': 'Large',
+    'XL': 'Extra Large',
+    'XXL': 'Extra Extra Large',
+    '2XL': 'Extra Extra Large',
+    '3XL': 'Extra Extra Extra Large',
+    '4XL': 'Extra Extra Extra Extra Large',
+    '5XL': 'Extra Extra Extra Extra Extra Large',
+    
+    // Full names stay as full names
+    'XXXSMALL': 'Extra Extra Extra Small',
+    'XXSMALL': 'Extra Extra Small',
+    'XSMALL': 'Extra Small',
+    'EXTRASMALL': 'Extra Small',
+    'SMALL': 'Small',
+    'MEDIUM': 'Medium',
+    'MED': 'Medium',
+    'LARGE': 'Large',
+    'XLARGE': 'Extra Large',
+    'EXTRALARGE': 'Extra Large',
+    'XXLARGE': 'Extra Extra Large'
+  };
+  
+  // Return expanded size name if found, otherwise return original
+  return sizeMap[s] || s;
+};
+
+/**
+ * Extract brand from OCR text using known brand list with fuzzy matching
  * @param ocrText - Raw OCR text from clothing tags/labels
  * @param brands - Array of known brand names to search for
  * @returns Extracted brand or null if not found
@@ -220,20 +319,163 @@ export const extractBrand = (ocrText: string, brands: string[] = KNOWN_BRANDS): 
   if (!text) return null;
   
   try {
-    const s = safeUpper(text);
+    const s = safeUpper(text).replace(/[^A-Z0-9\s]/g, ' ').replace(/\s+/g, ' ');
+    console.log('🔍 [BRAND-EXTRACT] Analyzing OCR text:', s.substring(0, 100));
     
-    // Find exact brand matches (case-insensitive)
-    const hit = brands.find(brand => s.includes(safeUpper(brand)));
+    // First try exact matches (case-insensitive)
+    const exactMatch = brands.find(brand => s.includes(safeUpper(brand)));
+    if (exactMatch) {
+      console.log('✅ [BRAND-EXTRACT] Found exact brand match:', exactMatch);
+      return exactMatch;
+    }
     
-    if (hit) {
-      console.log('✅ [BRAND-EXTRACT] Found brand in OCR:', hit);
-      return hit;
+    // Try partial matches for compound brand names
+    const partialMatch = brands.find(brand => {
+      const brandWords = safeUpper(brand).split(/\s+/);
+      return brandWords.length > 1 && brandWords.every(word => s.includes(word));
+    });
+    
+    if (partialMatch) {
+      console.log('✅ [BRAND-EXTRACT] Found partial brand match:', partialMatch);
+      return partialMatch;
+    }
+    
+    // Try fuzzy matching for common OCR errors
+    const fuzzyMatch = brands.find(brand => {
+      const brandUpper = safeUpper(brand);
+      return fuzzyStringMatch(s, brandUpper, 0.8); // 80% similarity threshold
+    });
+    
+    if (fuzzyMatch) {
+      console.log('✅ [BRAND-EXTRACT] Found fuzzy brand match:', fuzzyMatch);
+      return fuzzyMatch;
     }
     
     console.log('ℹ️ [BRAND-EXTRACT] No known brand found in OCR text');
     return null;
   } catch (error) {
     console.error('❌ [BRAND-EXTRACT] Error extracting brand:', error);
+    return null;
+  }
+};
+
+/**
+ * Simple fuzzy string matching for OCR error tolerance
+ * @param text - Input text to search in
+ * @param pattern - Pattern to search for
+ * @param threshold - Similarity threshold (0-1)
+ * @returns True if fuzzy match found
+ */
+const fuzzyStringMatch = (text: string, pattern: string, threshold: number): boolean => {
+  if (!text || !pattern) return false;
+  
+  // Calculate Levenshtein distance-based similarity
+  const words = text.split(/\s+/);
+  return words.some(word => {
+    if (word.length < 2) return false;
+    const similarity = calculateSimilarity(word, pattern);
+    return similarity >= threshold;
+  });
+};
+
+/**
+ * Calculate string similarity (simplified)
+ * @param str1 - First string
+ * @param str2 - Second string
+ * @returns Similarity score (0-1)
+ */
+const calculateSimilarity = (str1: string, str2: string): number => {
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+};
+
+/**
+ * Calculate Levenshtein distance between two strings
+ * @param str1 - First string
+ * @param str2 - Second string
+ * @returns Edit distance
+ */
+const levenshteinDistance = (str1: string, str2: string): number => {
+  const matrix = [];
+  
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1, // insertion
+          matrix[i - 1][j] + 1 // deletion
+        );
+      }
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
+};
+
+/**
+ * Extract condition from OCR text using clothing condition patterns
+ * @param ocrText - Raw OCR text from clothing tags/labels
+ * @returns Extracted condition or null if not found
+ */
+export const extractCondition = (ocrText: string): string | null => {
+  const text = safeTrim(toStr(ocrText));
+  if (!text) return null;
+  
+  try {
+    const s = safeUpper(text);
+    console.log('🏷️ [CONDITION-EXTRACT] Analyzing OCR text for condition:', s.substring(0, 100));
+    
+    // New with tags patterns
+    if (s.includes('NWT') || s.includes('NEW WITH TAGS') || s.includes('BRAND NEW') || s.includes('TAGS ATTACHED')) {
+      console.log('✅ [CONDITION-EXTRACT] Found new with tags condition');
+      return 'new';
+    }
+    
+    // Like new patterns
+    if (s.includes('LIKE NEW') || s.includes('EXCELLENT') || s.includes('MINT') || s.includes('PERFECT')) {
+      console.log('✅ [CONDITION-EXTRACT] Found like new condition');
+      return 'like_new';
+    }
+    
+    // Gently used patterns
+    if (s.includes('GENTLY USED') || s.includes('GOOD CONDITION') || s.includes('MINIMAL WEAR') || s.includes('LIGHT USE')) {
+      console.log('✅ [CONDITION-EXTRACT] Found gently used condition');
+      return 'good';
+    }
+    
+    // Heavy wear patterns
+    if (s.includes('HEAVY WEAR') || s.includes('SIGNS OF WEAR') || s.includes('WELL USED') || s.includes('FLAW') || 
+        s.includes('STAIN') || s.includes('HOLE') || s.includes('DAMAGE') || s.includes('WORN')) {
+      console.log('✅ [CONDITION-EXTRACT] Found heavy wear condition');
+      return 'fair';
+    }
+    
+    // Fair/poor condition patterns
+    if (s.includes('FAIR') || s.includes('POOR') || s.includes('DAMAGED') || s.includes('TORN') || s.includes('RIPPED')) {
+      console.log('✅ [CONDITION-EXTRACT] Found poor condition');
+      return 'poor';
+    }
+    
+    console.log('ℹ️ [CONDITION-EXTRACT] No condition pattern found in OCR text');
+    return null;
+  } catch (error) {
+    console.error('❌ [CONDITION-EXTRACT] Error extracting condition:', error);
     return null;
   }
 };
@@ -264,7 +506,7 @@ export const buildTitle = (components: {
     itemType,
     fabric,
     color,
-    size ? `Size ${safeUpper(toStr(size))}` : "Size Unknown",
+    size ? `Size ${toStr(size)}` : null,
   ].filter(Boolean);
   
   const title = parts.join(" ");
