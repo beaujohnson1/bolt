@@ -270,7 +270,7 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       console.error('❌ [EBAY-VALIDATE] Error validating specifics:', error);
     }
 
-    // Rebuild clean title with enhanced data
+    // Rebuild clean title with enhanced eBay-optimized data
     const hasBrand = safeTrim(ai.brand);
     const hasItemType = safeTrim(ai.item_type);
     const hasColor = safeTrim(ai.color);
@@ -281,9 +281,19 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
         brand: nullIfUnknown(ai.brand),
         item_type: hasItemType || 'Item',
         color: nullIfUnknown(ai.color),
-        size: nullIfUnknown(ai.size)
+        size: nullIfUnknown(ai.size),
+        gender: nullIfUnknown(ai.gender),
+        material: nullIfUnknown(ai.material),
+        pattern: nullIfUnknown(ai.pattern),
+        fit: nullIfUnknown(ai.fit),
+        closure: nullIfUnknown(ai.closure),
+        sleeve_length: nullIfUnknown(ai.sleeve_length),
+        neckline: nullIfUnknown(ai.neckline),
+        style_keywords: ai.style_keywords || [],
+        ebay_keywords: ai.ebay_keywords || [],
+        keywords: ai.keywords || []
       });
-      console.log('🏗️ [POST-PROCESS] Rebuilt enhanced title:', newTitle);
+      console.log('🏗️ [POST-PROCESS] Rebuilt eBay-optimized title:', newTitle);
       ai.title = newTitle;
     }
       

@@ -1,6 +1,5 @@
 import { isStr, safeTrim, nullIfUnknown, toStr } from '../utils/strings';
 import { buildTitle } from '../utils/itemUtils';
-import { buildTitle } from '../utils/itemUtils';
 
 type RawAI = {
   title?: unknown; 
@@ -17,6 +16,15 @@ type RawAI = {
   evidence?: unknown;
   ebay_item_specifics?: unknown;
   confidence?: unknown;
+  gender?: unknown;
+  material?: unknown;
+  pattern?: unknown;
+  fit?: unknown;
+  closure?: unknown;
+  sleeve_length?: unknown;
+  neckline?: unknown;
+  style_keywords?: unknown;
+  ebay_keywords?: unknown;
   __needsAttention?: boolean;
 };
 
@@ -51,6 +59,13 @@ export function mapAIToListing(ai: RawAI) {
   const item_type = safeTrim(ai.item_type) || "Jacket";
   const condition = safeTrim(ai.condition) || "good";
   const model_number = nullIfUnknown(ai.model_number);
+  const gender = nullIfUnknown(ai.gender);
+  const material = nullIfUnknown(ai.material);
+  const pattern = nullIfUnknown(ai.pattern);
+  const fit = nullIfUnknown(ai.fit);
+  const closure = nullIfUnknown(ai.closure);
+  const sleeve_length = nullIfUnknown(ai.sleeve_length);
+  const neckline = nullIfUnknown(ai.neckline);
 
   // arrays - safely filter and trim
   const keywords = Array.isArray(ai.keywords)
@@ -61,15 +76,38 @@ export function mapAIToListing(ai: RawAI) {
     ? ai.key_features.filter(isStr).map(safeTrim).filter(Boolean).slice(0, 20)
     : [];
 
+  const style_keywords = Array.isArray(ai.style_keywords)
+    ? ai.style_keywords.filter(isStr).map(safeTrim).filter(Boolean).slice(0, 10)
+    : [];
+
+  const ebay_keywords = Array.isArray(ai.ebay_keywords)
+    ? ai.ebay_keywords.filter(isStr).map(safeTrim).filter(Boolean).slice(0, 10)
+    : [];
+
   // numeric-ish
   const suggested_price =
     typeof ai.suggested_price === "number"
       ? ai.suggested_price
       : Number(toStr(ai.suggested_price)) || 25; // Default fallback price
 
-  // title once - extract and build if needed
+  // title once - extract and build if needed using eBay optimization
   const titleRaw = safeTrim(ai.title);
-  const title = titleRaw || buildTitle({ brand, item_type, color, size });
+  const title = titleRaw || buildTitle({ 
+    brand, 
+    item_type, 
+    color, 
+    size,
+    gender,
+    material,
+    pattern,
+    fit,
+    closure,
+    sleeve_length,
+    neckline,
+    style_keywords,
+    ebay_keywords,
+    keywords
+  });
 
   // Safe description handling
   const description = safeTrim(ai.description) || 
@@ -100,7 +138,16 @@ export function mapAIToListing(ai: RawAI) {
     key_features,
     confidence,
     evidence,
-    ebay_item_specifics
+    ebay_item_specifics,
+    gender,
+    material,
+    pattern,
+    fit,
+    closure,
+    sleeve_length,
+    neckline,
+    style_keywords,
+    ebay_keywords
   };
 
   console.log('✅ [AI-MAPPER] AI payload sanitized successfully:', {

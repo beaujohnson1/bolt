@@ -10,13 +10,21 @@ const AiListing = z.object({
   category: z.string().optional().default('clothing'),
   color: z.string().nullable().optional(),
   item_type: z.string().min(2),
+  gender: z.string().nullable().optional(),
+  material: z.string().nullable().optional(),
+  pattern: z.string().nullable().optional(),
+  style_keywords: z.array(z.string()).optional().default([]),
+  fit: z.string().nullable().optional(),
+  closure: z.string().nullable().optional(),
+  sleeve_length: z.string().nullable().optional(),
+  neckline: z.string().nullable().optional(),
   suggested_price: z.number().positive().optional(),
   confidence: z.number().min(0).max(1).optional().default(0.5),
   key_features: z.array(z.string()).optional().default([]),
   keywords: z.array(z.string()).optional().default([]),
+  ebay_keywords: z.array(z.string()).optional().default([]),
   model_number: z.string().nullable().optional(),
   description: z.string().optional().default(''),
-  material: z.string().nullable().optional(),
   style_details: z.string().nullable().optional(),
   season: z.string().nullable().optional(),
   occasion: z.string().nullable().optional(),
@@ -326,13 +334,40 @@ function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspe
     knownFieldsProvided: Object.keys(knownFields)
   });
   
-  const basePrompt = `You are an expert clothing and fashion item analyzer for eBay listings. Extract MAXIMUM detail from images and OCR text to create accurate, profitable listings.
+  const basePrompt = `You are an expert eBay listing optimizer specializing in clothing and fashion items. Your goal is to create titles that maximize visibility and sales on eBay.
 
-CRITICAL INSTRUCTIONS:
+EBAY TITLE OPTIMIZATION STRATEGY:
+- Create titles with FORMAT: Brand + Item Type + Gender + Size + Color + Style Keywords + Materials
+- MAXIMUM 80 characters - every character counts!
+- Use eBay-specific keywords that buyers search for
+- Include style descriptors like "Preppy", "Vintage", "Casual", "Business", "Athletic"
+- Add material keywords like "Cotton", "Wool", "Polyester", "Denim", "Leather"
+- Include pattern/print keywords like "Striped", "Plaid", "Floral", "Solid", "Graphic"
+- Add fit descriptors like "Slim Fit", "Regular", "Relaxed", "Oversized"
+
+CRITICAL EXTRACTION REQUIREMENTS:
 - LOOK FOR BRAND NAMES AND TEXT VISIBLE IN THE IMAGE - examine logos, graphics, text prints carefully
-- If you can READ text in the image (like "Wall Street Bull", brand names, sizes), extract it for the TITLE
+- If you can read text in the image (like "Wall Street Bull", brand names, sizes), extract it for the TITLE
 - Brand names in graphic designs should go in the BRAND field (e.g., "Wall Street Bull" -> brand: "Wall Street Bull")  
 - Text visible in graphics should become part of the title (e.g., "Wall Street Bull Hoodie")
+
+GENDER DETECTION (CRITICAL FOR EBAY):
+- Analyze cut, style, and design to determine: "Men", "Women", "Unisex", "Boys", "Girls"
+- Look for feminine details (darts, curved seams, fitted waist)
+- Look for masculine details (straight cuts, boxy fit, wider shoulders)
+- Check for kids' styling if smaller sizes
+
+STYLE KEYWORD EXTRACTION:
+- Extract style descriptors: Preppy, Vintage, Casual, Formal, Business, Athletic, Streetwear, Bohemian, Gothic, Punk, Classic, Modern
+- Extract occasion keywords: Work, Party, Date Night, Vacation, Beach, School, Office, Wedding, Cocktail
+- Extract aesthetic keywords: Minimalist, Boho, Edgy, Romantic, Sporty, Elegant, Trendy
+
+MATERIAL & FABRIC ANALYSIS:
+- Identify fabrics visually: Cotton, Denim, Wool, Cashmere, Silk, Polyester, Spandex, Linen, Leather, Suede
+- Look for fabric texture in images
+- Extract material info from care labels
+
+DETAILED SIZE EXTRACTION:
 - EXAMINE ALL CLOTHING TAGS AND LABELS VERY CAREFULLY FOR SIZE INFORMATION:
   * Look for size tags sewn into garments (neck tags, side seams, waistbands)
   * Check care labels which often contain size info (S, M, L, XL, numeric sizes)
@@ -340,6 +375,18 @@ CRITICAL INSTRUCTIONS:
   * Examine any visible text on clothing for size indicators
   * Check for European sizes (38, 40, 42), US sizes (S, M, L), or numeric sizes (2, 4, 6, 8)
   * Look for kids sizes (2T, 4T, 6Y) or shoe sizes if applicable
+
+PATTERN & DESIGN ANALYSIS:
+- Identify patterns: Solid, Striped, Plaid, Checkered, Floral, Paisley, Animal Print, Abstract, Geometric
+- Identify design elements: Embroidered, Printed, Graphic, Logo, Text, Applique, Sequined, Beaded
+
+EBAY KEYWORD OPTIMIZATION:
+- Generate 5-10 eBay-specific search keywords buyers use
+- Include trending fashion terms and seasonal keywords
+- Add descriptive adjectives that improve searchability
+- Consider synonyms and alternative terms
+
+VALIDATION RULES:
 - If you cannot verify a field from the image or OCR, return null (NEVER use the word "Unknown")
 - Prefer OCR text over visual guesses when available, but use vision when OCR is empty
 - Use provided CANDIDATES when they match what you see
@@ -375,13 +422,22 @@ For each aspect:
 
 Return ONLY JSON matching this schema:
 {
-  "title": string,
+  "title": string (MAX 80 chars, format: Brand Item Gender Size Color Keywords),
   "brand": string|null,
   "size": string|null,
   "item_type": string,
+  "gender": string|null (Men/Women/Unisex/Boys/Girls),
   "color": string|null,
+  "material": string|null (Cotton/Wool/Polyester/etc),
+  "pattern": string|null (Solid/Striped/Plaid/etc),
+  "fit": string|null (Slim/Regular/Relaxed/Oversized),
+  "closure": string|null (Button Up/Zip/Pullover),
+  "sleeve_length": string|null (Short/Long/3/4/Tank),
+  "neckline": string|null (Crew/V-Neck/Scoop),
   "condition": "new"|"like_new"|"good"|"fair"|"poor",
-  "keywords": string[],
+  "style_keywords": string[] (style descriptors like Preppy, Casual, Vintage),
+  "keywords": string[] (general keywords),
+  "ebay_keywords": string[] (eBay-specific search terms),
   "key_features": string[],
   "suggested_price": number,
   "description": string,
@@ -390,6 +446,11 @@ Return ONLY JSON matching this schema:
     "size": "ocr|vision|null"
   }${Array.isArray(ebayAspects) && ebayAspects.length > 0 ? ',\n  "ebay_item_specifics": { [aspectName]: value|null }' : ''}
 }
+
+TITLE EXAMPLES:
+- "Ralph Lauren Shirt Men L Blue Button Up Preppy Cotton"
+- "Nike Hoodie Women M Black Athletic Pullover Fleece"
+- "Levi's Jeans Men 32x34 Dark Blue Straight Fit Denim"
 
 Do NOT include markdown or code fences.`;
 

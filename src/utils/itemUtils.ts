@@ -481,9 +481,10 @@ export const extractCondition = (ocrText: string): string | null => {
 };
 
 /**
- * Build clean title from extracted components
+ * Build eBay-optimized title from extracted components with 80-character limit
+ * Format: Brand + Item Type + Gender + Size + Color + Style Keywords + Materials
  * @param components - Object with brand, item_type, color, size, etc.
- * @returns Formatted title string
+ * @returns eBay-optimized title string (max 80 chars)
  */
 export const buildTitle = (components: {
   brand?: string | null;
@@ -491,27 +492,207 @@ export const buildTitle = (components: {
   color?: string | null;
   size?: string | null;
   gender?: string | null;
-  fabric?: string | null;
+  material?: string | null;
+  pattern?: string | null;
+  fit?: string | null;
+  closure?: string | null;
+  sleeve_length?: string | null;
+  neckline?: string | null;
+  style_keywords?: string[];
+  ebay_keywords?: string[];
+  keywords?: string[];
 }): string => {
+  console.log('🏗️ [BUILD-TITLE] Starting eBay title optimization with components:', components);
+  
+  // Extract and clean components
   const brand = nullIfUnknown(components.brand);
   const itemType = safeTrim(toStr(components.item_type));
   const color = nullIfUnknown(components.color);
   const size = nullIfUnknown(components.size);
   const gender = nullIfUnknown(components.gender);
-  const fabric = nullIfUnknown(components.fabric);
+  const material = nullIfUnknown(components.material);
+  const pattern = nullIfUnknown(components.pattern);
+  const fit = nullIfUnknown(components.fit);
+  const closure = nullIfUnknown(components.closure);
+  const sleeveLength = nullIfUnknown(components.sleeve_length);
+  const neckline = nullIfUnknown(components.neckline);
   
-  const parts = [
-    brand,
-    gender && /men|women|kid/i.test(gender) ? `${cap(gender)}'s` : null,
-    itemType,
-    fabric,
-    color,
-    size ? `Size ${toStr(size)}` : null,
-  ].filter(Boolean);
+  // Combine all keyword sources and prioritize
+  const allKeywords = [
+    ...(components.style_keywords || []),
+    ...(components.ebay_keywords || []),
+    ...(components.keywords || [])
+  ].filter(Boolean).map(k => safeTrim(toStr(k))).filter(k => k.length > 0);
   
-  const title = parts.join(" ");
-  console.log('🏗️ [BUILD-TITLE] Built title:', title);
-  return title;
+  // Priority order for eBay titles (most important first)
+  const titleParts = [];
+  let remainingChars = 80;
+  
+  // 1. Brand (highest priority)
+  if (brand && remainingChars > 0) {
+    const brandPart = safeTrim(brand);
+    if (brandPart.length <= remainingChars - 1) {
+      titleParts.push(brandPart);
+      remainingChars -= (brandPart.length + 1); // +1 for space
+    }
+  }
+  
+  // 2. Item Type (essential)
+  if (itemType && remainingChars > 0) {
+    const itemPart = safeTrim(itemType);
+    if (itemPart.length <= remainingChars - 1) {
+      titleParts.push(itemPart);
+      remainingChars -= (itemPart.length + 1);
+    }
+  }
+  
+  // 3. Gender (very important for eBay search)
+  if (gender && remainingChars > 0) {
+    const genderPart = normalizeGenderForTitle(gender);
+    if (genderPart && genderPart.length <= remainingChars - 1) {
+      titleParts.push(genderPart);
+      remainingChars -= (genderPart.length + 1);
+    }
+  }
+  
+  // 4. Size (critical for clothing)
+  if (size && remainingChars > 0) {
+    const sizePart = safeTrim(toStr(size));
+    if (sizePart.length <= remainingChars - 1) {
+      titleParts.push(sizePart);
+      remainingChars -= (sizePart.length + 1);
+    }
+  }
+  
+  // 5. Color (important for search)
+  if (color && remainingChars > 0) {
+    const colorPart = safeTrim(color);
+    if (colorPart.length <= remainingChars - 1) {
+      titleParts.push(colorPart);
+      remainingChars -= (colorPart.length + 1);
+    }
+  }
+  
+  // 6. Style descriptors (adds searchability)
+  const styleDescriptors = [closure, fit, pattern, sleeveLength, neckline].filter(Boolean);
+  for (const descriptor of styleDescriptors) {
+    if (remainingChars > 0) {
+      const descriptorPart = safeTrim(toStr(descriptor));
+      if (descriptorPart.length <= remainingChars - 1) {
+        titleParts.push(descriptorPart);
+        remainingChars -= (descriptorPart.length + 1);
+      }
+    }
+  }
+  
+  // 7. High-value keywords (trending/searchable terms)
+  const prioritizedKeywords = prioritizeEbayKeywords(allKeywords);
+  for (const keyword of prioritizedKeywords) {
+    if (remainingChars > 0) {
+      const keywordPart = safeTrim(keyword);
+      if (keywordPart.length <= remainingChars - 1) {
+        titleParts.push(keywordPart);
+        remainingChars -= (keywordPart.length + 1);
+      }
+    }
+  }
+  
+  // 8. Material (if space allows)
+  if (material && remainingChars > 0) {
+    const materialPart = safeTrim(material);
+    if (materialPart.length <= remainingChars - 1) {
+      titleParts.push(materialPart);
+      remainingChars -= (materialPart.length + 1);
+    }
+  }
+  
+  const title = titleParts.join(' ');
+  const finalTitle = title.length > 80 ? title.substring(0, 77) + '...' : title;
+  
+  console.log('✅ [BUILD-TITLE] eBay optimized title created:', finalTitle);
+  console.log('📏 [BUILD-TITLE] Character count:', finalTitle.length, '/ 80');
+  console.log('🔤 [BUILD-TITLE] Remaining characters:', 80 - finalTitle.length);
+  
+  return finalTitle;
+};
+
+/**
+ * Normalize gender for eBay title format
+ * @param gender - Raw gender string from AI
+ * @returns Normalized gender for eBay titles
+ */
+const normalizeGenderForTitle = (gender: string): string | null => {
+  const g = safeTrim(toStr(gender)).toLowerCase();
+  
+  const genderMap: { [key: string]: string } = {
+    'men': 'Men',
+    'male': 'Men', 
+    'mens': 'Men',
+    'man': 'Men',
+    'women': 'Women',
+    'female': 'Women',
+    'womens': 'Women', 
+    'woman': 'Women',
+    'ladies': 'Women',
+    'unisex': 'Unisex',
+    'boys': 'Boys',
+    'boy': 'Boys',
+    'girls': 'Girls',
+    'girl': 'Girls',
+    'kids': 'Kids',
+    'children': 'Kids'
+  };
+  
+  return genderMap[g] || null;
+};
+
+/**
+ * Prioritize eBay keywords for maximum search visibility
+ * @param keywords - Array of keywords to prioritize
+ * @returns Sorted keywords by eBay search importance
+ */
+const prioritizeEbayKeywords = (keywords: string[]): string[] => {
+  if (!Array.isArray(keywords)) return [];
+  
+  // Define keyword priority tiers for eBay search
+  const highPriorityTerms = [
+    'vintage', 'rare', 'designer', 'luxury', 'premium', 'authentic',
+    'new', 'nwt', 'preppy', 'casual', 'business', 'formal', 'athletic',
+    'streetwear', 'trendy', 'classic', 'retro', 'boho', 'minimalist'
+  ];
+  
+  const mediumPriorityTerms = [
+    'cotton', 'wool', 'denim', 'leather', 'silk', 'cashmere',
+    'button', 'zip', 'pullover', 'slim', 'regular', 'relaxed',
+    'striped', 'plaid', 'solid', 'graphic', 'print', 'embroidered'
+  ];
+  
+  const lowPriorityTerms = [
+    'comfortable', 'stylish', 'modern', 'elegant', 'chic',
+    'versatile', 'seasonal', 'everyday', 'office', 'weekend'
+  ];
+  
+  // Sort keywords by priority tier
+  const sortedKeywords = keywords.sort((a, b) => {
+    const aLower = safeTrim(toStr(a)).toLowerCase();
+    const bLower = safeTrim(toStr(b)).toLowerCase();
+    
+    const aPriority = highPriorityTerms.includes(aLower) ? 3 :
+                     mediumPriorityTerms.includes(aLower) ? 2 :
+                     lowPriorityTerms.includes(aLower) ? 1 : 0;
+    
+    const bPriority = highPriorityTerms.includes(bLower) ? 3 :
+                     mediumPriorityTerms.includes(bLower) ? 2 :
+                     lowPriorityTerms.includes(bLower) ? 1 : 0;
+    
+    // Higher priority first, then by length (shorter preferred for space efficiency)
+    if (aPriority !== bPriority) return bPriority - aPriority;
+    return a.length - b.length;
+  });
+  
+  // Remove duplicates and return top 5 keywords
+  const uniqueKeywords = [...new Set(sortedKeywords.map(k => safeTrim(toStr(k))))];
+  return uniqueKeywords.slice(0, 5);
 };
 
 // Helper function to capitalize first letter
