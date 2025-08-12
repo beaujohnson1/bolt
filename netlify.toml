@@ -12,4 +12,62 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  # Frontend environment variables (available to React app)
+  VITE_EBAY_USE_PRODUCTION = "true"
+  VITE_SUPABASE_URL = ""
+  VITE_SUPABASE_ANON_KEY = ""
+  VITE_GOOGLE_CLIENT_ID = ""
+
+# Configure environment variables per function to stay under 4KB limit
+# Only include variables each function actually needs
+
+[functions.openai-vision-analysis]
+  [functions.openai-vision-analysis.environment]
+    OPENAI_API_KEY = ""
+    GOOGLE_APPLICATION_CREDENTIALS_BASE64 = ""
+    GOOGLE_CLOUD_PROJECT_ID = ""
+
+[functions.ebay-proxy]
+  [functions.ebay-proxy.environment]
+    VITE_EBAY_PROD_APP_ID = ""
+    VITE_EBAY_PROD_DEV_ID = ""
+    VITE_EBAY_PROD_CERT_ID = ""
+    VITE_EBAY_PROD_BASE_URL = ""
+    VITE_EBAY_SANDBOX_APP_ID = ""
+    VITE_EBAY_SANDBOX_DEV_ID = ""
+    VITE_EBAY_SANDBOX_CERT_ID = ""
+    VITE_EBAY_SANDBOX_BASE_URL = ""
+
+[functions.optimized-vision-analysis]
+  [functions.optimized-vision-analysis.environment]
+    OPENAI_API_KEY = ""
+    GOOGLE_APPLICATION_CREDENTIALS_BASE64 = ""
+    GOOGLE_CLOUD_PROJECT_ID = ""
+
+[functions.analyze-image]
+  [functions.analyze-image.environment]
+    OPENAI_API_KEY = ""
+    GOOGLE_APPLICATION_CREDENTIALS_BASE64 = ""
+    GOOGLE_CLOUD_PROJECT_ID = ""
+
+[functions.pricing-agent]
+  [functions.pricing-agent.environment]
+    OPENAI_API_KEY = ""
+    VITE_EBAY_PROD_APP_ID = ""
+    VITE_EBAY_SANDBOX_APP_ID = ""
+
+[functions.ai-coach]
+  [functions.ai-coach.environment]
+    OPENAI_API_KEY = ""
+
+[functions.test-openai]
+  [functions.test-openai.environment]
+    OPENAI_API_KEY = ""
+
+[functions.subscribe]
+  [functions.subscribe.environment]
+    GHL_API_KEY = ""
+    GHL_API_URL = ""
+    GHL_PIPELINE_ID = ""
+    GHL_STAGE_ID = ""
 
