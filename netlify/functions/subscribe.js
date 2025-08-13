@@ -135,23 +135,69 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Try the correct GHL API endpoint and headers
-    // Back to original endpoint since location-specific gave 404
-    const apiEndpoint = `${config.ghl.apiUrl}/contacts/`;
-    
-    console.log('🚀 [SUBSCRIBE] Making API request to:', apiEndpoint);
-    
-    // Add back the required Version header
-    const ghlResponse = await fetch(apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.ghl.apiKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Version': '2021-07-28'
+    // Try multiple GHL API approaches since it suddenly stopped working
+    const attempts = [
+      {
+        name: 'Standard v2 API',
+        endpoint: `${config.ghl.apiUrl}/contacts/`,
+        headers: {
+          'Authorization': `Bearer ${config.ghl.apiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Version': '2021-07-28'
+        }
       },
-      body: JSON.stringify(contactData),
-    });
+      {
+        name: 'Without Version header',
+        endpoint: `${config.ghl.apiUrl}/contacts/`,
+        headers: {
+          'Authorization': `Bearer ${config.ghl.apiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      },
+      {
+        name: 'With location in URL',
+        endpoint: `${config.ghl.apiUrl}/contacts/?locationId=${config.ghl.locationId}`,
+        headers: {
+          'Authorization': `Bearer ${config.ghl.apiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Version': '2021-07-28'
+        }
+      }
+    ];
+
+    let ghlResponse = null;
+    let lastError = null;
+
+    for (const attempt of attempts) {
+      try {
+        console.log(`🚀 [SUBSCRIBE] Trying ${attempt.name} at:`, attempt.endpoint);
+        
+        ghlResponse = await fetch(attempt.endpoint, {
+          method: 'POST',
+          headers: attempt.headers,
+          body: JSON.stringify(contactData),
+        });
+
+        console.log(`📡 [SUBSCRIBE] ${attempt.name} response:`, ghlResponse.status);
+        
+        // If successful or different error than 401 JWT, use this response
+        if (ghlResponse.ok || ghlResponse.status !== 401) {
+          console.log(`✅ [SUBSCRIBE] Using ${attempt.name} result`);
+          break;
+        }
+        
+        const errorText = await ghlResponse.text();
+        lastError = errorText;
+        console.log(`❌ [SUBSCRIBE] ${attempt.name} failed:`, errorText);
+        
+      } catch (error) {
+        console.error(`❌ [SUBSCRIBE] ${attempt.name} threw error:`, error);
+        lastError = error.message;
+      }
+    }
 
     const responseData = await ghlResponse.text();
     console.log('📬 [SUBSCRIBE] GHL API Response Status:', ghlResponse.status);
