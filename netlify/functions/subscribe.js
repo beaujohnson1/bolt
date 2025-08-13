@@ -80,11 +80,11 @@ exports.handler = async (event, context) => {
       }
     };
 
-    // Remove location ID since it wasn't in working version
-    // Adding locationId might be causing the JWT rejection
-    // if (config.ghl.locationId) {
-    //   contactData.locationId = config.ghl.locationId;
-    // }
+    // Add location ID for Private Integration Token (required for agency-level tokens)
+    if (process.env.GHL_LOCATION_ID) {
+      contactData.locationId = process.env.GHL_LOCATION_ID;
+      console.log('📍 [SUBSCRIBE] Adding location ID for sub-account targeting');
+    }
 
     // Add to pipeline if configured
     if (config.ghl.pipelineId && config.ghl.stageId) {
