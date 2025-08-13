@@ -153,7 +153,14 @@ exports.handler = async (event, context) => {
     const directApiKey = process.env.GHL_API_KEY;
     const directApiUrl = process.env.GHL_API_URL || 'https://services.leadconnectorhq.com';
     
-    const ghlResponse = await fetch(`${directApiUrl}/contacts/`, {
+    // Try location-specific endpoint for agency-level tokens
+    const apiEndpoint = process.env.GHL_LOCATION_ID 
+      ? `${directApiUrl}/locations/${process.env.GHL_LOCATION_ID}/contacts/`
+      : `${directApiUrl}/contacts/`;
+    
+    console.log('🎯 [SUBSCRIBE] Using endpoint:', apiEndpoint);
+    
+    const ghlResponse = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${directApiKey}`,
