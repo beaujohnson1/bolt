@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Camera, Clock, DollarSign, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import EmailCapture from './EmailCapture';
 import GoogleSignInSupabase from './GoogleSignInSupabase';
 import { useScrollTracking } from '../hooks/useScrollTracking';
@@ -7,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const Hero = () => {
   const heroRef = useScrollTracking('hero_section');
+  const navigate = useNavigate();
   const { authUser } = useAuth();
   const [hasSubmittedToGHL, setHasSubmittedToGHL] = useState(false);
 
@@ -40,6 +42,12 @@ const Hero = () => {
             setHasSubmittedToGHL(true);
             // Store in localStorage to prevent re-submission
             localStorage.setItem(`ghl_submitted_${authUser.id}`, 'true');
+            
+            // Redirect to dashboard after successful submission
+            console.log('🎯 [HERO] Redirecting authenticated user to dashboard');
+            setTimeout(() => {
+              navigate('/app');
+            }, 1000); // 1 second delay to ensure submission completes
           }
         } catch (error) {
           console.error('❌ [HERO] Failed to submit to GoHighLevel:', error);
@@ -52,6 +60,11 @@ const Hero = () => {
       const alreadySubmitted = localStorage.getItem(`ghl_submitted_${authUser.id}`);
       if (alreadySubmitted) {
         setHasSubmittedToGHL(true);
+        // If already submitted, redirect immediately to dashboard
+        console.log('🎯 [HERO] User already submitted, redirecting to dashboard');
+        setTimeout(() => {
+          navigate('/app');
+        }, 500); // Short delay for better UX
       } else {
         submitAuthenticatedUser();
       }
