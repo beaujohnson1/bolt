@@ -63,6 +63,7 @@ const AuthCallback: React.FC = () => {
       if (user && !localStorage.getItem(`ghl_submitted_${user.id}`)) {
         try {
           console.log('📧 [AUTH-CALLBACK] Submitting to GoHighLevel:', user.email);
+          console.log('📊 [AUTH-CALLBACK] User metadata available:', user.user_metadata);
           
           const response = await fetch('/.netlify/functions/subscribe', {
             method: 'POST',
@@ -110,8 +111,8 @@ const AuthCallback: React.FC = () => {
       redirectPath
     });
     
-    // Navigate when we have a user, even if profile isn't fully loaded
-    if (!loading && user) {
+    // Navigate when we have a user, don't wait for loading to be false
+    if (user) {
       // Wait a bit for profile, but not too long
       const profileWaitTime = 5000; // 5 seconds max for profile
       const hasWaitedEnough = elapsedTime > profileWaitTime;
@@ -130,7 +131,7 @@ const AuthCallback: React.FC = () => {
           navigate('/app');
         }
       }
-    } else if (!loading && !user) {
+    } else if (!loading && !user && elapsedTime > 3000) {
       console.log(`❌ AuthCallback: No user found after loading (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     } else if (elapsedTime > AUTH_TIMEOUT) {
@@ -140,7 +141,8 @@ const AuthCallback: React.FC = () => {
   }, [user, authUser, loading, navigate, authStartTime, redirectPath, setRedirectPath]);
   
   // Show loading while authentication is being processed
-  if (timeoutReached || (!loading && (!user || !authUser))) {
+  // Only hide if timeout reached or if no user after loading completes
+  if (timeoutReached) {
     return null;
   }
 
@@ -159,13 +161,19 @@ const AuthCallback: React.FC = () => {
           )}
         </div>
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          Setting up your account...
+          {user ? 'Finalizing setup...' : 'Setting up your account...'}
         </h2>
         <p className="text-gray-600">
-          Please wait while we set up your account.
+          {user ? `Welcome back, ${user.email}!` : 'Please wait while we set up your account.'}
         </p>
         
-        {elapsedTime > 10000 && (
+        {elapsedTime > 3000 && !user && (
+          <div className="mt-4 text-sm text-orange-600">
+            Taking longer than expected. You may need to sign in again.
+          </div>
+        )}
+        
+        {elapsedTime > 10000 && user && (
           <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-yellow-800 text-sm">
               This is taking longer than usual. If it doesn't complete soon, 
