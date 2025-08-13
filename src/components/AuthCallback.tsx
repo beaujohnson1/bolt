@@ -13,6 +13,11 @@ const AuthCallback: React.FC = () => {
   const [authStartTime] = React.useState(Date.now());
   // Removed forceNavigate state - no longer needed
 
+  // Add very basic logs that should always show
+  console.log('🚀 [AUTH-CALLBACK] Component rendered');
+  console.log('🚀 [AUTH-CALLBACK] supabaseUser exists:', !!supabaseUser);
+  console.log('🚀 [AUTH-CALLBACK] Current URL:', window.location.href);
+  
   console.log('🚀 [AUTH-CALLBACK] Component mounted/rendered:', {
     hasSupabaseUser: !!supabaseUser,
     hasAppUser: !!appUser,

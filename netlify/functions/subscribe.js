@@ -141,13 +141,14 @@ exports.handler = async (event, context) => {
     
     console.log('🚀 [SUBSCRIBE] Making API request to:', apiEndpoint);
     
-    // Try without the Version header as it might be causing issues
+    // Add back the required Version header
     const ghlResponse = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${config.ghl.apiKey}`,
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Version': '2021-07-28'
       },
       body: JSON.stringify(contactData),
     });
