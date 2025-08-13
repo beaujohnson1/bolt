@@ -107,10 +107,22 @@ const AuthCallback: React.FC = () => {
             }
             
             localStorage.setItem(`ghl_submitted_${supabaseUser.id}`, 'true');
+            
+            // Navigate to dashboard after successful GHL submission
+            console.log('🎯 [AUTH-CALLBACK] GHL submission successful, redirecting to dashboard');
+            setTimeout(() => {
+              window.location.href = '/app';
+            }, 1000);
           } else {
             console.error('❌ [AUTH-CALLBACK] Function returned error:', response.status);
             const errorText = await response.text();
             console.error('❌ [AUTH-CALLBACK] Error details:', errorText);
+            
+            // Still navigate even if GHL fails
+            console.log('🎯 [AUTH-CALLBACK] GHL failed but navigating anyway');
+            setTimeout(() => {
+              window.location.href = '/app';
+            }, 1000);
           }
         } catch (error) {
           console.error('❌ [AUTH-CALLBACK] Failed to submit to GoHighLevel:', error);
@@ -125,23 +137,7 @@ const AuthCallback: React.FC = () => {
 
   // No longer needed - we navigate immediately when supabaseUser exists
 
-  // Simple immediate navigation when we have a user
-  useEffect(() => {
-    console.log('🔍 [AUTH-CALLBACK] Simple navigation effect triggered');
-    if (supabaseUser) {
-      console.log('🎯 [AUTH-CALLBACK] IMMEDIATE NAVIGATION - Supabase user found!');
-      const destination = redirectPath || '/app';
-      console.log('🚀 [AUTH-CALLBACK] Navigating to:', destination);
-      
-      // Clear redirect path if set
-      if (redirectPath) {
-        setRedirectPath(null);
-      }
-      
-      // Immediate navigation
-      window.location.href = destination;
-    }
-  }, [supabaseUser, redirectPath, setRedirectPath]);
+  // Navigation now handled in GHL submission effect above
 
   // Monitor authentication state and navigate when ready
   useEffect(() => {
