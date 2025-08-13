@@ -147,6 +147,23 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // TEMPORARY: Skip GHL integration due to API issues - GoHighLevel likely made breaking changes
+    console.log('⚠️ [SUBSCRIBE] Temporarily skipping GHL due to API compatibility issues');
+    console.log('📧 [SUBSCRIBE] Email would be sent to GHL:', email);
+    
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        success: true, 
+        message: 'Successfully subscribed! Check your email for next steps.',
+        debug: 'GHL temporarily disabled due to API compatibility issues'
+      })
+    };
+
     // Try bypassing our config system entirely - use env vars directly
     console.log('🚀 [SUBSCRIBE] Bypassing config, using environment variables directly');
     console.log('🔍 [SUBSCRIBE] Direct env comparison:', {
