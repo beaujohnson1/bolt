@@ -373,6 +373,9 @@ const GenerateListingsPage = () => {
           : i
       ));
 
+      // Trigger dashboard refresh by updating localStorage flag
+      localStorage.setItem('dashboard_refresh_needed', 'true');
+      
       console.log('✅ [GENERATE-LISTINGS] Generation complete for:', item.sku);
 
     } catch (error) {
@@ -466,6 +469,11 @@ const GenerateListingsPage = () => {
 
     try {
       console.log('💾 [GENERATE-LISTINGS] Saving edit for:', editingItem.sku);
+
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error('Database connection not available');
+      }
 
       const { data, error } = await supabase
         .from('items')

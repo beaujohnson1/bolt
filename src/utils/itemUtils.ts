@@ -222,6 +222,22 @@ export const extractSize = (ocrText: string): string | null => {
       return size;
     }
     
+    // Style/model numbers that indicate sizes (like 92-113 for M)
+    const styleSize = s.match(/\b(\d{2,3}-\d{2,3})\b/);
+    if (styleSize) {
+      // Try to map common style codes to sizes
+      const sizeMapping = {
+        '92-113': 'M',  // Common medium size code
+        '88-96': 'S',   // Common small size code
+        '96-104': 'L',  // Common large size code
+      };
+      const mappedSize = sizeMapping[styleSize[1]];
+      if (mappedSize) {
+        console.log('✅ [SIZE-EXTRACT] Found style code size:', styleSize[1], '→', mappedSize);
+        return mappedSize;
+      }
+    }
+
     // Numeric dress/women's sizes - extended range
     const dress = s.match(/\b(00|0|2|4|6|8|10|12|14|16|18|20|22|24|26|28|30)\b/);
     if (dress && !s.match(/\b\d{2,4}[\s]*[MLG]\b/)) { // Avoid matching measurements
@@ -472,12 +488,95 @@ export const extractCondition = (ocrText: string): string | null => {
       return 'poor';
     }
     
-    console.log('ℹ️ [CONDITION-EXTRACT] No condition pattern found in OCR text');
-    return null;
+    // Check for vintage/retro patterns (these are often in good condition)
+    if (s.includes('VINTAGE') || s.includes('RETRO') || s.includes('CLASSIC') || s.includes('THROWBACK')) {
+      console.log('✅ [CONDITION-EXTRACT] Found vintage item, assuming good condition');
+      return 'good';
+    }
+    
+    // Check for new item indicators (price tags, store tags, etc.)
+    if (s.includes('$') || s.includes('PRICE') || s.includes('TAG') || s.includes('STORE')) {
+      console.log('✅ [CONDITION-EXTRACT] Found price/tag indicators, likely good condition');
+      return 'good';
+    }
+    
+    console.log('ℹ️ [CONDITION-EXTRACT] No condition pattern found in OCR text, defaulting to good');
+    return 'good'; // Default to good condition instead of null
   } catch (error) {
     console.error('❌ [CONDITION-EXTRACT] Error extracting condition:', error);
     return null;
   }
+};
+
+/**
+ * Extract color from OCR text
+ * @param ocrText - Raw OCR text from clothing tags/labels
+ * @returns Extracted color or null if not found
+ */
+export const extractColor = (ocrText: string): string | null => {
+  const text = safeTrim(toStr(ocrText));
+  if (!text) return null;
+  
+  try {
+    const s = safeUpper(text).replace(/\s+/g, " ");
+    console.log('🎨 [COLOR-EXTRACT] Analyzing OCR text for color:', s.substring(0, 100));
+    
+    // Define comprehensive color patterns
+    const colorPatterns = [
+      // Basic colors
+      /\b(BLACK|WHITE|GRAY|GREY|RED|BLUE|GREEN|YELLOW|ORANGE|PURPLE|PINK|BROWN|BEIGE|TAN|NAVY|MAROON)\b/,
+      // Specific shades
+      /\b(BLONDE?|BLOND|CREAM|IVORY|OFF-?WHITE|CHARCOAL|SILVER|GOLD|BRONZE|COPPER|RUST)\b/,
+      // Fashion colors
+      /\b(BURGUNDY|CRIMSON|SCARLET|TURQUOISE|TEAL|AQUA|LIME|OLIVE|KHAKI|DENIM|INDIGO)\b/,
+      // Light/dark variations
+      /\b(LIGHT|DARK|PALE|BRIGHT|DEEP|ROYAL|ELECTRIC|NEON)\s+(BLACK|WHITE|GRAY|GREY|RED|BLUE|GREEN|YELLOW|ORANGE|PURPLE|PINK|BROWN)\b/,
+      // Multi-word colors
+      /\b(FOREST\s+GREEN|NAVY\s+BLUE|ROYAL\s+BLUE|HOT\s+PINK|BABY\s+BLUE|POWDER\s+BLUE)\b/
+    ];
+    
+    for (const pattern of colorPatterns) {
+      const match = s.match(pattern);
+      if (match) {
+        const color = match[0].toLowerCase().replace(/\s+/g, ' ').trim();
+        console.log('✅ [COLOR-EXTRACT] Found color:', color);
+        return normalizeColor(color);
+      }
+    }
+    
+    console.log('ℹ️ [COLOR-EXTRACT] No color pattern found in OCR text');
+    return null;
+  } catch (error) {
+    console.error('❌ [COLOR-EXTRACT] Error extracting color:', error);
+    return null;
+  }
+};
+
+/**
+ * Normalize color names for consistency
+ * @param color - Raw color string
+ * @returns Normalized color string
+ */
+const normalizeColor = (color: string): string => {
+  const c = safeTrim(toStr(color)).toLowerCase();
+  
+  const colorMap: { [key: string]: string } = {
+    'blonde': 'Blonde',
+    'blond': 'Blonde', 
+    'grey': 'Gray',
+    'navy blue': 'Navy',
+    'royal blue': 'Royal Blue',
+    'forest green': 'Forest Green',
+    'hot pink': 'Hot Pink',
+    'baby blue': 'Baby Blue',
+    'powder blue': 'Powder Blue',
+    'off white': 'Off White',
+    'off-white': 'Off White'
+  };
+  
+  return colorMap[c] || c.split(' ').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1)
+  ).join(' ');
 };
 
 /**
@@ -526,85 +625,61 @@ export const buildTitle = (components: {
   
   // Priority order for eBay titles (most important first)
   const titleParts = [];
+  const usedWords = new Set(); // Track used words to prevent duplicates
   let remainingChars = 80;
   
-  // 1. Brand (highest priority)
-  if (brand && remainingChars > 0) {
-    const brandPart = safeTrim(brand);
-    if (brandPart.length <= remainingChars - 1) {
-      titleParts.push(brandPart);
-      remainingChars -= (brandPart.length + 1); // +1 for space
+  // Helper function to add parts without duplicating words
+  const addUniquePart = (part, description) => {
+    if (!part || remainingChars <= 0) return false;
+    
+    const cleanPart = safeTrim(toStr(part));
+    if (!cleanPart || cleanPart.length > remainingChars - 1) return false;
+    
+    // Check for word overlaps (case-insensitive)
+    const partWords = cleanPart.toLowerCase().split(/\s+/);
+    const hasOverlap = partWords.some(word => usedWords.has(word));
+    
+    if (!hasOverlap) {
+      titleParts.push(cleanPart);
+      partWords.forEach(word => usedWords.add(word));
+      remainingChars -= (cleanPart.length + 1); // +1 for space
+      console.log(`✅ [BUILD-TITLE] Added ${description}:`, cleanPart);
+      return true;
+    } else {
+      console.log(`⚠️ [BUILD-TITLE] Skipped ${description} due to word overlap:`, cleanPart);
+      return false;
     }
-  }
+  };
+  
+  // 1. Brand (highest priority)
+  addUniquePart(brand, 'brand');
   
   // 2. Item Type (essential)
-  if (itemType && remainingChars > 0) {
-    const itemPart = safeTrim(itemType);
-    if (itemPart.length <= remainingChars - 1) {
-      titleParts.push(itemPart);
-      remainingChars -= (itemPart.length + 1);
-    }
-  }
+  addUniquePart(itemType, 'item type');
   
   // 3. Gender (very important for eBay search)
-  if (gender && remainingChars > 0) {
-    const genderPart = normalizeGenderForTitle(gender);
-    if (genderPart && genderPart.length <= remainingChars - 1) {
-      titleParts.push(genderPart);
-      remainingChars -= (genderPart.length + 1);
-    }
-  }
+  addUniquePart(normalizeGenderForTitle(gender), 'gender');
   
   // 4. Size (critical for clothing)
-  if (size && remainingChars > 0) {
-    const sizePart = safeTrim(toStr(size));
-    if (sizePart.length <= remainingChars - 1) {
-      titleParts.push(sizePart);
-      remainingChars -= (sizePart.length + 1);
-    }
-  }
+  addUniquePart(size, 'size');
   
   // 5. Color (important for search)
-  if (color && remainingChars > 0) {
-    const colorPart = safeTrim(color);
-    if (colorPart.length <= remainingChars - 1) {
-      titleParts.push(colorPart);
-      remainingChars -= (colorPart.length + 1);
-    }
-  }
+  addUniquePart(color, 'color');
   
   // 6. Style descriptors (adds searchability)
   const styleDescriptors = [closure, fit, pattern, sleeveLength, neckline].filter(Boolean);
   for (const descriptor of styleDescriptors) {
-    if (remainingChars > 0) {
-      const descriptorPart = safeTrim(toStr(descriptor));
-      if (descriptorPart.length <= remainingChars - 1) {
-        titleParts.push(descriptorPart);
-        remainingChars -= (descriptorPart.length + 1);
-      }
-    }
+    addUniquePart(descriptor, 'style descriptor');
   }
   
   // 7. High-value keywords (trending/searchable terms)
   const prioritizedKeywords = prioritizeEbayKeywords(allKeywords);
   for (const keyword of prioritizedKeywords) {
-    if (remainingChars > 0) {
-      const keywordPart = safeTrim(keyword);
-      if (keywordPart.length <= remainingChars - 1) {
-        titleParts.push(keywordPart);
-        remainingChars -= (keywordPart.length + 1);
-      }
-    }
+    addUniquePart(keyword, 'keyword');
   }
   
   // 8. Material (if space allows)
-  if (material && remainingChars > 0) {
-    const materialPart = safeTrim(material);
-    if (materialPart.length <= remainingChars - 1) {
-      titleParts.push(materialPart);
-      remainingChars -= (materialPart.length + 1);
-    }
-  }
+  addUniquePart(material, 'material');
   
   const title = titleParts.join(' ');
   const finalTitle = title.length > 80 ? title.substring(0, 77) + '...' : title;

@@ -56,8 +56,9 @@ class EbayApiService {
   private environment: 'sandbox' | 'production';
 
   constructor() {
-    // Determine environment
-    this.environment = import.meta.env.NODE_ENV === 'production' ? 'production' : 'sandbox';
+    // Determine environment - Use production if explicitly set or if we're in a deployed environment
+    this.environment = import.meta.env.VITE_EBAY_USE_PRODUCTION === 'true' || 
+                      import.meta.env.NODE_ENV === 'production' ? 'production' : 'sandbox';
     
     // Set configuration based on environment
     if (this.environment === 'production') {

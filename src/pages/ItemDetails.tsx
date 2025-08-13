@@ -378,6 +378,52 @@ const ItemDetails = () => {
                 )}
               </div>
 
+              {/* eBay Item Specifics Section */}
+              {item.ai_analysis?.ebay_item_specifics && Object.keys(item.ai_analysis.ebay_item_specifics).length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <Target className="w-5 h-5 mr-2 text-blue-600" />
+                    eBay Item Specifics
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4 bg-blue-50 p-4 rounded-lg">
+                    {Object.entries(item.ai_analysis.ebay_item_specifics).map(([key, value]) => {
+                      if (!value || value === 'unknown' || value === 'Unknown') return null;
+                      const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                      return (
+                        <div key={key}>
+                          <h4 className="font-medium text-blue-900 mb-1">{displayKey}</h4>
+                          <p className="text-blue-800">{Array.isArray(value) ? value.join(', ') : value}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  
+                  {/* AI Analysis Confidence */}
+                  {(item.ai_analysis?.keywordQualityScore || item.ai_analysis?.ebayComplianceScore || item.ai_analysis?.ebayCompletenessScore) && (
+                    <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+                      {item.ai_analysis.keywordQualityScore && (
+                        <div>
+                          <div className="text-sm text-gray-600 mb-1">Keyword Quality</div>
+                          <div className="text-lg font-bold text-green-600">{Math.round(item.ai_analysis.keywordQualityScore * 100)}%</div>
+                        </div>
+                      )}
+                      {item.ai_analysis.ebayComplianceScore && (
+                        <div>
+                          <div className="text-sm text-gray-600 mb-1">eBay Compliance</div>
+                          <div className="text-lg font-bold text-blue-600">{Math.round(item.ai_analysis.ebayComplianceScore * 100)}%</div>
+                        </div>
+                      )}
+                      {item.ai_analysis.ebayCompletenessScore && (
+                        <div>
+                          <div className="text-sm text-gray-600 mb-1">Completeness</div>
+                          <div className="text-lg font-bold text-purple-600">{Math.round(item.ai_analysis.ebayCompletenessScore * 100)}%</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Description */}
               {item.description && (
                 <div className="mb-6">

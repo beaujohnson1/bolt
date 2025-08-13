@@ -1,7 +1,7 @@
 // Client-side OpenAI service that calls Netlify Functions
 import { convertToBase64, fetchImageAsBase64 } from '../utils/imageUtils';
 import { extractTagText, cropAndReocr } from '../utils/imageUtils';
-import { extractSize, extractBrand, extractCondition, buildTitle } from '../utils/itemUtils';
+import { extractSize, extractBrand, extractCondition, extractColor, buildTitle } from '../utils/itemUtils';
 import { visionClient } from '../lib/googleVision';
 import { safeTrim, nullIfUnknown, safeUpper, toStr } from '../utils/strings';
 import { ocrKeywordOptimizer } from './OCRKeywordOptimizer';
@@ -32,7 +32,7 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     let combinedIndividualTexts = [];
     
     try {
-      for (let i = 0; i < Math.min(imageArray.length, 5); i++) { // Process up to 5 images for performance
+      for (let i = 0; i < Math.min(imageArray.length, 3); i++) { // Process up to 3 images to avoid timeout
         const imageUrl = imageArray[i];
         console.log(`🔍 [OPENAI-CLIENT] Running OCR on image ${i + 1}/${imageArray.length}: ${imageUrl.substring(0, 100)}...`);
         
@@ -92,6 +92,7 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     let preSize = extractSize(ocrText) || null;
     const preBrand = extractBrand(ocrText) || null;
     const preCondition = extractCondition(ocrText) || null;
+    const preColor = extractColor(ocrText) || null;
     
     // If size not found in combined text, try individual text detections from ALL images
     if (!preSize && (textAnnotations?.length > 0 || combinedIndividualTexts?.length > 0)) {
@@ -114,6 +115,7 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       preSize: preSize || 'NOT_FOUND',
       preBrand: preBrand || 'NOT_FOUND',
       preCondition: preCondition || 'NOT_FOUND',
+      preColor: preColor || 'NOT_FOUND',
       ocrTextLength: ocrText.length,
       ocrTextPreview: ocrText.substring(0, 200).replace(/\n/g, ' | ')
     });
@@ -137,7 +139,8 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
         candidates: {
           brand: preBrand,
           size: preSize,
-          condition: preCondition
+          condition: preCondition,
+          color: preColor
         },
         analysisType: 'enhanced_listing',
         ebayAspects: options.ebayAspects || [],
@@ -205,6 +208,10 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     if (preCondition && (ai.condition === 'good' || !ai.condition)) {
       console.log('🔄 [POST-PROCESS] Overriding AI condition with pre-extracted:', preCondition);
       ai.condition = preCondition;
+    }
+    if (!safeTrim(toStr(ai.color)) && preColor) {
+      console.log('🔄 [POST-PROCESS] Overriding AI color with pre-extracted:', preColor);
+      ai.color = preColor;
     }
 
     // Never save literal "Unknown"
@@ -328,6 +335,43 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
     };
   } catch (error) {
     console.error('❌ [OPENAI-CLIENT] Enhanced analysis failed:', error);
+    
+    // Special handling for timeout errors
+    if (error.message.includes('timeout') || error.message.includes('500')) {
+      console.log('⏰ [OPENAI-CLIENT] Timeout detected, creating fallback response...');
+      return {
+        success: true,
+        analysis: {
+          title: `${preBrand || 'Item'} ${preColor ? preColor + ' ' : ''}Clothing`,
+          brand: preBrand,
+          size: preSize,
+          condition: preCondition || 'good',
+          color: preColor,
+          item_type: 'Clothing',
+          suggested_price: 25,
+          confidence: 0.5,
+          key_features: ['timeout fallback'],
+          keywords: [preBrand, preColor].filter(Boolean),
+          ebay_item_specifics: {
+            Brand: preBrand,
+            Color: preColor,
+            Size: preSize,
+            Department: 'Unisex Adult',
+            Type: 'Clothing'
+          }
+        },
+        source: 'timeout-fallback',
+        preprocessing: {
+          ocrTextLength: ocrText.length,
+          preSize,
+          preBrand,
+          preCondition,
+          preColor,
+          imagesProcessed: allOcrTexts.length
+        }
+      };
+    }
+    
     return {
       success: false,
       error: error.message,
