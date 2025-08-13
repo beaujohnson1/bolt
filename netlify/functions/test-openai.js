@@ -1,6 +1,6 @@
 // Test endpoint to verify OpenAI GPT-4 Vision integration
 const OpenAI = require('openai');
-const { config, validateConfig } = require('./_shared/config');
+const { config, validateConfig } = require('./_shared/config.cjs');
 
 const openai = new OpenAI({
   apiKey: config.openai.apiKey,

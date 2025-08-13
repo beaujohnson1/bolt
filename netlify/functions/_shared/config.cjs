@@ -38,10 +38,10 @@ const config = {
 
   // Go High Level
   ghl: {
-    apiKey: process.env.GHL_KEY || process.env.GHL_API_KEY,
-    apiUrl: process.env.GHL_URL || process.env.GHL_API_URL || 'https://rest.gohighlevel.com/v1/',
-    pipelineId: process.env.GHL_PIPELINE || process.env.GHL_PIPELINE_ID,
-    stageId: process.env.GHL_STAGE || process.env.GHL_STAGE_ID
+    apiKey: process.env.GHL_API_KEY || process.env.GHL_KEY,
+    apiUrl: process.env.GHL_API_URL || process.env.GHL_URL || 'https://rest.gohighlevel.com/v1/',
+    pipelineId: process.env.GHL_PIPELINE_ID || process.env.GHL_PIPELINE,
+    stageId: process.env.GHL_STAGE_ID || process.env.GHL_STAGE
   }
 };
 

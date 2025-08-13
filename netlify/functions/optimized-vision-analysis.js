@@ -1,6 +1,6 @@
 const OpenAI = require('openai');
 const { z } = require('zod');
-const { config, validateConfig } = require('./_shared/config');
+const { config, validateConfig } = require('./_shared/config.cjs');
 
 // Enhanced performance tracking and caching
 const performanceCache = new Map();

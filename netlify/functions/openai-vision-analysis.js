@@ -1,6 +1,6 @@
 const OpenAI = require('openai');
 const { z } = require('zod');
-const { config, validateConfig } = require('./_shared/config');
+const { config, validateConfig } = require('./_shared/config.cjs');
 
 // Import enhanced AI optimization services
 // Note: These would be implemented as separate modules in a real deployment
