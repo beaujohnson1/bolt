@@ -80,10 +80,11 @@ exports.handler = async (event, context) => {
       }
     };
 
-    // Add location ID if available (required for some GHL operations)
-    if (config.ghl.locationId) {
-      contactData.locationId = config.ghl.locationId;
-    }
+    // Remove location ID since it wasn't in working version
+    // Adding locationId might be causing the JWT rejection
+    // if (config.ghl.locationId) {
+    //   contactData.locationId = config.ghl.locationId;
+    // }
 
     // Add to pipeline if configured
     if (config.ghl.pipelineId && config.ghl.stageId) {
@@ -146,69 +147,19 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Try multiple GHL API approaches since it suddenly stopped working
-    const attempts = [
-      {
-        name: 'Standard v2 API',
-        endpoint: `${config.ghl.apiUrl}/contacts/`,
-        headers: {
-          'Authorization': `Bearer ${config.ghl.apiKey}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Version': '2021-07-28'
-        }
+    // Back to original working configuration - no location ID, standard headers
+    console.log('🚀 [SUBSCRIBE] Using original working config (no locationId)');
+    
+    const ghlResponse = await fetch(`${config.ghl.apiUrl}/contacts/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.ghl.apiKey}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Version': '2021-07-28'
       },
-      {
-        name: 'Without Version header',
-        endpoint: `${config.ghl.apiUrl}/contacts/`,
-        headers: {
-          'Authorization': `Bearer ${config.ghl.apiKey}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      },
-      {
-        name: 'With location in URL',
-        endpoint: `${config.ghl.apiUrl}/contacts/?locationId=${config.ghl.locationId}`,
-        headers: {
-          'Authorization': `Bearer ${config.ghl.apiKey}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Version': '2021-07-28'
-        }
-      }
-    ];
-
-    let ghlResponse = null;
-    let lastError = null;
-
-    for (const attempt of attempts) {
-      try {
-        console.log(`🚀 [SUBSCRIBE] Trying ${attempt.name} at:`, attempt.endpoint);
-        
-        ghlResponse = await fetch(attempt.endpoint, {
-          method: 'POST',
-          headers: attempt.headers,
-          body: JSON.stringify(contactData),
-        });
-
-        console.log(`📡 [SUBSCRIBE] ${attempt.name} response:`, ghlResponse.status);
-        
-        // If successful or different error than 401 JWT, use this response
-        if (ghlResponse.ok || ghlResponse.status !== 401) {
-          console.log(`✅ [SUBSCRIBE] Using ${attempt.name} result`);
-          break;
-        }
-        
-        const errorText = await ghlResponse.text();
-        lastError = errorText;
-        console.log(`❌ [SUBSCRIBE] ${attempt.name} failed:`, errorText);
-        
-      } catch (error) {
-        console.error(`❌ [SUBSCRIBE] ${attempt.name} threw error:`, error);
-        lastError = error.message;
-      }
-    }
+      body: JSON.stringify(contactData),
+    });
 
     const responseData = await ghlResponse.text();
     console.log('📬 [SUBSCRIBE] GHL API Response Status:', ghlResponse.status);
