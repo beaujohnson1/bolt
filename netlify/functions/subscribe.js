@@ -159,16 +159,63 @@ exports.handler = async (event, context) => {
     const directApiKey = process.env.GHL_API_KEY;
     const directApiUrl = process.env.GHL_API_URL || 'https://services.leadconnectorhq.com';
     
-    const ghlResponse = await fetch(`${directApiUrl}/contacts/`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${directApiKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Version': '2021-07-28'
+    // Try multiple formats to find what worked this morning
+    const attempts = [
+      {
+        name: 'Minimal headers (original)',
+        headers: {
+          'Authorization': `Bearer ${directApiKey}`,
+          'Content-Type': 'application/json'
+        }
       },
-      body: JSON.stringify(contactData),
-    });
+      {
+        name: 'With Accept header',
+        headers: {
+          'Authorization': `Bearer ${directApiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      },
+      {
+        name: 'With Version header',
+        headers: {
+          'Authorization': `Bearer ${directApiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Version': '2021-07-28'
+        }
+      }
+    ];
+
+    let ghlResponse = null;
+
+    for (const attempt of attempts) {
+      console.log(`🚀 [SUBSCRIBE] Trying: ${attempt.name}`);
+      
+      try {
+        ghlResponse = await fetch(`${directApiUrl}/contacts/`, {
+          method: 'POST',
+          headers: attempt.headers,
+          body: JSON.stringify(contactData),
+        });
+
+        const status = ghlResponse.status;
+        console.log(`📡 [SUBSCRIBE] ${attempt.name} - Status: ${status}`);
+        
+        if (status === 200 || status === 201) {
+          console.log(`✅ [SUBSCRIBE] SUCCESS with ${attempt.name}`);
+          break;
+        } else if (status !== 401) {
+          console.log(`📋 [SUBSCRIBE] ${attempt.name} - Different error (not JWT): ${status}`);
+          break;
+        } else {
+          const errorText = await ghlResponse.text();
+          console.log(`❌ [SUBSCRIBE] ${attempt.name} - Still JWT error: ${errorText}`);
+        }
+      } catch (error) {
+        console.error(`❌ [SUBSCRIBE] ${attempt.name} - Request failed:`, error);
+      }
+    }
 
     const responseData = await ghlResponse.text();
     console.log('📬 [SUBSCRIBE] GHL API Response Status:', ghlResponse.status);
