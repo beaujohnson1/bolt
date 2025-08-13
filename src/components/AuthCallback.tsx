@@ -7,7 +7,7 @@ const AUTH_TIMEOUT = 120000; // 120 seconds
 
 const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
-  const { user, authUser, loading, redirectPath = null, setRedirectPath } = useAuth();
+  const { user: appUser, authUser: supabaseUser, loading, redirectPath = null, setRedirectPath } = useAuth();
   const [urlProcessed, setUrlProcessed] = React.useState(false);
   const [timeoutReached, setTimeoutReached] = React.useState(false);
   const [authStartTime] = React.useState(Date.now());
@@ -60,10 +60,10 @@ const AuthCallback: React.FC = () => {
   // Submit to GoHighLevel when user is authenticated (don't wait for full profile)
   useEffect(() => {
     const submitToGoHighLevel = async () => {
-      if (user && !localStorage.getItem(`ghl_submitted_${user.id}`)) {
+      if (supabaseUser && !localStorage.getItem(`ghl_submitted_${supabaseUser.id}`)) {
         try {
-          console.log('📧 [AUTH-CALLBACK] Submitting to GoHighLevel:', user.email);
-          console.log('📊 [AUTH-CALLBACK] User metadata available:', user.user_metadata);
+          console.log('📧 [AUTH-CALLBACK] Submitting to GoHighLevel:', supabaseUser.email);
+          console.log('📊 [AUTH-CALLBACK] User metadata available:', supabaseUser.user_metadata);
           
           const response = await fetch('/.netlify/functions/subscribe', {
             method: 'POST',
@@ -71,12 +71,12 @@ const AuthCallback: React.FC = () => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              email: user.email,
-              name: user.user_metadata?.full_name || authUser?.full_name || '',
-              firstName: user.user_metadata?.full_name?.split(' ')[0] || authUser?.full_name?.split(' ')[0] || '',
-              lastName: user.user_metadata?.full_name?.split(' ')[1] || authUser?.full_name?.split(' ')[1] || '',
-              picture: user.user_metadata?.avatar_url || authUser?.avatar_url || '',
-              googleId: user.id || '',
+              email: supabaseUser.email,
+              name: supabaseUser.user_metadata?.full_name || appUser?.full_name || '',
+              firstName: supabaseUser.user_metadata?.full_name?.split(' ')[0] || appUser?.full_name?.split(' ')[0] || '',
+              lastName: supabaseUser.user_metadata?.full_name?.split(' ')[1] || appUser?.full_name?.split(' ')[1] || '',
+              picture: supabaseUser.user_metadata?.avatar_url || appUser?.avatar_url || '',
+              googleId: supabaseUser.id || '',
               source: 'google_oauth_auth_callback',
               timestamp: new Date().toISOString(),
               page_url: window.location.href
@@ -85,7 +85,7 @@ const AuthCallback: React.FC = () => {
 
           if (response.ok) {
             console.log('✅ [AUTH-CALLBACK] Successfully submitted to GoHighLevel');
-            localStorage.setItem(`ghl_submitted_${user.id}`, 'true');
+            localStorage.setItem(`ghl_submitted_${supabaseUser.id}`, 'true');
           }
         } catch (error) {
           console.error('❌ [AUTH-CALLBACK] Failed to submit to GoHighLevel:', error);
@@ -93,10 +93,10 @@ const AuthCallback: React.FC = () => {
       }
     };
 
-    if (user) {
+    if (supabaseUser) {
       submitToGoHighLevel();
     }
-  }, [user]);
+  }, [supabaseUser]);
 
   // Monitor authentication state and navigate when ready
   useEffect(() => {
@@ -104,21 +104,21 @@ const AuthCallback: React.FC = () => {
     
     console.log('🔍 [AUTH-CALLBACK] Monitoring auth state:', {
       loading,
-      hasUser: !!user,
-      hasAuthUser: !!authUser,
+      hasSupabaseUser: !!supabaseUser,
+      hasAppUser: !!appUser,
       elapsedTime: `${elapsedTime}ms`,
       timeoutReached,
       redirectPath
     });
     
-    // Navigate when we have a user, don't wait for loading to be false
-    if (user) {
+    // Navigate when we have a supabase user, don't wait for loading to be false
+    if (supabaseUser) {
       // Wait a bit for profile, but not too long
       const profileWaitTime = 5000; // 5 seconds max for profile
       const hasWaitedEnough = elapsedTime > profileWaitTime;
       
-      if (authUser || hasWaitedEnough) {
-        console.log(`✅ AuthCallback: User authenticated ${authUser ? 'with profile' : 'without full profile'} in ${elapsedTime}ms, navigating to dashboard`);
+      if (appUser || hasWaitedEnough) {
+        console.log(`✅ AuthCallback: User authenticated ${appUser ? 'with profile' : 'without full profile'} in ${elapsedTime}ms, navigating to dashboard`);
         
         // Check if we have a stored redirect path
         if (redirectPath) {
@@ -131,14 +131,14 @@ const AuthCallback: React.FC = () => {
           navigate('/app');
         }
       }
-    } else if (!loading && !user && elapsedTime > 3000) {
+    } else if (!loading && !supabaseUser && elapsedTime > 3000) {
       console.log(`❌ AuthCallback: No user found after loading (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     } else if (elapsedTime > AUTH_TIMEOUT) {
       console.log(`⏰ AuthCallback: Authentication taking too long (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     }
-  }, [user, authUser, loading, navigate, authStartTime, redirectPath, setRedirectPath]);
+  }, [supabaseUser, appUser, loading, navigate, authStartTime, redirectPath, setRedirectPath]);
   
   // Show loading while authentication is being processed
   // Only hide if timeout reached or if no user after loading completes
@@ -161,19 +161,19 @@ const AuthCallback: React.FC = () => {
           )}
         </div>
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          {user ? 'Finalizing setup...' : 'Setting up your account...'}
+          {supabaseUser ? 'Finalizing setup...' : 'Setting up your account...'}
         </h2>
         <p className="text-gray-600">
-          {user ? `Welcome back, ${user.email}!` : 'Please wait while we set up your account.'}
+          {supabaseUser ? `Welcome back, ${supabaseUser.email}!` : 'Please wait while we set up your account.'}
         </p>
         
-        {elapsedTime > 3000 && !user && (
+        {elapsedTime > 3000 && !supabaseUser && (
           <div className="mt-4 text-sm text-orange-600">
             Taking longer than expected. You may need to sign in again.
           </div>
         )}
         
-        {elapsedTime > 10000 && user && (
+        {elapsedTime > 10000 && supabaseUser && (
           <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-yellow-800 text-sm">
               This is taking longer than usual. If it doesn't complete soon, 
