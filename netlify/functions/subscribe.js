@@ -147,13 +147,22 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Back to original working configuration - no location ID, standard headers
-    console.log('🚀 [SUBSCRIBE] Using original working config (no locationId)');
+    // Try bypassing our config system entirely - use env vars directly
+    console.log('🚀 [SUBSCRIBE] Bypassing config, using environment variables directly');
+    console.log('🔍 [SUBSCRIBE] Direct env comparison:', {
+      configKey: config.ghl.apiKey?.substring(0, 10) + '...',
+      envKey: process.env.GHL_API_KEY?.substring(0, 10) + '...',
+      keysMatch: config.ghl.apiKey === process.env.GHL_API_KEY
+    });
     
-    const ghlResponse = await fetch(`${config.ghl.apiUrl}/contacts/`, {
+    // Use environment variables directly instead of config
+    const directApiKey = process.env.GHL_API_KEY;
+    const directApiUrl = process.env.GHL_API_URL || 'https://services.leadconnectorhq.com';
+    
+    const ghlResponse = await fetch(`${directApiUrl}/contacts/`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${config.ghl.apiKey}`,
+        'Authorization': `Bearer ${directApiKey}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'Version': '2021-07-28'
