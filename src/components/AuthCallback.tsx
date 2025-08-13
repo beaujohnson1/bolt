@@ -57,10 +57,10 @@ const AuthCallback: React.FC = () => {
     }
   }, [navigate, urlProcessed]);
   
-  // Submit to GoHighLevel when user is authenticated
+  // Submit to GoHighLevel when user is authenticated (don't wait for full profile)
   useEffect(() => {
     const submitToGoHighLevel = async () => {
-      if (user && authUser && !localStorage.getItem(`ghl_submitted_${user.id}`)) {
+      if (user && !localStorage.getItem(`ghl_submitted_${user.id}`)) {
         try {
           console.log('📧 [AUTH-CALLBACK] Submitting to GoHighLevel:', user.email);
           
@@ -71,10 +71,10 @@ const AuthCallback: React.FC = () => {
             },
             body: JSON.stringify({
               email: user.email,
-              name: authUser.full_name || user.user_metadata?.full_name || '',
-              firstName: authUser.full_name?.split(' ')[0] || user.user_metadata?.full_name?.split(' ')[0] || '',
-              lastName: authUser.full_name?.split(' ')[1] || user.user_metadata?.full_name?.split(' ')[1] || '',
-              picture: authUser.avatar_url || user.user_metadata?.avatar_url || '',
+              name: user.user_metadata?.full_name || authUser?.full_name || '',
+              firstName: user.user_metadata?.full_name?.split(' ')[0] || authUser?.full_name?.split(' ')[0] || '',
+              lastName: user.user_metadata?.full_name?.split(' ')[1] || authUser?.full_name?.split(' ')[1] || '',
+              picture: user.user_metadata?.avatar_url || authUser?.avatar_url || '',
               googleId: user.id || '',
               source: 'google_oauth_auth_callback',
               timestamp: new Date().toISOString(),
@@ -92,10 +92,10 @@ const AuthCallback: React.FC = () => {
       }
     };
 
-    if (user && authUser) {
+    if (user) {
       submitToGoHighLevel();
     }
-  }, [user, authUser]);
+  }, [user]);
 
   // Monitor authentication state and navigate when ready
   useEffect(() => {
@@ -110,20 +110,27 @@ const AuthCallback: React.FC = () => {
       redirectPath
     });
     
-    if (!loading && user && authUser) {
-      console.log(`✅ AuthCallback: User authenticated and profile loaded in ${elapsedTime}ms, navigating to dashboard`);
+    // Navigate when we have a user, even if profile isn't fully loaded
+    if (!loading && user) {
+      // Wait a bit for profile, but not too long
+      const profileWaitTime = 5000; // 5 seconds max for profile
+      const hasWaitedEnough = elapsedTime > profileWaitTime;
       
-      // Check if we have a stored redirect path
-      if (redirectPath) {
-        console.log('🎯 [AUTH-CALLBACK] Redirecting to stored path:', redirectPath);
-        const pathToNavigate = redirectPath;
-        setRedirectPath(null); // Clear the redirect path
-        navigate(pathToNavigate, { replace: true });
-      } else {
-        console.log('🏠 [AUTH-CALLBACK] No redirect path, going to dashboard');
-        navigate('/app');
+      if (authUser || hasWaitedEnough) {
+        console.log(`✅ AuthCallback: User authenticated ${authUser ? 'with profile' : 'without full profile'} in ${elapsedTime}ms, navigating to dashboard`);
+        
+        // Check if we have a stored redirect path
+        if (redirectPath) {
+          console.log('🎯 [AUTH-CALLBACK] Redirecting to stored path:', redirectPath);
+          const pathToNavigate = redirectPath;
+          setRedirectPath(null); // Clear the redirect path
+          navigate(pathToNavigate, { replace: true });
+        } else {
+          console.log('🏠 [AUTH-CALLBACK] No redirect path, going to dashboard');
+          navigate('/app');
+        }
       }
-    } else if (!loading && !user && !authUser) {
+    } else if (!loading && !user) {
       console.log(`❌ AuthCallback: No user found after loading (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     } else if (elapsedTime > AUTH_TIMEOUT) {
