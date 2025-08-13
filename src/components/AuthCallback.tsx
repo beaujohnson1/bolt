@@ -13,6 +13,14 @@ const AuthCallback: React.FC = () => {
   const [authStartTime] = React.useState(Date.now());
   // Removed forceNavigate state - no longer needed
 
+  console.log('🚀 [AUTH-CALLBACK] Component mounted/rendered:', {
+    hasSupabaseUser: !!supabaseUser,
+    hasAppUser: !!appUser,
+    loading,
+    urlProcessed,
+    timeoutReached
+  });
+
   // Set up timeout to prevent infinite loading
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -112,6 +120,24 @@ const AuthCallback: React.FC = () => {
 
   // No longer needed - we navigate immediately when supabaseUser exists
 
+  // Simple immediate navigation when we have a user
+  useEffect(() => {
+    console.log('🔍 [AUTH-CALLBACK] Simple navigation effect triggered');
+    if (supabaseUser) {
+      console.log('🎯 [AUTH-CALLBACK] IMMEDIATE NAVIGATION - Supabase user found!');
+      const destination = redirectPath || '/app';
+      console.log('🚀 [AUTH-CALLBACK] Navigating to:', destination);
+      
+      // Clear redirect path if set
+      if (redirectPath) {
+        setRedirectPath(null);
+      }
+      
+      // Immediate navigation
+      window.location.href = destination;
+    }
+  }, [supabaseUser, redirectPath, setRedirectPath]);
+
   // Monitor authentication state and navigate when ready
   useEffect(() => {
     const elapsedTime = Date.now() - authStartTime;
@@ -126,29 +152,6 @@ const AuthCallback: React.FC = () => {
       currentUrl: window.location.href
     });
     
-    // Navigate as soon as we have a supabase user (don't wait for app user profile)
-    if (supabaseUser) {
-      console.log('🎯 [AUTH-CALLBACK] Supabase user exists, navigating immediately!');
-      console.log('🎯 [AUTH-CALLBACK] About to navigate - current URL:', window.location.href);
-      
-      // Use a short delay to ensure the component has fully rendered
-      setTimeout(() => {
-        // Check if we have a stored redirect path
-        if (redirectPath) {
-          console.log('🎯 [AUTH-CALLBACK] Redirecting to stored path:', redirectPath);
-          const pathToNavigate = redirectPath;
-          setRedirectPath(null); // Clear the redirect path
-          console.log('🚀 [AUTH-CALLBACK] Executing navigation to:', pathToNavigate);
-          window.location.href = pathToNavigate;
-        } else {
-          console.log('🏠 [AUTH-CALLBACK] No redirect path, going to dashboard');
-          console.log('🚀 [AUTH-CALLBACK] Executing navigation to: /app');
-          window.location.href = '/app';
-        }
-      }, 100); // 100ms delay
-      return; // Exit early to prevent other conditions
-    }
-    
     // Only check for failures after user should have been detected
     if (!loading && !supabaseUser && elapsedTime > 3000) {
       console.log(`❌ AuthCallback: No user found after loading (${elapsedTime}ms), redirecting to home`);
@@ -157,7 +160,7 @@ const AuthCallback: React.FC = () => {
       console.log(`⏰ AuthCallback: Authentication taking too long (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     }
-  }, [supabaseUser, appUser, loading, navigate, authStartTime, redirectPath, setRedirectPath]);
+  }, [supabaseUser, appUser, loading, navigate, authStartTime, redirectPath, setRedirectPath, timeoutReached]);
   
   // Show loading while authentication is being processed
   // Only hide if timeout reached or if no user after loading completes

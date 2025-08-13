@@ -136,21 +136,18 @@ exports.handler = async (event, context) => {
     }
 
     // Try the correct GHL API endpoint and headers
-    // Use location-specific endpoint format for v2 API
-    const apiEndpoint = config.ghl.locationId 
-      ? `${config.ghl.apiUrl}/locations/${config.ghl.locationId}/contacts/`
-      : `${config.ghl.apiUrl}/contacts/`;
+    // Back to original endpoint since location-specific gave 404
+    const apiEndpoint = `${config.ghl.apiUrl}/contacts/`;
     
     console.log('🚀 [SUBSCRIBE] Making API request to:', apiEndpoint);
-    console.log('🔑 [SUBSCRIBE] Using location-specific endpoint:', !!config.ghl.locationId);
     
+    // Try without the Version header as it might be causing issues
     const ghlResponse = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${config.ghl.apiKey}`,
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Version': '2021-07-28' // Use v2 API instead of deprecated v1
+        'Accept': 'application/json'
       },
       body: JSON.stringify(contactData),
     });
