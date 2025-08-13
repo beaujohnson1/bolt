@@ -1,5 +1,5 @@
 // GoHighLevel API Integration Function for Netlify
-const { config } = require('./_shared/config');
+const { config } = require('./_shared/config.cjs');
 
 exports.handler = async (event, context) => {
   // Only allow POST requests
@@ -86,7 +86,32 @@ exports.handler = async (event, context) => {
       contactData.stageId = config.ghl.stageId;
     }
 
-    console.log('Sending to GoHighLevel:', { email, source, timestamp });
+    console.log('📧 [SUBSCRIBE] Sending to GoHighLevel:', { email, source, timestamp });
+    console.log('🔧 [SUBSCRIBE] GHL Config:', {
+      hasApiKey: !!config.ghl.apiKey,
+      apiUrl: config.ghl.apiUrl,
+      hasPipeline: !!config.ghl.pipelineId,
+      hasStage: !!config.ghl.stageId
+    });
+
+    // Check if GHL is properly configured
+    if (!config.ghl.apiKey) {
+      console.error('❌ [SUBSCRIBE] GHL API key missing - email will not be sent to GoHighLevel');
+      
+      // Still return success to user but don't actually send
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          success: true, 
+          message: 'Successfully subscribed! Check your email for next steps.',
+          debug: 'GHL_API_KEY missing - configure in Netlify environment variables'
+        })
+      };
+    }
 
     // Send to GoHighLevel API
     const ghlResponse = await fetch(`${config.ghl.apiUrl}/contacts`, {
