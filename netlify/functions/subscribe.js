@@ -146,27 +146,17 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Use proper GHL API v2 with Private Integration Token
-    console.log('🚀 [SUBSCRIBE] Using GHL API v2 with Private Integration Token');
-    console.log('🔑 [SUBSCRIBE] Token type: pit- (Private Integration)');
+    // Back to sub-account API key approach (v1 format - no version header)
+    console.log('🚀 [SUBSCRIBE] Using original sub-account API format (v1 - no version header)');
     
     const directApiKey = process.env.GHL_API_KEY;
     const directApiUrl = process.env.GHL_API_URL || 'https://services.leadconnectorhq.com';
     
-    // Try location-specific endpoint for agency-level tokens
-    const apiEndpoint = process.env.GHL_LOCATION_ID 
-      ? `${directApiUrl}/locations/${process.env.GHL_LOCATION_ID}/contacts/`
-      : `${directApiUrl}/contacts/`;
-    
-    console.log('🎯 [SUBSCRIBE] Using endpoint:', apiEndpoint);
-    
-    const ghlResponse = await fetch(apiEndpoint, {
+    const ghlResponse = await fetch(`${directApiUrl}/contacts/`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${directApiKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Version': '2021-07-28'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(contactData),
     });
