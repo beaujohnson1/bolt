@@ -122,23 +122,30 @@ const AuthCallback: React.FC = () => {
       hasAppUser: !!appUser,
       elapsedTime: `${elapsedTime}ms`,
       timeoutReached,
-      redirectPath
+      redirectPath,
+      currentUrl: window.location.href
     });
     
     // Navigate as soon as we have a supabase user (don't wait for app user profile)
     if (supabaseUser) {
       console.log('🎯 [AUTH-CALLBACK] Supabase user exists, navigating immediately!');
+      console.log('🎯 [AUTH-CALLBACK] About to navigate - current URL:', window.location.href);
       
-      // Check if we have a stored redirect path
-      if (redirectPath) {
-        console.log('🎯 [AUTH-CALLBACK] Redirecting to stored path:', redirectPath);
-        const pathToNavigate = redirectPath;
-        setRedirectPath(null); // Clear the redirect path
-        window.location.href = pathToNavigate;
-      } else {
-        console.log('🏠 [AUTH-CALLBACK] No redirect path, going to dashboard');
-        window.location.href = '/app';
-      }
+      // Use a short delay to ensure the component has fully rendered
+      setTimeout(() => {
+        // Check if we have a stored redirect path
+        if (redirectPath) {
+          console.log('🎯 [AUTH-CALLBACK] Redirecting to stored path:', redirectPath);
+          const pathToNavigate = redirectPath;
+          setRedirectPath(null); // Clear the redirect path
+          console.log('🚀 [AUTH-CALLBACK] Executing navigation to:', pathToNavigate);
+          window.location.href = pathToNavigate;
+        } else {
+          console.log('🏠 [AUTH-CALLBACK] No redirect path, going to dashboard');
+          console.log('🚀 [AUTH-CALLBACK] Executing navigation to: /app');
+          window.location.href = '/app';
+        }
+      }, 100); // 100ms delay
       return; // Exit early to prevent other conditions
     }
     

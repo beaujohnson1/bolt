@@ -136,10 +136,15 @@ exports.handler = async (event, context) => {
     }
 
     // Try the correct GHL API endpoint and headers
-    // Note: GHL requires location ID for contact creation
-    console.log('🚀 [SUBSCRIBE] Making API request to:', `${config.ghl.apiUrl}/contacts/`);
+    // Use location-specific endpoint format for v2 API
+    const apiEndpoint = config.ghl.locationId 
+      ? `${config.ghl.apiUrl}/locations/${config.ghl.locationId}/contacts/`
+      : `${config.ghl.apiUrl}/contacts/`;
     
-    const ghlResponse = await fetch(`${config.ghl.apiUrl}/contacts/`, {
+    console.log('🚀 [SUBSCRIBE] Making API request to:', apiEndpoint);
+    console.log('🔑 [SUBSCRIBE] Using location-specific endpoint:', !!config.ghl.locationId);
+    
+    const ghlResponse = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${config.ghl.apiKey}`,
