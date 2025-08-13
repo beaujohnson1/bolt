@@ -66,6 +66,7 @@ const AuthCallback: React.FC = () => {
           console.log('📧 [AUTH-CALLBACK] Submitting to GoHighLevel:', supabaseUser.email);
           console.log('📊 [AUTH-CALLBACK] User metadata available:', supabaseUser.user_metadata);
           
+          console.log('🚀 [AUTH-CALLBACK] Calling subscribe function...');
           const response = await fetch('/.netlify/functions/subscribe', {
             method: 'POST',
             headers: {
@@ -85,8 +86,18 @@ const AuthCallback: React.FC = () => {
           });
 
           if (response.ok) {
-            console.log('✅ [AUTH-CALLBACK] Successfully submitted to GoHighLevel');
+            const result = await response.json();
+            console.log('✅ [AUTH-CALLBACK] Function response:', result);
+            
+            if (result.debug) {
+              console.warn('⚠️ [AUTH-CALLBACK] Debug message from function:', result.debug);
+            }
+            
             localStorage.setItem(`ghl_submitted_${supabaseUser.id}`, 'true');
+          } else {
+            console.error('❌ [AUTH-CALLBACK] Function returned error:', response.status);
+            const errorText = await response.text();
+            console.error('❌ [AUTH-CALLBACK] Error details:', errorText);
           }
         } catch (error) {
           console.error('❌ [AUTH-CALLBACK] Failed to submit to GoHighLevel:', error);
