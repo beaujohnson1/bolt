@@ -39,7 +39,7 @@ const config = {
   // Go High Level
   ghl: {
     apiKey: process.env.GHL_API_KEY || process.env.GHL_KEY,
-    apiUrl: process.env.GHL_API_URL || process.env.GHL_URL || 'https://rest.gohighlevel.com/v1/',
+    apiUrl: process.env.GHL_API_URL || process.env.GHL_URL || 'https://services.leadconnectorhq.com',
     pipelineId: process.env.GHL_PIPELINE_ID || process.env.GHL_PIPELINE,
     stageId: process.env.GHL_STAGE_ID || process.env.GHL_STAGE
   }

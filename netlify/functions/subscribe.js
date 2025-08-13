@@ -89,10 +89,12 @@ exports.handler = async (event, context) => {
     console.log('📧 [SUBSCRIBE] Sending to GoHighLevel:', { email, source, timestamp });
     console.log('🔧 [SUBSCRIBE] GHL Config:', {
       hasApiKey: !!config.ghl.apiKey,
+      apiKeyLength: config.ghl.apiKey ? config.ghl.apiKey.length : 0,
       apiUrl: config.ghl.apiUrl,
       hasPipeline: !!config.ghl.pipelineId,
       hasStage: !!config.ghl.stageId
     });
+    console.log('📦 [SUBSCRIBE] Contact Data:', JSON.stringify(contactData, null, 2));
 
     // Check if GHL is properly configured
     if (!config.ghl.apiKey) {
@@ -113,19 +115,22 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Send to GoHighLevel API
-    const ghlResponse = await fetch(`${config.ghl.apiUrl}/contacts`, {
+    // Send to GoHighLevel API (using newer API endpoint)
+    const ghlResponse = await fetch(`${config.ghl.apiUrl}/contacts/`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${config.ghl.apiKey}`,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'Version': '2021-07-28'
       },
       body: JSON.stringify(contactData),
     });
 
     const responseData = await ghlResponse.text();
-    console.log('GHL Response:', ghlResponse.status, responseData);
+    console.log('📬 [SUBSCRIBE] GHL API Response Status:', ghlResponse.status);
+    console.log('📄 [SUBSCRIBE] GHL API Response Body:', responseData);
+    console.log('📋 [SUBSCRIBE] GHL API Response Headers:', Object.fromEntries(ghlResponse.headers.entries()));
 
     if (!ghlResponse.ok) {
       console.error('GoHighLevel API error:', ghlResponse.status, responseData);
