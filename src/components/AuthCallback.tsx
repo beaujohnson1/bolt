@@ -57,6 +57,46 @@ const AuthCallback: React.FC = () => {
     }
   }, [navigate, urlProcessed]);
   
+  // Submit to GoHighLevel when user is authenticated
+  useEffect(() => {
+    const submitToGoHighLevel = async () => {
+      if (user && authUser && !localStorage.getItem(`ghl_submitted_${user.id}`)) {
+        try {
+          console.log('📧 [AUTH-CALLBACK] Submitting to GoHighLevel:', user.email);
+          
+          const response = await fetch('/.netlify/functions/subscribe', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: user.email,
+              name: authUser.full_name || user.user_metadata?.full_name || '',
+              firstName: authUser.full_name?.split(' ')[0] || user.user_metadata?.full_name?.split(' ')[0] || '',
+              lastName: authUser.full_name?.split(' ')[1] || user.user_metadata?.full_name?.split(' ')[1] || '',
+              picture: authUser.avatar_url || user.user_metadata?.avatar_url || '',
+              googleId: user.id || '',
+              source: 'google_oauth_auth_callback',
+              timestamp: new Date().toISOString(),
+              page_url: window.location.href
+            }),
+          });
+
+          if (response.ok) {
+            console.log('✅ [AUTH-CALLBACK] Successfully submitted to GoHighLevel');
+            localStorage.setItem(`ghl_submitted_${user.id}`, 'true');
+          }
+        } catch (error) {
+          console.error('❌ [AUTH-CALLBACK] Failed to submit to GoHighLevel:', error);
+        }
+      }
+    };
+
+    if (user && authUser) {
+      submitToGoHighLevel();
+    }
+  }, [user, authUser]);
+
   // Monitor authentication state and navigate when ready
   useEffect(() => {
     const elapsedTime = Date.now() - authStartTime;

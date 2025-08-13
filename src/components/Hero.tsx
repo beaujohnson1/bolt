@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Camera, Clock, DollarSign, CheckCircle } from 'lucide-react';
 import EmailCapture from './EmailCapture';
-import GoogleSignIn from './GoogleSignIn';
+import GoogleSignInSupabase from './GoogleSignInSupabase';
 import { useScrollTracking } from '../hooks/useScrollTracking';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -111,7 +111,7 @@ const Hero = () => {
                 ) : (
                   /* Non-authenticated User Content */
                   <>
-                    <GoogleSignIn 
+                    <GoogleSignInSupabase 
                       buttonText="Join Waitlist with Google"
                       size="lg"
                     />
