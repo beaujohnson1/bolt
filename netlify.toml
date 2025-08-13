@@ -13,4 +13,53 @@
 [build.environment]
   NODE_VERSION = "18"
 
+# Per-function environment variables to stay under 4KB limit
+# Only include essential variables for each function
+
+[functions."openai-vision-analysis"]
+  [functions."openai-vision-analysis".environment]
+    OPENAI_KEY = ""
+    GOOGLE_CREDS = ""
+    GOOGLE_PROJECT = ""
+
+[functions."analyze-image"]
+  [functions."analyze-image".environment]
+    OPENAI_KEY = ""
+    GOOGLE_CREDS = ""
+    GOOGLE_PROJECT = ""
+
+[functions."optimized-vision-analysis"]
+  [functions."optimized-vision-analysis".environment]
+    OPENAI_KEY = ""
+    GOOGLE_CREDS = ""
+    GOOGLE_PROJECT = ""
+
+[functions."ai-coach"]
+  [functions."ai-coach".environment]
+    OPENAI_KEY = ""
+
+[functions."test-openai"]
+  [functions."test-openai".environment]
+    OPENAI_KEY = ""
+
+[functions."ebay-proxy"]
+  [functions."ebay-proxy".environment]
+    EBAY_PROD_APP = ""
+    EBAY_PROD_DEV = ""
+    EBAY_PROD_CERT = ""
+    EBAY_SAND_APP = ""
+    EBAY_SAND_DEV = ""
+    EBAY_SAND_CERT = ""
+
+[functions."pricing-agent"]
+  [functions."pricing-agent".environment]
+    OPENAI_KEY = ""
+    EBAY_PROD_APP = ""
+    EBAY_SAND_APP = ""
+
+[functions."subscribe"]
+  [functions."subscribe".environment]
+    GHL_KEY = ""
+    GHL_URL = ""
+
 
