@@ -132,7 +132,6 @@ exports.handler = async (event, context) => {
     if (!config.ghl.apiKey) {
       console.error('❌ [SUBSCRIBE] GHL API key missing - email will not be sent to GoHighLevel');
       
-      // Still return success to user but don't actually send
       return {
         statusCode: 200,
         headers: {
@@ -147,100 +146,32 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // TEMPORARY: Skip GHL integration due to API issues - GoHighLevel likely made breaking changes
-    console.log('⚠️ [SUBSCRIBE] Temporarily skipping GHL due to API compatibility issues');
-    console.log('📧 [SUBSCRIBE] Email would be sent to GHL:', email);
+    // Use proper GHL API v2 with Private Integration Token
+    console.log('🚀 [SUBSCRIBE] Using GHL API v2 with Private Integration Token');
+    console.log('🔑 [SUBSCRIBE] Token type: pit- (Private Integration)');
     
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        success: true, 
-        message: 'Successfully subscribed! Check your email for next steps.',
-        debug: 'GHL temporarily disabled due to API compatibility issues'
-      })
-    };
-
-    // Try bypassing our config system entirely - use env vars directly
-    console.log('🚀 [SUBSCRIBE] Bypassing config, using environment variables directly');
-    console.log('🔍 [SUBSCRIBE] Direct env comparison:', {
-      configKey: config.ghl.apiKey?.substring(0, 10) + '...',
-      envKey: process.env.GHL_API_KEY?.substring(0, 10) + '...',
-      keysMatch: config.ghl.apiKey === process.env.GHL_API_KEY
-    });
-    
-    // Use environment variables directly instead of config
     const directApiKey = process.env.GHL_API_KEY;
     const directApiUrl = process.env.GHL_API_URL || 'https://services.leadconnectorhq.com';
     
-    // Try multiple formats to find what worked this morning
-    const attempts = [
-      {
-        name: 'Minimal headers (original)',
-        headers: {
-          'Authorization': `Bearer ${directApiKey}`,
-          'Content-Type': 'application/json'
-        }
+    const ghlResponse = await fetch(`${directApiUrl}/contacts/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${directApiKey}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Version': '2021-07-28'
       },
-      {
-        name: 'With Accept header',
-        headers: {
-          'Authorization': `Bearer ${directApiKey}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      },
-      {
-        name: 'With Version header',
-        headers: {
-          'Authorization': `Bearer ${directApiKey}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Version': '2021-07-28'
-        }
-      }
-    ];
+      body: JSON.stringify(contactData),
+    });
 
-    let ghlResponse = null;
-
-    for (const attempt of attempts) {
-      console.log(`🚀 [SUBSCRIBE] Trying: ${attempt.name}`);
-      
-      try {
-        ghlResponse = await fetch(`${directApiUrl}/contacts/`, {
-          method: 'POST',
-          headers: attempt.headers,
-          body: JSON.stringify(contactData),
-        });
-
-        const status = ghlResponse.status;
-        console.log(`📡 [SUBSCRIBE] ${attempt.name} - Status: ${status}`);
-        
-        if (status === 200 || status === 201) {
-          console.log(`✅ [SUBSCRIBE] SUCCESS with ${attempt.name}`);
-          break;
-        } else if (status !== 401) {
-          console.log(`📋 [SUBSCRIBE] ${attempt.name} - Different error (not JWT): ${status}`);
-          break;
-        } else {
-          const errorText = await ghlResponse.text();
-          console.log(`❌ [SUBSCRIBE] ${attempt.name} - Still JWT error: ${errorText}`);
-        }
-      } catch (error) {
-        console.error(`❌ [SUBSCRIBE] ${attempt.name} - Request failed:`, error);
-      }
-    }
-
+    // Process the API response
     const responseData = await ghlResponse.text();
     console.log('📬 [SUBSCRIBE] GHL API Response Status:', ghlResponse.status);
     console.log('📄 [SUBSCRIBE] GHL API Response Body:', responseData);
     console.log('📋 [SUBSCRIBE] GHL API Response Headers:', Object.fromEntries(ghlResponse.headers.entries()));
 
     if (!ghlResponse.ok) {
-      console.error('GoHighLevel API error:', ghlResponse.status, responseData);
+      console.error('❌ [SUBSCRIBE] GoHighLevel API error:', ghlResponse.status, responseData);
       
       // Still return success to user, but log the error
       return {
@@ -251,12 +182,14 @@ exports.handler = async (event, context) => {
         },
         body: JSON.stringify({ 
           success: true, 
-          message: 'Successfully subscribed! Check your email for next steps.' 
+          message: 'Successfully subscribed! Check your email for next steps.',
+          debug: `GHL API error: ${ghlResponse.status}`
         })
       };
     }
 
     // Success response
+    console.log('✅ [SUBSCRIBE] Successfully added contact to GoHighLevel!');
     return {
       statusCode: 200,
       headers: {
@@ -265,7 +198,8 @@ exports.handler = async (event, context) => {
       },
       body: JSON.stringify({ 
         success: true, 
-        message: 'Successfully subscribed! Check your email for next steps.' 
+        message: 'Successfully subscribed! Check your email for next steps.',
+        ghl_success: true
       })
     };
 
