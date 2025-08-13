@@ -1,11 +1,62 @@
-import React from 'react';
-import { Camera, Clock, DollarSign } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Camera, Clock, DollarSign, CheckCircle } from 'lucide-react';
 import EmailCapture from './EmailCapture';
 import GoogleSignIn from './GoogleSignIn';
 import { useScrollTracking } from '../hooks/useScrollTracking';
+import { useAuth } from '../contexts/AuthContext';
 
 const Hero = () => {
   const heroRef = useScrollTracking('hero_section');
+  const { authUser } = useAuth();
+  const [hasSubmittedToGHL, setHasSubmittedToGHL] = useState(false);
+
+  // Automatically submit authenticated user data to GoHighLevel
+  useEffect(() => {
+    const submitAuthenticatedUser = async () => {
+      if (authUser && authUser.email && !hasSubmittedToGHL) {
+        try {
+          console.log('🔄 [HERO] Submitting authenticated user to GoHighLevel:', authUser.email);
+          
+          const response = await fetch('/.netlify/functions/subscribe', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: authUser.email,
+              name: authUser.full_name || authUser.name || '',
+              firstName: authUser.full_name?.split(' ')[0] || '',
+              lastName: authUser.full_name?.split(' ')[1] || '',
+              picture: authUser.avatar_url || '',
+              googleId: authUser.id || '',
+              source: 'google_signin_authenticated',
+              timestamp: new Date().toISOString(),
+              page_url: window.location.href
+            }),
+          });
+
+          if (response.ok) {
+            console.log('✅ [HERO] Successfully submitted to GoHighLevel');
+            setHasSubmittedToGHL(true);
+            // Store in localStorage to prevent re-submission
+            localStorage.setItem(`ghl_submitted_${authUser.id}`, 'true');
+          }
+        } catch (error) {
+          console.error('❌ [HERO] Failed to submit to GoHighLevel:', error);
+        }
+      }
+    };
+
+    // Check if already submitted
+    if (authUser && authUser.id) {
+      const alreadySubmitted = localStorage.getItem(`ghl_submitted_${authUser.id}`);
+      if (alreadySubmitted) {
+        setHasSubmittedToGHL(true);
+      } else {
+        submitAuthenticatedUser();
+      }
+    }
+  }, [authUser, hasSubmittedToGHL]);
   
   return (
     <section ref={heroRef} className="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center pt-20">
@@ -26,27 +77,62 @@ const Hero = () => {
             {/* Primary CTA */}
             <div className="mb-8">
               <div className="max-w-md mx-auto lg:mx-0 space-y-4">
-                <GoogleSignIn 
-                  buttonText="Join Waitlist with Google"
-                  size="lg"
-                />
-                
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-300"></div>
+                {authUser ? (
+                  /* Authenticated User Content */
+                  <div className="text-center lg:text-left">
+                    {hasSubmittedToGHL ? (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                        <div className="flex items-center justify-center lg:justify-start space-x-3 mb-3">
+                          <CheckCircle className="w-6 h-6 text-green-600" />
+                          <h3 className="text-lg font-semibold text-green-800">Welcome to the Waitlist!</h3>
+                        </div>
+                        <p className="text-green-700 mb-4">
+                          Hi {authUser.full_name?.split(' ')[0] || authUser.email}! You're all set for early access to EasyFlip.
+                        </p>
+                        <a 
+                          href="/app" 
+                          className="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+                        >
+                          Go to Dashboard
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                        <div className="flex items-center justify-center lg:justify-start space-x-3 mb-3">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                          <span className="text-blue-800 font-medium">Joining waitlist...</span>
+                        </div>
+                        <p className="text-blue-700">
+                          Adding you to our early access list, {authUser.full_name?.split(' ')[0] || authUser.email}!
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-3 bg-gradient-to-br from-blue-50 to-indigo-100 text-gray-500">or continue with email</span>
-                  </div>
-                </div>
-                
-                <EmailCapture 
-                  buttonText="Join the Waitlist"
-                  placeholder="Enter your email address"
-                  size="lg"
-                />
+                ) : (
+                  /* Non-authenticated User Content */
+                  <>
+                    <GoogleSignIn 
+                      buttonText="Join Waitlist with Google"
+                      size="lg"
+                    />
+                    
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300"></div>
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-3 bg-gradient-to-br from-blue-50 to-indigo-100 text-gray-500">or continue with email</span>
+                      </div>
+                    </div>
+                    
+                    <EmailCapture 
+                      buttonText="Join the Waitlist"
+                      placeholder="Enter your email address"
+                      size="lg"
+                    />
+                  </>
+                )}
               </div>
-              
             </div>
             
             {/* Social Proof Strip */}
