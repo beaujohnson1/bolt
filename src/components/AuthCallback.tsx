@@ -11,6 +11,7 @@ const AuthCallback: React.FC = () => {
   const [urlProcessed, setUrlProcessed] = React.useState(false);
   const [timeoutReached, setTimeoutReached] = React.useState(false);
   const [authStartTime] = React.useState(Date.now());
+  const [forceNavigate, setForceNavigate] = React.useState(false);
 
   // Set up timeout to prevent infinite loading
   useEffect(() => {
@@ -98,6 +99,18 @@ const AuthCallback: React.FC = () => {
     }
   }, [supabaseUser]);
 
+  // Set up timer to force navigation after 5 seconds if we have a user
+  useEffect(() => {
+    if (supabaseUser && !appUser && !forceNavigate) {
+      const timer = setTimeout(() => {
+        console.log('⏱️ [AUTH-CALLBACK] 5 second timer expired, forcing navigation');
+        setForceNavigate(true);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [supabaseUser, appUser, forceNavigate]);
+
   // Monitor authentication state and navigate when ready
   useEffect(() => {
     const elapsedTime = Date.now() - authStartTime;
@@ -106,6 +119,7 @@ const AuthCallback: React.FC = () => {
       loading,
       hasSupabaseUser: !!supabaseUser,
       hasAppUser: !!appUser,
+      forceNavigate,
       elapsedTime: `${elapsedTime}ms`,
       timeoutReached,
       redirectPath
@@ -113,12 +127,9 @@ const AuthCallback: React.FC = () => {
     
     // Navigate when we have a supabase user, don't wait for loading to be false
     if (supabaseUser) {
-      // Wait a bit for profile, but not too long
-      const profileWaitTime = 5000; // 5 seconds max for profile
-      const hasWaitedEnough = elapsedTime > profileWaitTime;
-      
-      if (appUser || hasWaitedEnough) {
-        console.log(`✅ AuthCallback: User authenticated ${appUser ? 'with profile' : 'without full profile'} in ${elapsedTime}ms, navigating to dashboard`);
+      // Navigate immediately if we have profile or if force timer expired
+      if (appUser || forceNavigate) {
+        console.log(`✅ AuthCallback: User authenticated ${appUser ? 'with profile' : 'without full profile (forced after timeout)'} in ${elapsedTime}ms, navigating to dashboard`);
         
         // Check if we have a stored redirect path
         if (redirectPath) {
@@ -138,7 +149,7 @@ const AuthCallback: React.FC = () => {
       console.log(`⏰ AuthCallback: Authentication taking too long (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     }
-  }, [supabaseUser, appUser, loading, navigate, authStartTime, redirectPath, setRedirectPath]);
+  }, [supabaseUser, appUser, loading, navigate, authStartTime, redirectPath, setRedirectPath, forceNavigate]);
   
   // Show loading while authentication is being processed
   // Only hide if timeout reached or if no user after loading completes
