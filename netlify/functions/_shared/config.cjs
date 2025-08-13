@@ -40,6 +40,7 @@ const config = {
   ghl: {
     apiKey: process.env.GHL_API_KEY || process.env.GHL_KEY,
     apiUrl: process.env.GHL_API_URL || process.env.GHL_URL || 'https://services.leadconnectorhq.com',
+    locationId: process.env.GHL_LOCATION_ID || process.env.GHL_LOCATION,
     pipelineId: process.env.GHL_PIPELINE_ID || process.env.GHL_PIPELINE,
     stageId: process.env.GHL_STAGE_ID || process.env.GHL_STAGE
   }

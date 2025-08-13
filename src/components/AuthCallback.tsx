@@ -11,7 +11,7 @@ const AuthCallback: React.FC = () => {
   const [urlProcessed, setUrlProcessed] = React.useState(false);
   const [timeoutReached, setTimeoutReached] = React.useState(false);
   const [authStartTime] = React.useState(Date.now());
-  const [forceNavigate, setForceNavigate] = React.useState(false);
+  // Removed forceNavigate state - no longer needed
 
   // Set up timeout to prevent infinite loading
   useEffect(() => {
@@ -110,17 +110,7 @@ const AuthCallback: React.FC = () => {
     }
   }, [supabaseUser]);
 
-  // Set up timer to force navigation after 5 seconds if we have a user
-  useEffect(() => {
-    if (supabaseUser && !appUser && !forceNavigate) {
-      const timer = setTimeout(() => {
-        console.log('⏱️ [AUTH-CALLBACK] 5 second timer expired, forcing navigation');
-        setForceNavigate(true);
-      }, 5000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [supabaseUser, appUser, forceNavigate]);
+  // No longer needed - we navigate immediately when supabaseUser exists
 
   // Monitor authentication state and navigate when ready
   useEffect(() => {
@@ -130,38 +120,37 @@ const AuthCallback: React.FC = () => {
       loading,
       hasSupabaseUser: !!supabaseUser,
       hasAppUser: !!appUser,
-      forceNavigate,
       elapsedTime: `${elapsedTime}ms`,
       timeoutReached,
       redirectPath
     });
     
-    // Navigate when we have a supabase user, don't wait for loading to be false
+    // Navigate as soon as we have a supabase user (don't wait for app user profile)
     if (supabaseUser) {
-      // Navigate immediately if we have profile or if force timer expired
-      if (appUser || forceNavigate) {
-        console.log(`✅ AuthCallback: User authenticated ${appUser ? 'with profile' : 'without full profile (forced after timeout)'} in ${elapsedTime}ms, navigating to dashboard`);
-        
-        // Check if we have a stored redirect path
-        if (redirectPath) {
-          console.log('🎯 [AUTH-CALLBACK] Redirecting to stored path:', redirectPath);
-          const pathToNavigate = redirectPath;
-          setRedirectPath(null); // Clear the redirect path
-          navigate(pathToNavigate, { replace: true });
-        } else {
-          console.log('🏠 [AUTH-CALLBACK] No redirect path, going to dashboard');
-          // Immediately use window.location for guaranteed navigation
-          window.location.href = '/app';
-        }
+      console.log('🎯 [AUTH-CALLBACK] Supabase user exists, navigating immediately!');
+      
+      // Check if we have a stored redirect path
+      if (redirectPath) {
+        console.log('🎯 [AUTH-CALLBACK] Redirecting to stored path:', redirectPath);
+        const pathToNavigate = redirectPath;
+        setRedirectPath(null); // Clear the redirect path
+        window.location.href = pathToNavigate;
+      } else {
+        console.log('🏠 [AUTH-CALLBACK] No redirect path, going to dashboard');
+        window.location.href = '/app';
       }
-    } else if (!loading && !supabaseUser && elapsedTime > 3000) {
+      return; // Exit early to prevent other conditions
+    }
+    
+    // Only check for failures after user should have been detected
+    if (!loading && !supabaseUser && elapsedTime > 3000) {
       console.log(`❌ AuthCallback: No user found after loading (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     } else if (elapsedTime > AUTH_TIMEOUT) {
       console.log(`⏰ AuthCallback: Authentication taking too long (${elapsedTime}ms), redirecting to home`);
       navigate('/');
     }
-  }, [supabaseUser, appUser, loading, navigate, authStartTime, redirectPath, setRedirectPath, forceNavigate]);
+  }, [supabaseUser, appUser, loading, navigate, authStartTime, redirectPath, setRedirectPath]);
   
   // Show loading while authentication is being processed
   // Only hide if timeout reached or if no user after loading completes

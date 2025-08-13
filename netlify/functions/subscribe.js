@@ -80,6 +80,11 @@ exports.handler = async (event, context) => {
       }
     };
 
+    // Add location ID if available (required for some GHL operations)
+    if (config.ghl.locationId) {
+      contactData.locationId = config.ghl.locationId;
+    }
+
     // Add to pipeline if configured
     if (config.ghl.pipelineId && config.ghl.stageId) {
       contactData.pipelineId = config.ghl.pipelineId;
@@ -87,11 +92,25 @@ exports.handler = async (event, context) => {
     }
 
     console.log('📧 [SUBSCRIBE] Sending to GoHighLevel:', { email, source, timestamp });
+    
+    // Debug environment variables
+    console.log('🔍 [SUBSCRIBE] Environment Debug:', {
+      GHL_API_KEY: !!process.env.GHL_API_KEY,
+      GHL_KEY: !!process.env.GHL_KEY,
+      GHL_LOCATION_ID: !!process.env.GHL_LOCATION_ID,
+      GHL_LOCATION: !!process.env.GHL_LOCATION,
+      GHL_API_URL: !!process.env.GHL_API_URL,
+      GHL_URL: !!process.env.GHL_URL,
+      nodeEnv: process.env.NODE_ENV
+    });
+    
     console.log('🔧 [SUBSCRIBE] GHL Config:', {
       hasApiKey: !!config.ghl.apiKey,
       apiKeyLength: config.ghl.apiKey ? config.ghl.apiKey.length : 0,
       apiKeyPrefix: config.ghl.apiKey ? config.ghl.apiKey.substring(0, 10) + '...' : 'none',
       apiUrl: config.ghl.apiUrl,
+      hasLocation: !!config.ghl.locationId,
+      locationId: config.ghl.locationId || 'not set',
       hasPipeline: !!config.ghl.pipelineId,
       hasStage: !!config.ghl.stageId
     });
@@ -116,14 +135,17 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Send to GoHighLevel API (using newer API endpoint)
+    // Try the correct GHL API endpoint and headers
+    // Note: GHL requires location ID for contact creation
+    console.log('🚀 [SUBSCRIBE] Making API request to:', `${config.ghl.apiUrl}/contacts/`);
+    
     const ghlResponse = await fetch(`${config.ghl.apiUrl}/contacts/`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${config.ghl.apiKey}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Version': '2021-07-28'
+        'Version': '2021-07-28' // Use v2 API instead of deprecated v1
       },
       body: JSON.stringify(contactData),
     });
