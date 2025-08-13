@@ -268,7 +268,7 @@ exports.handler = async (event, context) => {
     }
 
     // Check OpenAI API key
-    if (!process.env.OPENAI_API_KEY) {
+    if (!(process.env.OPENAI_KEY || process.env.OPENAI_API_KEY)) {
       return {
         statusCode: 500,
         headers: { 'Access-Control-Allow-Origin': '*' },
@@ -277,7 +277,7 @@ exports.handler = async (event, context) => {
     }
 
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: (process.env.OPENAI_KEY || process.env.OPENAI_API_KEY),
     });
 
     // Optimize images for better performance

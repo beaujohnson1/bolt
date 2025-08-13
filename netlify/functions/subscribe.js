@@ -79,18 +79,18 @@ exports.handler = async (event, context) => {
     };
 
     // Add to pipeline if configured
-    if (process.env.GHL_PIPELINE_ID && process.env.GHL_STAGE_ID) {
-      contactData.pipelineId = process.env.GHL_PIPELINE_ID;
-      contactData.stageId = process.env.GHL_STAGE_ID;
+    if ((process.env.GHL_PIPELINE || process.env.GHL_PIPELINE_ID) && (process.env.GHL_STAGE || process.env.GHL_STAGE_ID)) {
+      contactData.pipelineId = (process.env.GHL_PIPELINE || process.env.GHL_PIPELINE_ID);
+      contactData.stageId = (process.env.GHL_STAGE || process.env.GHL_STAGE_ID);
     }
 
     console.log('Sending to GoHighLevel:', { email, source, timestamp });
 
     // Send to GoHighLevel API
-    const ghlResponse = await fetch(`${process.env.GHL_API_URL}/contacts`, {
+    const ghlResponse = await fetch(`${(process.env.GHL_URL || process.env.GHL_API_URL)}/contacts`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
+        'Authorization': `Bearer ${(process.env.GHL_KEY || process.env.GHL_API_KEY)}`,
         'Content-Type': 'application/json',
         'Version': '2021-07-28'
       },

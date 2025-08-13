@@ -14,7 +14,7 @@ exports.handler = async (event, context) => {
     const { imageUrl } = JSON.parse(event.body || '{}');
     
     // Fallback if OpenAI API key is not set
-    if (!process.env.OPENAI_API_KEY) {
+    if (!(process.env.OPENAI_KEY || process.env.OPENAI_API_KEY)) {
       console.log('No OpenAI key - using fallback');
       return {
         statusCode: 200,
@@ -97,7 +97,7 @@ IMPORTANT:
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${(process.env.OPENAI_KEY || process.env.OPENAI_API_KEY)}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

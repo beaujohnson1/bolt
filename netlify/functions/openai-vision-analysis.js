@@ -345,9 +345,10 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Check OpenAI API key
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('❌ [OPENAI-FUNCTION] OPENAI_API_KEY environment variable not set');
+    // Check OpenAI API key (support both short and long names)
+    const openaiKey = process.env.OPENAI_KEY || (process.env.OPENAI_KEY || process.env.OPENAI_API_KEY);
+    if (!openaiKey) {
+      console.error('❌ [OPENAI-FUNCTION] OpenAI API key not set');
       return {
         statusCode: 500,
         headers: {
@@ -367,7 +368,7 @@ exports.handler = async (event, context) => {
     });
 
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: openaiKey,
     });
 
     console.log('🤖 [OPENAI-FUNCTION] Calling OpenAI API...');

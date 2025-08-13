@@ -2,7 +2,7 @@ const OpenAI = require('openai');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: (process.env.OPENAI_KEY || process.env.OPENAI_API_KEY),
 });
 
 // System prompt for the AI Reseller Coach
