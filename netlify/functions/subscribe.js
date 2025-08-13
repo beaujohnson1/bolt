@@ -93,7 +93,7 @@ exports.handler = async (event, context) => {
 
     console.log('📧 [SUBSCRIBE] Sending to GoHighLevel:', { email, source, timestamp });
     
-    // Debug environment variables
+    // Debug environment variables in detail
     console.log('🔍 [SUBSCRIBE] Environment Debug:', {
       GHL_API_KEY: !!process.env.GHL_API_KEY,
       GHL_KEY: !!process.env.GHL_KEY,
@@ -104,6 +104,15 @@ exports.handler = async (event, context) => {
       nodeEnv: process.env.NODE_ENV
     });
     
+    // Check for potential issues with the API key
+    console.log('🔍 [SUBSCRIBE] API Key Debug:', {
+      keyExists: !!process.env.GHL_API_KEY,
+      keyLength: process.env.GHL_API_KEY ? process.env.GHL_API_KEY.length : 0,
+      keyStartsWith: process.env.GHL_API_KEY ? process.env.GHL_API_KEY.substring(0, 5) : 'none',
+      hasWhitespace: process.env.GHL_API_KEY ? /\s/.test(process.env.GHL_API_KEY) : false,
+      isString: typeof process.env.GHL_API_KEY
+    });
+    
     console.log('🔧 [SUBSCRIBE] GHL Config:', {
       hasApiKey: !!config.ghl.apiKey,
       apiKeyLength: config.ghl.apiKey ? config.ghl.apiKey.length : 0,
@@ -112,7 +121,9 @@ exports.handler = async (event, context) => {
       hasLocation: !!config.ghl.locationId,
       locationId: config.ghl.locationId || 'not set',
       hasPipeline: !!config.ghl.pipelineId,
-      hasStage: !!config.ghl.stageId
+      hasStage: !!config.ghl.stageId,
+      configSourceApiKey: config.ghl.apiKey === process.env.GHL_API_KEY ? 'direct' : 'fallback',
+      configSourceLocation: config.ghl.locationId === process.env.GHL_LOCATION_ID ? 'direct' : 'fallback'
     });
     console.log('📦 [SUBSCRIBE] Contact Data:', JSON.stringify(contactData, null, 2));
 
