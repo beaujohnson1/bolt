@@ -1,5 +1,6 @@
 const OpenAI = require('openai');
 const { z } = require('zod');
+const { config, validateConfig } = require('./_shared/config');
 
 // Import enhanced AI optimization services
 // Note: These would be implemented as separate modules in a real deployment
@@ -345,10 +346,10 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Check OpenAI API key (support both short and long names)
-    const openaiKey = process.env.OPENAI_KEY || (process.env.OPENAI_KEY || process.env.OPENAI_API_KEY);
-    if (!openaiKey) {
-      console.error('❌ [OPENAI-FUNCTION] OpenAI API key not set');
+    // Check configuration using shared config
+    const configIssues = validateConfig();
+    if (configIssues.length > 0) {
+      console.error('❌ [OPENAI-FUNCTION] Configuration issues:', configIssues);
       return {
         statusCode: 500,
         headers: {
@@ -368,7 +369,7 @@ exports.handler = async (event, context) => {
     });
 
     const openai = new OpenAI({
-      apiKey: openaiKey,
+      apiKey: config.openai.apiKey,
     });
 
     console.log('🤖 [OPENAI-FUNCTION] Calling OpenAI API...');

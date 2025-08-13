@@ -1,5 +1,6 @@
 const OpenAI = require('openai');
 const { z } = require('zod');
+const { config, validateConfig } = require('./_shared/config');
 
 // Enhanced performance tracking and caching
 const performanceCache = new Map();
@@ -267,17 +268,19 @@ exports.handler = async (event, context) => {
       }
     }
 
-    // Check OpenAI API key
-    if (!(process.env.OPENAI_KEY || process.env.OPENAI_API_KEY)) {
+    // Check configuration using shared config
+    const configIssues = validateConfig();
+    if (configIssues.length > 0) {
+      console.error('❌ [OPTIMIZED-VISION] Configuration issues:', configIssues);
       return {
         statusCode: 500,
         headers: { 'Access-Control-Allow-Origin': '*' },
-        body: JSON.stringify({ error: 'OpenAI API key not configured' })
+        body: JSON.stringify({ error: 'Configuration error: ' + configIssues.join(', ') })
       };
     }
 
     const openai = new OpenAI({
-      apiKey: (process.env.OPENAI_KEY || process.env.OPENAI_API_KEY),
+      apiKey: config.openai.apiKey,
     });
 
     // Optimize images for better performance
