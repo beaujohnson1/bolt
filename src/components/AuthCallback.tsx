@@ -150,15 +150,8 @@ const AuthCallback: React.FC = () => {
           navigate(pathToNavigate, { replace: true });
         } else {
           console.log('🏠 [AUTH-CALLBACK] No redirect path, going to dashboard');
-          // Force navigation with replace to ensure it happens
-          navigate('/app', { replace: true });
-          // Fallback to window.location if navigate doesn't work
-          setTimeout(() => {
-            if (window.location.pathname === '/auth/callback') {
-              console.log('⚠️ [AUTH-CALLBACK] Navigate failed, using window.location');
-              window.location.href = '/app';
-            }
-          }, 100);
+          // Immediately use window.location for guaranteed navigation
+          window.location.href = '/app';
         }
       }
     } else if (!loading && !supabaseUser && elapsedTime > 3000) {

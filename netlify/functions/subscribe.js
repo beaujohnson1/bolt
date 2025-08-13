@@ -90,6 +90,7 @@ exports.handler = async (event, context) => {
     console.log('🔧 [SUBSCRIBE] GHL Config:', {
       hasApiKey: !!config.ghl.apiKey,
       apiKeyLength: config.ghl.apiKey ? config.ghl.apiKey.length : 0,
+      apiKeyPrefix: config.ghl.apiKey ? config.ghl.apiKey.substring(0, 10) + '...' : 'none',
       apiUrl: config.ghl.apiUrl,
       hasPipeline: !!config.ghl.pipelineId,
       hasStage: !!config.ghl.stageId

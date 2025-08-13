@@ -4,7 +4,8 @@
       "Bash(mv:*)",
       "Bash(node:*)",
       "Bash(git push:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
