@@ -3,8 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>EasyFlip - Turn Your Clutter Into Cash in 60 Seconds</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Mobile optimizations -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="eBay AI" />
+    <meta name="application-name" content="eBay AI" />
+    <meta name="msapplication-TileColor" content="#1D4ED8" />
+    <meta name="theme-color" content="#1D4ED8" />
+    
+    <!-- Icons for various devices -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-192x192.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-192x192.png" />
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/src/styles/mobile.css" as="style" />
+    
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     
     <!-- Google Analytics -->

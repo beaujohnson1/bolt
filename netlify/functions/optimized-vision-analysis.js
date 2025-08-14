@@ -2,10 +2,12 @@ const OpenAI = require('openai');
 const { z } = require('zod');
 const { config, validateConfig } = require('./_shared/config.cjs');
 
-// Enhanced performance tracking and caching
+// PERFORMANCE OPTIMIZATION: Enhanced caching with deduplication
 const performanceCache = new Map();
+const requestDeduplicationCache = new Map();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_CACHE_SIZE = 1000;
+const DEDUP_TTL = 30 * 1000; // 30 seconds for request deduplication
 
 // Cost tracking variables
 let totalTokensUsed = 0;
@@ -51,6 +53,34 @@ function generateCacheKey(imageUrls, analysisType, ocrText) {
   const imageString = Array.isArray(imageUrls) ? imageUrls.sort().join('|') : imageUrls;
   const ocrHash = hashString(ocrText || '');
   return `vision_${analysisType}_${hashString(imageString)}_${ocrHash}`;
+}
+
+// PERFORMANCE OPTIMIZATION: Request deduplication to prevent duplicate API calls
+function generateRequestKey(imageUrls, analysisType, ocrText) {
+  return generateCacheKey(imageUrls, analysisType, ocrText);
+}
+
+function getInFlightRequest(requestKey) {
+  const inFlight = requestDeduplicationCache.get(requestKey);
+  if (inFlight && (Date.now() - inFlight.timestamp) < DEDUP_TTL) {
+    console.log('🔄 [DEDUP] Request already in flight, waiting for result');
+    return inFlight.promise;
+  }
+  return null;
+}
+
+function setInFlightRequest(requestKey, promise) {
+  requestDeduplicationCache.set(requestKey, {
+    promise,
+    timestamp: Date.now()
+  });
+  
+  // Auto-cleanup
+  promise.finally(() => {
+    setTimeout(() => {
+      requestDeduplicationCache.delete(requestKey);
+    }, DEDUP_TTL);
+  });
 }
 
 function hashString(str) {
@@ -246,8 +276,10 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Check cache first if enabled
+    // PERFORMANCE OPTIMIZATION: Check cache and deduplication first
     const cacheKey = generateCacheKey(imageArray, analysisType, ocrText);
+    const requestKey = generateRequestKey(imageArray, analysisType, ocrText);
+    
     if (useCache) {
       const cachedResult = getCachedResult(cacheKey);
       if (cachedResult) {
@@ -257,7 +289,9 @@ exports.handler = async (event, context) => {
           statusCode: 200,
           headers: {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
+            'Access-Control-Allow-Origin': '*',
+            'X-Cache-Status': 'hit',
+            'X-Processing-Time': (Date.now() - startTime).toString()
           },
           body: JSON.stringify({
             ...cachedResult,
@@ -266,6 +300,27 @@ exports.handler = async (event, context) => {
           })
         };
       }
+    }
+    
+    // Check for duplicate in-flight requests
+    const inFlightRequest = getInFlightRequest(requestKey);
+    if (inFlightRequest) {
+      console.log('🔄 [OPTIMIZED-VISION] Waiting for in-flight request');
+      const result = await inFlightRequest;
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Cache-Status': 'deduped',
+          'X-Processing-Time': (Date.now() - startTime).toString()
+        },
+        body: JSON.stringify({
+          ...result,
+          fromDeduplication: true,
+          processingTime: Date.now() - startTime
+        })
+      };
     }
 
     // Check configuration using shared config
@@ -309,12 +364,14 @@ exports.handler = async (event, context) => {
     let combinedResult = null;
     let totalTokens = 0;
     
-    for (let batchIndex = 0; batchIndex < imageBatches.length; batchIndex++) {
-      const batch = imageBatches[batchIndex];
-      console.log(`🔄 [OPTIMIZED-VISION] Processing batch ${batchIndex + 1}/${imageBatches.length} (${batch.length} images)`);
-      
-      try {
-        const response = await openai.chat.completions.create({
+    // PERFORMANCE OPTIMIZATION: Mark request as in-flight to prevent duplicates
+    const processingPromise = (async () => {
+      for (let batchIndex = 0; batchIndex < imageBatches.length; batchIndex++) {
+        const batch = imageBatches[batchIndex];
+        console.log(`🔄 [OPTIMIZED-VISION] Processing batch ${batchIndex + 1}/${imageBatches.length} (${batch.length} images)`);
+        
+        try {
+          const response = await openai.chat.completions.create({
           model: model,
           temperature: 0.1,
           response_format: { type: "json_object" },
@@ -432,16 +489,28 @@ exports.handler = async (event, context) => {
       fromCache: false
     };
 
-    // Cache the result for future use
-    if (useCache) {
-      setCachedResult(cacheKey, result);
-    }
+      // Cache the result for future use
+      if (useCache) {
+        setCachedResult(cacheKey, result);
+      }
+
+      return result;
+    })();
+    
+    // Set as in-flight to prevent duplicate requests
+    setInFlightRequest(requestKey, processingPromise);
+    
+    // Wait for processing to complete
+    const result = await processingPromise;
 
     return {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': '*',
+        'X-Cache-Status': 'miss',
+        'X-Processing-Time': (Date.now() - startTime).toString(),
+        'Content-Encoding': 'gzip' // Hint for compression
       },
       body: JSON.stringify(result)
     };

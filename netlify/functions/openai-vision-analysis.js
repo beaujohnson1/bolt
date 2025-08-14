@@ -186,7 +186,7 @@ const AiListing = z.object({
   brand: z.string().nullable().optional(),
   size: z.string().nullable().optional(),
   condition: z.enum(['new', 'like_new', 'good', 'fair', 'poor']).or(z.string()).or(z.null()).optional().default('good'),
-  category: z.string().optional().default('clothing'),
+  category: z.enum(['clothing', 'shoes', 'accessories', 'electronics', 'home_garden', 'toys_games', 'sports_outdoors', 'books_media', 'jewelry', 'collectibles', 'other']).optional().default('clothing'),
   color: z.string().nullable().optional(),
   item_type: z.string().min(2),
   gender: z.string().nullable().optional(),
@@ -203,6 +203,20 @@ const AiListing = z.object({
   keywords: z.array(z.string()).optional().default([]),
   ebay_keywords: z.array(z.string()).optional().default([]),
   model_number: z.string().nullable().optional(),
+  serial_number: z.string().nullable().optional(),
+  upc_code: z.string().nullable().optional(),
+  isbn: z.string().nullable().optional(),
+  publisher: z.string().nullable().optional(),
+  author: z.string().nullable().optional(),
+  director: z.string().nullable().optional(),
+  artist: z.string().nullable().optional(),
+  format: z.string().nullable().optional(), // DVD, Blu-ray, Hardcover, Paperback, etc.
+  edition: z.string().nullable().optional(),
+  year: z.string().nullable().optional(),
+  capacity: z.string().nullable().optional(), // For electronics/kitchen items
+  dimensions: z.string().nullable().optional(),
+  age_range: z.string().nullable().optional(), // For toys
+  skill_level: z.string().nullable().optional(), // For sports/hobbies
   description: z.string().optional().default(''),
   style_details: z.string().nullable().optional(),
   season: z.string().nullable().optional(),
@@ -708,6 +722,99 @@ exports.handler = async (event, context) => {
   }
 };
 
+function getCategoryExpertise(category) {
+  const categoryMap = {
+    'electronics': {
+      name: 'consumer electronics and technology products',
+      instructions: `ELECTRONICS LISTING OPTIMIZATION:
+- Focus on technical specifications, model numbers, and brand recognition
+- Include key features like storage capacity, screen size, connectivity options
+- Mention condition clearly (New, Refurbished, Used, For Parts)
+- Look for model numbers, serial numbers, part numbers, and UPC codes
+- Extract technical specs from labels (GB, TB, MHz, GHz, mAh, etc.)
+- Identify connectivity (WiFi, Bluetooth, USB, HDMI, etc.)
+- Note power requirements and included accessories`
+    },
+    'books_media': {
+      name: 'books, DVDs, CDs, and media products',
+      instructions: `BOOKS & MEDIA LISTING OPTIMIZATION:
+- Extract ISBN numbers, publication years, and publisher information
+- Identify edition (1st, 2nd, Revised, etc.) and format (Hardcover, Paperback, DVD, Blu-ray)
+- Note condition carefully (Like New, Very Good, Good, Acceptable)
+- Look for author names, directors, artists, and main characters
+- Extract genre, subject matter, and target audience
+- Identify language and region codes for media
+- Note special features for DVDs/CDs (bonus content, commentary, etc.)`
+    },
+    'home_garden': {
+      name: 'home, kitchen, and garden products',
+      instructions: `HOME & KITCHEN LISTING OPTIMIZATION:
+- Focus on brand, model, and capacity/size specifications
+- Extract material information (stainless steel, ceramic, plastic, etc.)
+- Note features like dishwasher safe, microwave safe, BPA free
+- Identify power requirements and included accessories
+- Extract dimensions, weight capacity, and volume measurements
+- Look for safety certifications and compliance marks
+- Note color, finish, and style variations`
+    },
+    'toys_games': {
+      name: 'toys, games, and hobby products',
+      instructions: `TOYS & GAMES LISTING OPTIMIZATION:
+- Extract age recommendations and safety warnings
+- Identify brand, character names, and series/collection
+- Note completeness (all pieces included, box condition)
+- Look for item numbers, series numbers, and copyright years
+- Extract educational value and skill development features
+- Identify material (plastic, wood, fabric, electronic)
+- Note batteries required and included accessories`
+    },
+    'sports_outdoors': {
+      name: 'sporting goods and outdoor equipment',
+      instructions: `SPORTS & OUTDOORS LISTING OPTIMIZATION:
+- Focus on size, weight capacity, and material specifications
+- Extract brand, model, and sport-specific features
+- Note condition and wear patterns typical to sports equipment
+- Identify skill level (beginner, intermediate, professional)
+- Extract safety certifications and compliance standards
+- Look for size charts and fit information
+- Note included accessories and replacement part availability`
+    },
+    'collectibles': {
+      name: 'collectibles, memorabilia, and vintage items',
+      instructions: `COLLECTIBLES LISTING OPTIMIZATION:
+- Extract year, edition, and rarity information
+- Identify manufacturer, series, and character/subject
+- Note condition grade using collectible standards
+- Look for authentication marks, certificates, or signatures
+- Extract production numbers and limited edition details
+- Identify packaging condition and completeness
+- Note any damage, restoration, or modifications`
+    },
+    'jewelry': {
+      name: 'jewelry, watches, and accessories',
+      instructions: `JEWELRY & WATCHES LISTING OPTIMIZATION:
+- Extract metal type, purity marks (14K, 18K, 925, etc.)
+- Identify gemstones, clarity, and carat information
+- Note brand, model, and movement type for watches
+- Extract size information (ring size, chain length, watch case size)
+- Look for hallmarks, maker's marks, and serial numbers
+- Note condition and any damage or wear
+- Identify style period and design elements`
+    }
+  };
+  
+  return categoryMap[category] || {
+    name: 'clothing and fashion items',
+    instructions: `CLOTHING LISTING OPTIMIZATION:
+- Focus on brand recognition, size accuracy, and style description
+- Extract gender, size, color, and material information
+- Look for care labels, brand tags, and size labels
+- Identify style elements (casual, formal, vintage, athletic)
+- Note condition and any wear patterns
+- Extract pattern/print details and fit information`
+  };
+}
+
 function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspects = [], knownFields = {}) {
   console.log('📝 [OPENAI-FUNCTION] Generating prompt for analysis type:', analysisType);
   console.log('📝 [OPENAI-FUNCTION] Prompt context:', {
@@ -740,7 +847,13 @@ function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspe
   // Use provided eBay aspects or fall back to comprehensive defaults
   const effectiveEbayAspects = (Array.isArray(ebayAspects) && ebayAspects.length > 0) ? ebayAspects : defaultEbaySpecifics;
   
-  const basePrompt = `You are an expert eBay listing optimizer specializing in clothing and fashion items. Your goal is to create titles that maximize visibility and sales on eBay AND complete comprehensive eBay item specifics.
+  // Determine category-specific expertise
+  const detectedCategory = candidates.category || 'clothing';
+  const categoryExpertise = getCategoryExpertise(detectedCategory);
+  
+  const basePrompt = `You are an expert eBay listing optimizer specializing in ${categoryExpertise.name}. Your goal is to create titles that maximize visibility and sales on eBay AND complete comprehensive eBay item specifics.
+
+${categoryExpertise.instructions}
 
 EBAY TITLE OPTIMIZATION STRATEGY:
 - Create titles with FORMAT: Brand + Item Type + Gender + Size + Color + Style Keywords + Materials

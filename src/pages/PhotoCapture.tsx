@@ -1,9 +1,10 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { Camera, Upload, ArrowLeft, X, CheckCircle, Image } from 'lucide-react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { Camera, Upload, ArrowLeft, X, CheckCircle, Image, Smartphone, Monitor } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getSupabase } from '../lib/supabase';
 import { resizeImage } from '../utils/imageUtils';
+import MobileCameraCapture from '../components/MobileCameraCapture';
 
 interface PhotoCaptureProps {
   onUploadComplete?: () => void;
@@ -13,6 +14,19 @@ interface PhotoCaptureProps {
 const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded = false }) => {
   const { authUser } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                            (window.innerWidth <= 768);
+      setIsMobile(isMobileDevice);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -21,6 +35,9 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
   const [uploadComplete, setUploadComplete] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileCamera, setShowMobileCamera] = useState(false);
+  const [cameraMode, setCameraMode] = useState<'photo' | 'barcode'>('photo');
 
   // Drag and drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -241,6 +258,47 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
     setSelectedFiles(newFiles);
   };
 
+  // Handle mobile camera photos
+  const handleMobileCameraPhotos = async (photos: string[]) => {
+    console.log('📱 [MOBILE-CAMERA] Received photos:', photos.length);
+    
+    try {
+      // Convert base64 to File objects
+      const files: File[] = [];
+      const imageUrls: string[] = [];
+      
+      for (let i = 0; i < photos.length; i++) {
+        const photo = photos[i];
+        
+        // Convert base64 to blob
+        const response = await fetch(photo);
+        const blob = await response.blob();
+        
+        // Create file
+        const file = new File([blob], `camera-${Date.now()}-${i}.jpg`, { type: 'image/jpeg' });
+        
+        // Resize image
+        const resizedFile = await resizeImage(file, 800);
+        files.push(resizedFile);
+        imageUrls.push(photo);
+      }
+      
+      setSelectedFiles(files);
+      setSelectedImages(imageUrls);
+      setShowMobileCamera(false);
+    } catch (error) {
+      console.error('❌ [MOBILE-CAMERA] Error processing photos:', error);
+    }
+  };
+
+  // Handle barcode detection
+  const handleBarcodeDetected = (barcode: any) => {
+    console.log('📱 [BARCODE] Detected:', barcode);
+    // TODO: Integrate with product lookup system
+    alert(`Barcode detected: ${barcode.code}\nFormat: ${barcode.format}`);
+    setShowMobileCamera(false);
+  };
+
   if (uploadComplete) {
     return (
       <div className={`${embedded ? '' : 'min-h-screen bg-gray-50 flex items-center justify-center'}`}>
@@ -318,16 +376,80 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
               </p>
               
               <div className="space-y-4">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span>Choose Photos</span>
-                </button>
+                {/* Mobile-first button layout */}
+                {isMobile ? (
+                  <div className="grid grid-cols-1 gap-3 w-full max-w-sm mx-auto">
+                    <button
+                      onClick={() => {
+                        setCameraMode('photo');
+                        setShowMobileCamera(true);
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-xl font-medium transition-colors flex items-center justify-center space-x-3 text-lg touch-target"
+                    >
+                      <Smartphone className="w-6 h-6" />
+                      <span>Take Photos</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setCameraMode('barcode');
+                        setShowMobileCamera(true);
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white px-6 py-4 rounded-xl font-medium transition-colors flex items-center justify-center space-x-3 text-lg touch-target"
+                    >
+                      <Camera className="w-6 h-6" />
+                      <span>Scan Barcode</span>
+                    </button>
+                    
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300" />
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-white text-gray-500">or</span>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-gray-300 hover:border-blue-400 text-gray-700 px-6 py-4 rounded-xl font-medium transition-colors flex items-center justify-center space-x-3 text-lg touch-target"
+                    >
+                      <Upload className="w-6 h-6" />
+                      <span>Choose from Gallery</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-4 justify-center">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>Choose Photos</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setCameraMode('photo');
+                        setShowMobileCamera(true);
+                      }}
+                      className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+                    >
+                      <Camera className="w-4 h-4" />
+                      <span>Use Camera</span>
+                    </button>
+                  </div>
+                )}
                 
-                <div className="text-sm text-gray-500">
-                  Supports JPG, PNG up to 10MB each. Upload all photos first, then assign SKUs.
+                <div className={`text-sm text-gray-500 ${isMobile ? 'text-center' : ''}`}>
+                  {isMobile ? (
+                    <div className="space-y-1">
+                      <p>📱 <strong>Mobile optimized!</strong> Use camera for best experience</p>
+                      <p>Supports JPG, PNG up to 10MB each</p>
+                    </div>
+                  ) : (
+                    'Supports JPG, PNG up to 10MB each. Upload all photos first, then assign SKUs.'
+                  )}
                 </div>
               </div>
             </div>
@@ -345,10 +467,16 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
       ) : (
         <div>
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">
+            <h3 className={`text-lg font-semibold text-gray-900 mb-4 text-center ${
+              isMobile ? 'text-xl' : ''
+            }`}>
               Selected Photos ({selectedImages.length})
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className={`grid gap-4 ${
+              isMobile 
+                ? 'grid-cols-2 sm:grid-cols-3' 
+                : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
+            }`}>
               {selectedImages.map((image, index) => (
                 <div 
                   key={index} 
@@ -407,13 +535,17 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
             </div>
           </div>
 
-          <div className="flex justify-center space-x-4">
+          <div className={`flex justify-center ${
+            isMobile ? 'flex-col space-y-3' : 'flex-row space-x-4'
+          }`}>
             <button
               onClick={() => {
                 setSelectedImages([]);
                 setSelectedFiles([]);
               }}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+              className={`px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors ${
+                isMobile ? 'touch-target' : ''
+              }`}
             >
               Choose Different Photos
             </button>
@@ -421,7 +553,9 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
             <button
               onClick={handleUpload}
               disabled={isUploading}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+              className={`bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center justify-center space-x-2 ${
+                isMobile ? 'touch-target text-lg py-4' : ''
+              }`}
             >
               {isUploading ? (
                 <>
@@ -457,32 +591,89 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
     return uploadArea;
   }
 
+  // Mobile camera modal
+  if (showMobileCamera) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black">
+        <div className="absolute top-4 left-4 right-4 z-10">
+          <div className="flex justify-between items-center">
+            <button
+              onClick={() => setShowMobileCamera(false)}
+              className="bg-black/50 backdrop-blur-sm text-white p-3 rounded-full touch-target"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
+              {cameraMode === 'photo' ? '📸 Photo Mode' : '📱 Barcode Scanner'}
+            </div>
+            
+            <div className="w-11 h-11"></div> {/* Spacer */}
+          </div>
+        </div>
+        
+        <MobileCameraCapture
+          mode={cameraMode}
+          onPhotoCapture={handleMobileCameraPhotos}
+          onBarcodeDetected={handleBarcodeDetected}
+          maxPhotos={20}
+        />
+      </div>
+    );
+  }
+
   // Full page layout
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen bg-gray-50 ${isMobile ? 'pb-safe' : ''}`}>
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white shadow-sm border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-16">
+          <div className={`flex items-center ${
+            isMobile ? 'h-14' : 'h-16'
+          }`}>
             <Link
               to="/app"
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+              className={`flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors ${
+                isMobile ? 'touch-target' : ''
+              }`}
             >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back to Dashboard</span>
+              <ArrowLeft className={`${
+                isMobile ? 'w-6 h-6' : 'w-5 h-5'
+              }`} />
+              <span className={isMobile ? 'text-lg font-medium' : ''}>
+                {isMobile ? 'Back' : 'Back to Dashboard'}
+              </span>
             </Link>
+            
+            {isMobile && (
+              <div className="ml-auto flex items-center space-x-2">
+                <Monitor className="w-5 h-5 text-gray-400" />
+                <span className="text-sm text-gray-500">Mobile Mode</span>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+      <main className={`max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 ${
+        isMobile ? 'py-4' : 'py-8'
+      }`}>
+        <div className={`text-center ${
+          isMobile ? 'mb-6' : 'mb-8'
+        }`}>
+          <h1 className={`font-bold text-gray-900 mb-4 ${
+            isMobile ? 'text-2xl' : 'text-3xl'
+          }`}>
             Upload Photos
           </h1>
-          <p className="text-gray-600">
-            Upload all your photos first, then assign SKUs to group them into items
+          <p className={`text-gray-600 ${
+            isMobile ? 'text-base px-2' : ''
+          }`}>
+            {isMobile 
+              ? 'Take photos or scan barcodes with your camera for instant listings'
+              : 'Upload all your photos first, then assign SKUs to group them into items'
+            }
           </p>
         </div>
         
@@ -491,15 +682,35 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
         </div>
 
         {/* Tips */}
-        <div className="mt-8 bg-blue-50 rounded-xl p-6 max-w-4xl mx-auto">
-          <h3 className="font-semibold text-gray-900 mb-3">📸 Photo Upload Tips</h3>
-          <ul className="text-sm text-gray-600 space-y-2">
-            <li>• Upload photos for all items you want to sell</li>
-            <li>• Use good lighting - natural light works best</li>
-            <li>• Take photos from multiple angles for each item</li>
-            <li>• Include brand labels and tags when visible</li>
-            <li>• <strong>Drag and drop to reorder</strong> - first photo becomes your primary listing image</li>
-            <li>• After upload, you'll assign SKUs to group photos by item</li>
+        <div className={`bg-blue-50 rounded-xl p-6 max-w-4xl mx-auto ${
+          isMobile ? 'mt-6' : 'mt-8'
+        }`}>
+          <h3 className={`font-semibold text-gray-900 mb-3 ${
+            isMobile ? 'text-lg' : ''
+          }`}>
+            {isMobile ? '📱 Mobile Tips' : '📸 Photo Upload Tips'}
+          </h3>
+          <ul className={`text-gray-600 space-y-2 ${
+            isMobile ? 'text-base' : 'text-sm'
+          }`}>
+            {isMobile ? (
+              <>
+                <li>• <strong>Camera mode:</strong> Take photos with your phone camera for best quality</li>
+                <li>• <strong>Barcode scanner:</strong> Instant product info from UPC/ISBN codes</li>
+                <li>• Use good lighting - natural light works best</li>
+                <li>• Take multiple angles for each item</li>
+                <li>• Include brand labels and tags when visible</li>
+              </>
+            ) : (
+              <>
+                <li>• Upload photos for all items you want to sell</li>
+                <li>• Use good lighting - natural light works best</li>
+                <li>• Take photos from multiple angles for each item</li>
+                <li>• Include brand labels and tags when visible</li>
+                <li>• <strong>Drag and drop to reorder</strong> - first photo becomes your primary listing image</li>
+                <li>• After upload, you'll assign SKUs to group photos by item</li>
+              </>
+            )}
           </ul>
         </div>
       </main>

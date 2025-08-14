@@ -1,5 +1,7 @@
 // Utility functions for item data processing
 import { safeTrim, safeLower, safeUpper, isStr, nullIfUnknown, safeSlice, toStr, take, safeNumber, sSub } from './strings';
+import { enhancedBrandDetector } from '../services/EnhancedBrandDetector';
+import { enhancedSizeProcessor } from '../services/EnhancedSizeProcessor';
 
 // Normalize condition values from AI to match database enum
 export const normalizeCondition = (condition: string): string => {
@@ -30,6 +32,7 @@ export const normalizeCategory = (category: string): string => {
   
   // Map AI responses to database enum values
   const categoryMap: { [key: string]: string } = {
+    // Clothing
     'clothing': 'clothing',
     'leather jacket': 'clothing',
     'jacket': 'clothing',
@@ -43,16 +46,115 @@ export const normalizeCategory = (category: string): string => {
     'hoodie': 'clothing',
     'top': 'clothing',
     'bottom': 'clothing',
+    
+    // Shoes
     'shoes': 'shoes',
     'sneakers': 'shoes',
     'boots': 'shoes',
     'sandals': 'shoes',
     'heels': 'shoes',
+    'footwear': 'shoes',
+    
+    // Accessories
     'accessories': 'accessories',
+    'bag': 'accessories',
+    'purse': 'accessories',
+    'backpack': 'accessories',
+    'belt': 'accessories',
+    'hat': 'accessories',
+    'scarf': 'accessories',
+    'sunglasses': 'accessories',
+    
+    // Electronics
+    'electronics': 'electronics',
+    'phone': 'electronics',
+    'smartphone': 'electronics',
+    'tablet': 'electronics',
+    'laptop': 'electronics',
+    'computer': 'electronics',
+    'tv': 'electronics',
+    'television': 'electronics',
+    'speaker': 'electronics',
+    'headphones': 'electronics',
+    'camera': 'electronics',
+    'gaming': 'electronics',
+    'console': 'electronics',
+    'xbox': 'electronics',
+    'playstation': 'electronics',
+    'nintendo': 'electronics',
+    
+    // Home & Garden
+    'home_garden': 'home_garden',
+    'kitchen': 'home_garden',
+    'cookware': 'home_garden',
+    'appliance': 'home_garden',
+    'furniture': 'home_garden',
+    'decor': 'home_garden',
+    'lamp': 'home_garden',
+    'vase': 'home_garden',
+    'garden': 'home_garden',
+    
+    // Toys & Games
+    'toys_games': 'toys_games',
+    'toy': 'toys_games',
+    'doll': 'toys_games',
+    'action figure': 'toys_games',
+    'lego': 'toys_games',
+    'puzzle': 'toys_games',
+    'board game': 'toys_games',
+    'card game': 'toys_games',
+    'video game': 'toys_games',
+    
+    // Sports & Outdoors
+    'sports_outdoors': 'sports_outdoors',
+    'sports': 'sports_outdoors',
+    'fitness': 'sports_outdoors',
+    'exercise': 'sports_outdoors',
+    'gym': 'sports_outdoors',
+    'camping': 'sports_outdoors',
+    'hiking': 'sports_outdoors',
+    'fishing': 'sports_outdoors',
+    'golf': 'sports_outdoors',
+    'tennis': 'sports_outdoors',
+    'basketball': 'sports_outdoors',
+    'football': 'sports_outdoors',
+    'soccer': 'sports_outdoors',
+    'baseball': 'sports_outdoors',
+    
+    // Books & Media
+    'books_media': 'books_media',
+    'book': 'books_media',
+    'novel': 'books_media',
+    'textbook': 'books_media',
+    'manual': 'books_media',
+    'dvd': 'books_media',
+    'blu-ray': 'books_media',
+    'cd': 'books_media',
+    'vinyl': 'books_media',
+    'record': 'books_media',
+    'music': 'books_media',
+    'movie': 'books_media',
+    'film': 'books_media',
+    
+    // Jewelry
     'jewelry': 'jewelry',
     'watch': 'jewelry',
     'necklace': 'jewelry',
-    'bracelet': 'jewelry'
+    'bracelet': 'jewelry',
+    'ring': 'jewelry',
+    'earrings': 'jewelry',
+    
+    // Collectibles
+    'collectibles': 'collectibles',
+    'vintage': 'collectibles',
+    'antique': 'collectibles',
+    'rare': 'collectibles',
+    'limited edition': 'collectibles',
+    'collectible': 'collectibles',
+    'memorabilia': 'collectibles',
+    'trading card': 'collectibles',
+    'comic': 'collectibles',
+    'figurine': 'collectibles'
   };
   
   return categoryMap[normalized] || 'other';
@@ -166,118 +268,119 @@ const KNOWN_BRANDS = [
 ];
 
 /**
- * Extract size from OCR text using comprehensive patterns for clothing tags
+ * Extract size from OCR text using enhanced size processing with comprehensive patterns
+ * @param ocrText - Raw OCR text from clothing tags/labels
+ * @param genderHint - Optional gender hint for better size matching
+ * @param categoryHint - Optional category hint for better size matching
+ * @returns Extracted size or null if not found
+ */
+export const extractSize = async (ocrText: string, genderHint?: string, categoryHint?: string): Promise<string | null> => {
+  const text = safeTrim(toStr(ocrText));
+  if (!text) return null;
+  
+  try {
+    console.log('🔍 [SIZE-EXTRACT] Using enhanced size processor on OCR text:', text.substring(0, 100));
+    
+    // First try enhanced size processor with context hints
+    const genderMapping: Record<string, any> = {
+      'men': 'men',
+      'male': 'men', 
+      'man': 'men',
+      'women': 'women',
+      'female': 'women',
+      'woman': 'women',
+      'unisex': 'unisex',
+      'kids': 'kids',
+      'children': 'kids'
+    };
+    
+    const categoryMapping: Record<string, any> = {
+      'clothing': 'clothing',
+      'shoes': 'shoes',
+      'accessories': 'accessories'
+    };
+    
+    const mappedGender = genderHint ? genderMapping[genderHint.toLowerCase()] : undefined;
+    const mappedCategory = categoryHint ? categoryMapping[categoryHint.toLowerCase()] : 'clothing';
+    
+    // Try enhanced processing on individual tokens and phrases
+    const sizeMatches = await enhancedSizeProcessor.processSize(text, mappedGender, mappedCategory);
+    
+    if (sizeMatches && sizeMatches.length > 0) {
+      const topMatch = sizeMatches[0];
+      console.log('✅ [SIZE-EXTRACT] Enhanced processor found size:', {
+        size: topMatch.standardSize,
+        confidence: topMatch.confidence,
+        type: topMatch.sizeType,
+        ebayCompliant: topMatch.ebayCompliant
+      });
+      return topMatch.standardSize;
+    }
+    
+    // Fallback to legacy size extraction for edge cases
+    console.log('🔄 [SIZE-EXTRACT] Enhanced processor found no matches, trying legacy patterns...');
+    const legacySize = await extractSizeLegacy(text);
+    if (legacySize) {
+      console.log('✅ [SIZE-EXTRACT] Legacy extraction found size:', legacySize);
+      return legacySize;
+    }
+    
+    console.log('ℹ️ [SIZE-EXTRACT] No size pattern found in OCR text');
+    return null;
+  } catch (error) {
+    console.error('❌ [SIZE-EXTRACT] Enhanced size extraction error:', error);
+    
+    // Final fallback to legacy extraction
+    console.log('🔄 [SIZE-EXTRACT] Falling back to legacy size extraction');
+    return await extractSizeLegacy(text);
+  }
+};
+
+/**
+ * Legacy size extraction function (fallback)
  * @param ocrText - Raw OCR text from clothing tags/labels
  * @returns Extracted size or null if not found
  */
-export const extractSize = (ocrText: string): string | null => {
+const extractSizeLegacy = async (ocrText: string): Promise<string | null> => {
   const text = safeTrim(toStr(ocrText));
   if (!text) return null;
   
   try {
     const s = safeUpper(text).replace(/\s+/g, " ");
-    console.log('🔍 [SIZE-EXTRACT] Analyzing OCR text:', s.substring(0, 100));
+    console.log('🔍 [SIZE-EXTRACT-LEGACY] Analyzing OCR text:', s.substring(0, 100));
     
     // Common tag formats with size indicators
     const sizeIndicators = s.match(/(?:SIZE|SZ|TAILLE|TALLA|TAMAÑO)[:\s-]*([A-Z0-9\/]{1,6})\b/i);
     if (sizeIndicators) {
-      console.log('✅ [SIZE-EXTRACT] Found size with indicator:', sizeIndicators[1]);
+      console.log('✅ [SIZE-EXTRACT-LEGACY] Found size with indicator:', sizeIndicators[1]);
       return normalizeSize(sizeIndicators[1]);
     }
     
     // Alpha sizes with more variations (including full words)
     const alpha = s.match(/\b(XXXS|XXXSMALL|XXS|XXSMALL|XS|XSMALL|EXTRASMALL|SM|SMALL|S\b|MED|MEDIUM|M\b|LG|LARGE|L\b|XL|XLARGE|EXTRALARGE|XXL|XXLARGE|2XL|3XL|4XL|5XL)\b/);
     if (alpha) {
-      console.log('✅ [SIZE-EXTRACT] Found alpha size:', alpha[1]);
+      console.log('✅ [SIZE-EXTRACT-LEGACY] Found alpha size:', alpha[1]);
       return normalizeSize(alpha[1]);
     }
     
-    // More aggressive partial matching for common sizes (especially for OCR errors)
-    if (s.includes('MEDIUM') || s.includes('MED ')) {
-      console.log('✅ [SIZE-EXTRACT] Found partial match for MEDIUM');
-      return 'M';
-    }
-    if (s.includes('SMALL') && !s.includes('XSMALL')) {
-      console.log('✅ [SIZE-EXTRACT] Found partial match for SMALL');
-      return 'S';
-    }
-    if (s.includes('LARGE') && !s.includes('XLARGE')) {
-      console.log('✅ [SIZE-EXTRACT] Found partial match for LARGE');
-      return 'L';
-    }
-    
-    // European/International sizes
-    const european = s.match(/\b(XXS|XS|S|M|L|XL|XXL)\s*[-\/]\s*(\d{2,3})\b/);
-    if (european) {
-      const size = `${european[1]}-${european[2]}`;
-      console.log('✅ [SIZE-EXTRACT] Found European size:', size);
-      return size;
-    }
-    
-    // Waist x Length (jeans/pants) - more flexible
-    const wxl = s.match(/\b(?:W)?\s*(\d{1,2})\s*[-xX\/×]\s*(?:L)?\s*(\d{1,2})\b/);
-    if (wxl && parseInt(wxl[1]) >= 24 && parseInt(wxl[1]) <= 50 && parseInt(wxl[2]) >= 26 && parseInt(wxl[2]) <= 38) {
-      const size = `${wxl[1]}x${wxl[2]}`;
-      console.log('✅ [SIZE-EXTRACT] Found waist x length size:', size);
-      return size;
-    }
-    
-    // Style/model numbers that indicate sizes (like 92-113 for M)
-    const styleSize = s.match(/\b(\d{2,3}-\d{2,3})\b/);
-    if (styleSize) {
-      // Try to map common style codes to sizes
-      const sizeMapping = {
-        '92-113': 'M',  // Common medium size code
-        '88-96': 'S',   // Common small size code
-        '96-104': 'L',  // Common large size code
-      };
-      const mappedSize = sizeMapping[styleSize[1]];
-      if (mappedSize) {
-        console.log('✅ [SIZE-EXTRACT] Found style code size:', styleSize[1], '→', mappedSize);
-        return mappedSize;
-      }
-    }
-
     // Numeric dress/women's sizes - extended range
     const dress = s.match(/\b(00|0|2|4|6|8|10|12|14|16|18|20|22|24|26|28|30)\b/);
     if (dress && !s.match(/\b\d{2,4}[\s]*[MLG]\b/)) { // Avoid matching measurements
-      console.log('✅ [SIZE-EXTRACT] Found numeric size:', dress[1]);
+      console.log('✅ [SIZE-EXTRACT-LEGACY] Found numeric size:', dress[1]);
       return dress[1];
     }
     
-    // Kids sizes
-    const kids = s.match(/\b(\d{1,2}[YT]|\d{1,2}\s*[YT]|TODDLER|INFANT|NEWBORN|NB)\b/);
-    if (kids) {
-      console.log('✅ [SIZE-EXTRACT] Found kids size:', kids[1]);
-      return kids[1];
-    }
-    
-    // Shoe sizes (US)
-    const shoes = s.match(/\b(\d{1,2}(?:\.5)?)\s*(?:US|USA|D|B|M|W)?\b/);
-    if (shoes && parseFloat(shoes[1]) >= 4 && parseFloat(shoes[1]) <= 18) {
-      console.log('✅ [SIZE-EXTRACT] Found shoe size:', shoes[1]);
-      return shoes[1];
-    }
-    
-    // Size ranges (e.g., S/M, L/XL)
-    const range = s.match(/\b([SMLX]{1,3})\s*[\/]\s*([SMLX]{1,3})\b/);
-    if (range) {
-      const size = `${range[1]}/${range[2]}`;
-      console.log('✅ [SIZE-EXTRACT] Found size range:', size);
-      return size;
-    }
-    
-    // Final fallback: single letter matching for common sizes (very aggressive)
+    // Single letter matching for common sizes
     const singleLetter = s.match(/\b([SMLX]{1})\b/);
     if (singleLetter && !s.includes('WALL') && !s.includes('STREET') && !s.includes('BULL')) {
-      console.log('✅ [SIZE-EXTRACT] Found single letter size:', singleLetter[1]);
+      console.log('✅ [SIZE-EXTRACT-LEGACY] Found single letter size:', singleLetter[1]);
       return singleLetter[1];
     }
     
-    console.log('ℹ️ [SIZE-EXTRACT] No size pattern found in OCR text');
+    console.log('ℹ️ [SIZE-EXTRACT-LEGACY] No size pattern found in OCR text');
     return null;
   } catch (error) {
-    console.error('❌ [SIZE-EXTRACT] Error extracting size:', error);
+    console.error('❌ [SIZE-EXTRACT-LEGACY] Error extracting size:', error);
     return null;
   }
 };
@@ -325,52 +428,79 @@ const normalizeSize = (size: string): string => {
 };
 
 /**
- * Extract brand from OCR text using known brand list with fuzzy matching
+ * Extract brand from OCR text using enhanced brand detection with fuzzy matching
  * @param ocrText - Raw OCR text from clothing tags/labels
- * @param brands - Array of known brand names to search for
+ * @param priceHint - Optional price hint for better brand matching
+ * @param categoryHint - Optional category hint for better brand matching
  * @returns Extracted brand or null if not found
  */
-export const extractBrand = (ocrText: string, brands: string[] = KNOWN_BRANDS): string | null => {
+export const extractBrand = async (ocrText: string, priceHint?: number, categoryHint?: string): Promise<string | null> => {
+  const text = safeTrim(toStr(ocrText));
+  if (!text) return null;
+  
+  try {
+    console.log('🔍 [BRAND-EXTRACT] Using enhanced brand detector on OCR text:', text.substring(0, 100));
+    
+    // Use the enhanced brand detector with advanced algorithms
+    const brandMatches = await enhancedBrandDetector.detectBrands(text, priceHint, categoryHint);
+    
+    if (brandMatches && brandMatches.length > 0) {
+      const topMatch = brandMatches[0];
+      console.log('✅ [BRAND-EXTRACT] Enhanced detection found brand:', {
+        brand: topMatch.brand,
+        confidence: topMatch.confidence,
+        matchType: topMatch.matchType,
+        originalText: topMatch.originalText
+      });
+      return topMatch.brand;
+    }
+    
+    console.log('ℹ️ [BRAND-EXTRACT] Enhanced brand detector found no matches');
+    return null;
+  } catch (error) {
+    console.error('❌ [BRAND-EXTRACT] Enhanced brand detection error:', error);
+    
+    // Fallback to legacy brand detection
+    console.log('🔄 [BRAND-EXTRACT] Falling back to legacy brand detection');
+    return extractBrandLegacy(ocrText);
+  }
+};
+
+/**
+ * Legacy brand extraction function (fallback)
+ * @param ocrText - Raw OCR text from clothing tags/labels
+ * @returns Extracted brand or null if not found
+ */
+const extractBrandLegacy = (ocrText: string): string | null => {
   const text = safeTrim(toStr(ocrText));
   if (!text) return null;
   
   try {
     const s = safeUpper(text).replace(/[^A-Z0-9\s]/g, ' ').replace(/\s+/g, ' ');
-    console.log('🔍 [BRAND-EXTRACT] Analyzing OCR text:', s.substring(0, 100));
+    console.log('🔍 [BRAND-EXTRACT-LEGACY] Analyzing OCR text:', s.substring(0, 100));
     
     // First try exact matches (case-insensitive)
-    const exactMatch = brands.find(brand => s.includes(safeUpper(brand)));
+    const exactMatch = KNOWN_BRANDS.find(brand => s.includes(safeUpper(brand)));
     if (exactMatch) {
-      console.log('✅ [BRAND-EXTRACT] Found exact brand match:', exactMatch);
+      console.log('✅ [BRAND-EXTRACT-LEGACY] Found exact brand match:', exactMatch);
       return exactMatch;
     }
     
     // Try partial matches for compound brand names
-    const partialMatch = brands.find(brand => {
+    const partialMatch = KNOWN_BRANDS.find(brand => {
       const brandWords = safeUpper(brand).split(/\s+/);
       return brandWords.length > 1 && brandWords.every(word => s.includes(word));
     });
     
     if (partialMatch) {
-      console.log('✅ [BRAND-EXTRACT] Found partial brand match:', partialMatch);
+      console.log('✅ [BRAND-EXTRACT-LEGACY] Found partial brand match:', partialMatch);
       return partialMatch;
     }
     
-    // Try fuzzy matching for common OCR errors
-    const fuzzyMatch = brands.find(brand => {
-      const brandUpper = safeUpper(brand);
-      return fuzzyStringMatch(s, brandUpper, 0.8); // 80% similarity threshold
-    });
-    
-    if (fuzzyMatch) {
-      console.log('✅ [BRAND-EXTRACT] Found fuzzy brand match:', fuzzyMatch);
-      return fuzzyMatch;
-    }
-    
-    console.log('ℹ️ [BRAND-EXTRACT] No known brand found in OCR text');
+    console.log('ℹ️ [BRAND-EXTRACT-LEGACY] No known brand found in OCR text');
     return null;
   } catch (error) {
-    console.error('❌ [BRAND-EXTRACT] Error extracting brand:', error);
+    console.error('❌ [BRAND-EXTRACT-LEGACY] Error extracting brand:', error);
     return null;
   }
 };

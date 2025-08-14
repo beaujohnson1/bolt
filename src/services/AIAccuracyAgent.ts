@@ -136,8 +136,8 @@ export class AIAccuracyAgent {
   private async trackOCRExtraction(data: PredictionData): Promise<string | null> {
     try {
       // Extract brand and size using our deterministic methods
-      const extractedBrand = extractBrand(data.ocrText);
-      const extractedSize = extractSize(data.ocrText);
+      const extractedBrand = await extractBrand(data.ocrText);
+      const extractedSize = await extractSize(data.ocrText);
 
       const { data: extraction, error } = await this.supabase!
         .from('ocr_extractions')

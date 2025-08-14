@@ -83,7 +83,7 @@ export class OCRKeywordOptimizer {
 
     try {
       // Step 1: Extract keywords from OCR using multiple methods
-      const ocrKeywords = this.extractFromOCR(ocrText);
+      const ocrKeywords = await this.extractFromOCR(ocrText);
       
       // Step 2: Combine and deduplicate
       const combinedKeywords = this.combineKeywords(ocrKeywords, aiKeywords, itemType, brand, color);
@@ -132,7 +132,7 @@ export class OCRKeywordOptimizer {
   /**
    * Extract keywords from OCR text using pattern matching and NLP techniques
    */
-  private extractFromOCR(ocrText: string): string[] {
+  private async extractFromOCR(ocrText: string): Promise<string[]> {
     const text = safeTrim(toStr(ocrText));
     if (!text) return [];
 
@@ -153,13 +153,13 @@ export class OCRKeywordOptimizer {
     });
 
     // Method 2: Brand extraction with context
-    const brandMatch = extractBrand(text);
+    const brandMatch = await extractBrand(text);
     if (brandMatch) {
       keywords.add(brandMatch.toLowerCase());
     }
 
     // Method 3: Size extraction with variants
-    const sizeMatch = extractSize(text);
+    const sizeMatch = await extractSize(text);
     if (sizeMatch) {
       keywords.add(sizeMatch.toLowerCase());
       // Add size variants

@@ -1,0 +1,300 @@
+/* Mobile-first responsive design improvements */
+
+/* Touch targets - minimum 44px for accessibility */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+/* Safe area insets for modern phones with notches */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+.pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+
+.pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Improved mobile scrolling */
+.mobile-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Mobile-optimized focus states */
+@media (hover: none) and (pointer: coarse) {
+  .touch-target:focus {
+    outline: 2px solid #3B82F6;
+    outline-offset: 2px;
+  }
+  
+  .touch-target:active {
+    transform: scale(0.98);
+    transition: transform 0.1s;
+  }
+}
+
+/* Better mobile text selection */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Mobile camera optimizations */
+.mobile-camera-viewport {
+  width: 100vw;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+}
+
+/* Responsive image grids */
+@media (max-width: 640px) {
+  .responsive-grid-mobile {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .responsive-grid-tablet {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 1025px) {
+  .responsive-grid-desktop {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+  }
+}
+
+/* Mobile-friendly buttons */
+.mobile-button {
+  font-size: 1.125rem;
+  padding: 1rem 1.5rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.mobile-button:active {
+  transform: scale(0.98);
+}
+
+/* Improved mobile forms */
+.mobile-input {
+  font-size: 16px; /* Prevents zoom on iOS */
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+}
+
+/* Mobile-specific animations */
+@media (prefers-reduced-motion: no-preference) {
+  .mobile-fade-in {
+    animation: mobile-fade-in 0.3s ease-out;
+  }
+  
+  @keyframes mobile-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Improved mobile loading states */
+.mobile-loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.mobile-loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  animation: mobile-shimmer 1.5s infinite;
+}
+
+@keyframes mobile-shimmer {
+  to {
+    left: 100%;
+  }
+}
+
+/* Mobile-friendly drag and drop */
+@media (max-width: 768px) {
+  .mobile-drag-item {
+    touch-action: none;
+    cursor: grab;
+  }
+  
+  .mobile-drag-item:active {
+    cursor: grabbing;
+    transform: scale(1.05) rotate(2deg);
+    z-index: 10;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* Better mobile modals */
+.mobile-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+}
+
+@media (min-width: 768px) {
+  .mobile-modal {
+    align-items: center;
+    padding: 1rem;
+  }
+}
+
+.mobile-modal-content {
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 1rem 1rem 0 0;
+  background: white;
+  box-shadow: 0 -10px 25px rgba(0, 0, 0, 0.1);
+}
+
+@media (min-width: 768px) {
+  .mobile-modal-content {
+    max-width: 28rem;
+    border-radius: 1rem;
+    box-shadow: 0 20px 25px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Mobile navigation improvements */
+.mobile-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid #E5E7EB;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 40;
+}
+
+/* Camera overlay optimizations */
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.camera-overlay > * {
+  pointer-events: auto;
+}
+
+/* Mobile-friendly tooltips */
+@media (max-width: 768px) {
+  .mobile-tooltip {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    z-index: 100;
+    animation: mobile-tooltip 3s ease-in-out;
+  }
+  
+  @keyframes mobile-tooltip {
+    0%, 100% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    10%, 90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+}
+
+/* PWA optimizations */
+@media (display-mode: standalone) {
+  .pwa-header {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .pwa-content {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  }
+}
+
+/* Dark mode support for mobile */
+@media (prefers-color-scheme: dark) {
+  .mobile-dark {
+    background-color: #111827;
+    color: #F9FAFB;
+  }
+  
+  .mobile-dark .touch-target {
+    background-color: #374151;
+    color: #F9FAFB;
+  }
+  
+  .mobile-dark .camera-overlay {
+    background: rgba(0, 0, 0, 0.7);
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .touch-target {
+    border: 2px solid currentColor;
+  }
+  
+  .camera-overlay {
+    border: 2px solid white;
+  }
+}
+
+/* Landscape orientation optimizations */
+@media (orientation: landscape) and (max-height: 500px) {
+  .landscape-compact {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  
+  .landscape-camera {
+    height: 100vh;
+    max-height: 100vh;
+  }
+}

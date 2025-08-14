@@ -1,0 +1,107 @@
+{
+  "name": "eBay AI Listing Assistant",
+  "short_name": "eBay AI",
+  "description": "AI-powered eBay listing creation with camera, barcode scanning, and intelligent categorization",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#1D4ED8",
+  "background_color": "#F8FAFC",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "features": [
+    "camera",
+    "barcode-scanning",
+    "ai-analysis",
+    "offline-support"
+  ],
+  "categories": [
+    "business",
+    "productivity",
+    "shopping"
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/mobile-camera.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "platform": "mobile",
+      "label": "Mobile camera interface for item photography"
+    },
+    {
+      "src": "/screenshots/barcode-scanner.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "platform": "mobile",
+      "label": "Barcode scanner for instant product identification"
+    },
+    {
+      "src": "/screenshots/dashboard.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "platform": "wide",
+      "label": "AI-powered eBay listing dashboard"
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+ebay",
+      "url": "/app?action=import&url=%s"
+    }
+  ],
+  "permissions": [
+    "camera",
+    "storage",
+    "geolocation"
+  ],
+  "prefer_related_applications": false
+}
