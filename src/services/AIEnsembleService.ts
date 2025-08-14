@@ -79,30 +79,6 @@ class AIEnsembleService {
       maxImages: 5,
       supportsMultiImage: true
     },
-    'google-vision': {
-      name: 'Google Vision',
-      endpoint: 'google-vision-api',
-      strengths: ['excellent OCR', 'object detection', 'label detection'],
-      weaknesses: ['limited reasoning', 'no context understanding'],
-      costPerCall: 0.001,
-      averageResponseTime: 800,
-      accuracyRating: 0.85,
-      maxImageSize: 20 * 1024 * 1024,
-      maxImages: 100,
-      supportsMultiImage: true
-    },
-    'anthropic-vision': {
-      name: 'Claude Vision',
-      endpoint: '/.netlify/functions/anthropic-vision-analysis',
-      strengths: ['detailed reasoning', 'context awareness', 'safety'],
-      weaknesses: ['higher cost', 'limited availability'],
-      costPerCall: 0.015,
-      averageResponseTime: 2500,
-      accuracyRating: 0.92,
-      maxImageSize: 15 * 1024 * 1024,
-      maxImages: 8,
-      supportsMultiImage: true
-    }
   };
 
   private readonly costBudgetLimits = {
@@ -210,7 +186,7 @@ class AIEnsembleService {
       if (eligibleModels.length === 0) {
         // Fallback to cheapest model if no eligible models
         const cheapestModel = availableModels.sort((a, b) => a[1].costPerCall - b[1].costPerCall)[0];
-        return this.createModelSelection(cheapestModel[0], ['Budget constraint fallback'], ['gpt-4o-mini'], 'single', 0.7, cheapestModel[1].costPerCall);
+        return this.createModelSelection(cheapestModel[0], ['Budget constraint fallback'], [cheapestModel[0]], 'single', 0.7, cheapestModel[1].costPerCall);
       }
 
       // Score models based on priority and complexity
@@ -551,12 +527,8 @@ class AIEnsembleService {
     try {
       const model = this.models[modelName];
       
-      if (model.endpoint === 'google-vision-api') {
-        // Handle Google Vision API differently
-        return await this.executeGoogleVisionAnalysis(imageUrls, options);
-      } else {
-        // Handle OpenAI/Anthropic APIs
-        const response = await fetch(model.endpoint, {
+      // Handle OpenAI/Anthropic APIs
+      const response = await fetch(model.endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -578,7 +550,6 @@ class AIEnsembleService {
           responseTime,
           success: true
         };
-      }
     } catch (error) {
       console.error(`❌ [AI-ENSEMBLE] Model ${modelName} execution failed:`, error);
       return {
@@ -589,22 +560,6 @@ class AIEnsembleService {
     }
   }
 
-  private async executeGoogleVisionAnalysis(imageUrls: string[], options: any): Promise<any> {
-    // Mock Google Vision analysis - would integrate with actual Google Vision API
-    const mockAnalysis = {
-      title: 'Google Vision Analysis',
-      brand: 'Detected Brand',
-      item_type: 'Clothing',
-      confidence: 0.85,
-      source: 'google-vision'
-    };
-
-    return {
-      analysis: mockAnalysis,
-      responseTime: 800,
-      success: true
-    };
-  }
 
   private buildConsensus(results: Array<{ model: string; result: any; time: number; success: boolean }>): {
     result: any;
@@ -696,19 +651,20 @@ class AIEnsembleService {
     console.log('🚨 [AI-ENSEMBLE] Executing fallback prediction...');
     
     try {
-      const fallbackResult = await this.executeModelPrediction('gpt-4o-mini', imageUrls, options);
+      const fallbackModelName = this.getFastestModel();
+      const fallbackResult = await this.executeModelPrediction(fallbackModelName, imageUrls, options);
       
       return {
         primaryResult: fallbackResult.analysis,
         consensusResult: fallbackResult.analysis,
         modelAgreement: 1.0,
         confidenceScore: 0.8,
-        usedModels: ['gpt-4o-mini'],
+        usedModels: [fallbackModelName],
         disagreements: [],
         performanceMetrics: {
           totalTime: fallbackResult.responseTime,
           avgResponseTime: fallbackResult.responseTime,
-          costEstimate: this.models['gpt-4o-mini'].costPerCall
+          costEstimate: this.models[fallbackModelName].costPerCall
         }
       };
     } catch (error) {

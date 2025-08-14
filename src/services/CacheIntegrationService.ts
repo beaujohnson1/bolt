@@ -398,6 +398,13 @@ class CacheIntegrationService {
   }
 
   /**
+   * Clear all cached AI analysis data - useful when cache gets corrupted
+   */
+  clearAllCache(): void {
+    smartCache.clearAll();
+  }
+
+  /**
    * Private helper methods
    */
 

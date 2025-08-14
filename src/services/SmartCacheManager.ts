@@ -128,6 +128,9 @@ export class SmartCacheManager {
       }
 
       // Try semantic similarity match
+      // TEMPORARILY DISABLED to prevent incorrect cache matches for different items
+      // TODO: Improve similarity algorithm to better differentiate between different clothing items
+      /*
       if (semanticContext) {
         const similarKey = await this.findSimilarKey(semanticContext);
         if (similarKey) {
@@ -143,6 +146,7 @@ export class SmartCacheManager {
           }
         }
       }
+      */
 
       // Cache miss
       this.stats.misses++;
@@ -283,7 +287,8 @@ export class SmartCacheManager {
       }
 
       // Return best match if similarity is high enough
-      if (bestMatch && bestMatch.score >= 50) {
+      // Increased threshold from 50 to 80 to prevent false matches
+      if (bestMatch && bestMatch.score >= 80) {
         console.log('🎯 [CACHE] Found similar item:', bestMatch.key, 'score:', bestMatch.score);
         return bestMatch.key;
       }
@@ -623,6 +628,24 @@ export class SmartCacheManager {
   
   getStats(): CacheStats {
     return { ...this.stats };
+  }
+
+  /**
+   * Clear all cached data - useful for testing or when cache gets corrupted
+   */
+  clearAll(): void {
+    console.log('🗑️ [CACHE] Clearing all cached data...');
+    this.memoryCache.clear();
+    this.categoryCache.clear();
+    this.stats = {
+      hits: 0,
+      misses: 0,
+      totalRequests: 0,
+      avgResponseTime: 0,
+      memoryUsage: 0,
+      evictions: 0
+    };
+    console.log('✅ [CACHE] Cache cleared successfully');
   }
 
   invalidateByTags(tags: string[]): void {
