@@ -10,7 +10,11 @@
       "Bash(rm:*)",
       "Bash(npm run lint)",
       "Bash(npm install:*)",
-      "Bash(supabase status:*)"
+      "Bash(supabase status:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(npx supabase:*)",
+      "Bash(netlify functions:list:*)"
     ],
     "deny": [],
     "ask": [],

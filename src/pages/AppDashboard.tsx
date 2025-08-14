@@ -23,10 +23,15 @@ const AppDashboard = () => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [uploadedPhotos, setUploadedPhotos] = useState<any[]>([]);
 
-  // Handle photo upload completion - switch to SKUs tab
-  const handlePhotoUploadComplete = () => {
+  // Handle photo upload completion - switch to SKUs tab and store photos
+  const handlePhotoUploadComplete = (photos?: any[]) => {
     console.log('🎯 [APP-DASHBOARD] Photo upload complete, switching to SKUs tab...');
+    if (photos) {
+      console.log('📸 [APP-DASHBOARD] Storing uploaded photos for SKU assignment:', photos.length);
+      setUploadedPhotos(photos);
+    }
     setActiveTab('skus');
     setRefreshTrigger(prev => prev + 1); // Trigger refresh of SKU table
   };
@@ -362,7 +367,7 @@ const AppDashboard = () => {
       case 'upload':
         return <PhotoCapture onUploadComplete={handlePhotoUploadComplete} embedded={true} />;
       case 'skus':
-        return <SKUAssignmentPage isDarkMode={isDarkMode} key={refreshTrigger} onAssignmentComplete={() => setActiveTab('generate')} />;
+        return <SKUAssignmentPage isDarkMode={isDarkMode} key={refreshTrigger} onAssignmentComplete={() => setActiveTab('generate')} uploadedPhotos={uploadedPhotos} />;
       case 'generate':
         return <GenerateListingsPage key={`generate-${refreshTrigger}`} />;
       case 'publish':

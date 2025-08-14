@@ -20,11 +20,13 @@ interface UploadedPhoto {
 interface SKUAssignmentPageProps {
   isDarkMode: boolean;
   onAssignmentComplete?: () => void;
+  uploadedPhotos?: any[];
 }
 
 const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({ 
   isDarkMode, 
-  onAssignmentComplete 
+  onAssignmentComplete,
+  uploadedPhotos
 }) => {
   const { authUser } = useAuth();
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
@@ -38,8 +40,24 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
   const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
-    fetchUploadedPhotos();
-  }, [authUser]);
+    if (uploadedPhotos && uploadedPhotos.length > 0) {
+      console.log('📸 [SKU-ASSIGNMENT] Using passed uploaded photos:', uploadedPhotos.length);
+      // Convert uploaded photos to the expected format
+      const convertedPhotos: UploadedPhoto[] = uploadedPhotos.map((photo, index) => ({
+        id: `temp_${index}`,
+        user_id: authUser?.id || '',
+        image_url: photo.url,
+        filename: photo.filename,
+        status: 'uploaded',
+        upload_order: index,
+        created_at: new Date().toISOString()
+      }));
+      setPhotos(convertedPhotos);
+      setLoading(false);
+    } else {
+      fetchUploadedPhotos();
+    }
+  }, [authUser, uploadedPhotos]);
 
   // Clear messages after 5 seconds
   useEffect(() => {
