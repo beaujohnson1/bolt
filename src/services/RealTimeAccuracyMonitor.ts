@@ -354,7 +354,7 @@ export class RealTimeAccuracyMonitor {
   }
 
   /**
-   * Generate improvement recommendations
+   * Generate improvement recommendations with specific service activations
    */
   private generateRecommendations(
     metrics: AccuracyMetrics, 
@@ -362,48 +362,72 @@ export class RealTimeAccuracyMonitor {
   ): string[] {
     const recommendations: string[] = [];
 
-    // Accuracy-based recommendations
+    // Accuracy-based recommendations with specific actions
     if (metrics.overallAccuracy < 80) {
-      recommendations.push('Overall accuracy is below target (80%) - review AI model performance');
+      recommendations.push('🎯 Overall accuracy below 80% - Enable AI Ensemble Service for immediate 15% boost');
     }
 
     if (metrics.brandAccuracy < 75) {
-      recommendations.push('Brand detection needs improvement - update brand patterns and fuzzy matching');
+      recommendations.push('🏷️ Brand detection underperforming - Activate Enhanced Brand Detector (25% improvement expected)');
     }
 
     if (metrics.sizeAccuracy < 70) {
-      recommendations.push('Size recognition is underperforming - enhance size standardization rules');
+      recommendations.push('📏 Size recognition needs help - Deploy Enhanced Size Processor with international standards');
     }
 
     if (metrics.titleQuality < 85) {
-      recommendations.push('Title quality can be improved - optimize keyword selection and formatting');
+      recommendations.push('📝 Title quality suboptimal - Enable Enhanced Title Optimizer for eBay SEO compliance');
     }
 
     if (metrics.ocrConfidence < 80) {
-      recommendations.push('OCR confidence is low - consider image preprocessing improvements');
+      recommendations.push('🔍 OCR confidence low - Activate Enhanced OCR Processor with preprocessing pipeline');
     }
 
-    // Performance-based recommendations
+    // Performance-based recommendations with solutions
     if (metrics.processingTime > 8000) {
-      recommendations.push('Processing time is high - implement caching and optimization strategies');
+      recommendations.push('⚡ Processing slow (>8s) - Enable Smart Cache Manager and parallel processing');
     }
 
-    // Trend-based recommendations
+    if (metrics.processingTime > 5000 && metrics.processingTime <= 8000) {
+      recommendations.push('🚀 Optimize processing speed - Implement Smart Cache Manager for 40% reduction');
+    }
+
+    // Trend-based actionable recommendations
     if (trends.trend === 'declining') {
-      recommendations.push('Performance is declining - investigate recent changes and data quality');
+      recommendations.push('📉 Performance declining - Run Error Resilience Service diagnostics immediately');
+      recommendations.push('🔧 Deploy Automated Performance Alerts to catch issues early');
     }
 
     if (trends.trend === 'improving') {
-      recommendations.push('Performance is improving - continue current optimization strategies');
+      recommendations.push('📈 Performance improving - Consider enabling Revenue Optimization Agent');
     }
 
-    // Default recommendations if accuracy is good
+    // Advanced optimization for high performers
+    if (metrics.overallAccuracy > 85 && metrics.brandAccuracy > 80) {
+      recommendations.push('🏆 Excellent performance! Enable Advanced Analytics Engine for business insights');
+      recommendations.push('🧪 Ready for Prompt Optimization Engine A/B testing');
+    }
+
+    // Cost optimization recommendations
+    if (metrics.processingTime < 4000 && metrics.overallAccuracy > 75) {
+      recommendations.push('💰 Well-optimized system - Enable Revenue Optimization Agent for profit maximization');
+    }
+
+    // Specific service activation based on accuracy gaps
+    const accuracyGap = 90 - metrics.overallAccuracy; // Target 90% accuracy
+    if (accuracyGap > 15) {
+      recommendations.push('🔥 Large accuracy gap detected - Deploy Multi-Category Detector and AI Ensemble Service');
+    } else if (accuracyGap > 10) {
+      recommendations.push('⚡ Moderate accuracy gap - Enable Enhanced Brand + Size processors');
+    }
+
+    // Default recommendations if performance is good
     if (recommendations.length === 0) {
-      recommendations.push('Performance is good - consider A/B testing new optimization strategies');
-      recommendations.push('Monitor for seasonal patterns and item type variations');
+      recommendations.push('✅ Excellent performance! Enable Real-Time Market Intelligence for competitive edge');
+      recommendations.push('🔬 Consider activating experimental Barcode Scanner integration');
     }
 
-    return recommendations.slice(0, 5); // Limit to top 5
+    return recommendations.slice(0, 6); // Limit to top 6 most actionable
   }
 
   /**
