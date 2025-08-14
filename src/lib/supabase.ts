@@ -6,68 +6,40 @@ let connectionPool: Map<string, SupabaseClient> = new Map();
 const MAX_POOL_SIZE = 10;
 const POOL_TTL = 5 * 60 * 1000; // 5 minutes
 
-// PERFORMANCE OPTIMIZATION: Enhanced fetch with compression and retry logic
+// Simplified fetch with basic timeout and retry
 const timeoutFetch: typeof fetch = async (input, init={}) => {
   const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), 15000); // Increased to 15 seconds for uploads
+  const timeoutId = setTimeout(() => ctrl.abort(), 30000); // 30 second timeout
   
-  // Ensure API key is included in headers
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
-  
-  // Add compression headers and ensure Authorization header for better performance
-  const headers = {
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Connection': 'keep-alive',
-    'apikey': anonKey || '',
-    'Authorization': `Bearer ${anonKey || ''}`,
-    ...init.headers // Don't override Content-Type for file uploads
-  };
-  
-  // Retry logic for network failures
   const maxRetries = 3;
   let lastError;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const res = await fetch(input as any, { 
+      const response = await fetch(input as any, { 
         ...init, 
-        headers,
-        signal: ctrl.signal,
-        keepalive: true // Reuse connections for better performance
+        signal: ctrl.signal
       });
       
-      // Check for authentication errors
-      if (res.status === 401) {
-        console.error('[SUPABASE-FETCH] Authentication error - check API key');
-        const errorText = await res.text();
-        console.error('[SUPABASE-FETCH] Response:', errorText);
-      }
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      lastError = error;
       
-      return res;
-    } catch (e) {
-      lastError = e;
-      const isAbortError = e.name === 'AbortError';
-      const isNetworkError = e.message.includes('Failed to fetch') || e.message.includes('fetch');
-      
-      console.warn(`[SUPABASE-FETCH] Attempt ${attempt}/${maxRetries} failed:`, { 
-        input: typeof input === 'string' ? input : 'Request', 
-        err: String(e),
-        isAbortError,
-        isNetworkError
-      });
+      console.warn(`[SUPABASE-FETCH] Attempt ${attempt}/${maxRetries} failed:`, error.message);
       
       // Don't retry on abort errors or on the last attempt
-      if (isAbortError || attempt === maxRetries) {
-        throw e;
+      if (error.name === 'AbortError' || attempt === maxRetries) {
+        clearTimeout(timeoutId);
+        throw error;
       }
       
-      // Wait before retrying (exponential backoff)
-      if (isNetworkError) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-      }
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
     }
   }
   
+  clearTimeout(timeoutId);
   throw lastError;
 };
 
@@ -134,67 +106,28 @@ export function getSupabase(usePool: boolean = true): SupabaseClient | null {
     return null;
   }
 
-  // PERFORMANCE OPTIMIZATION: Try connection pool first
-  if (usePool) {
-    const poolKey = `${url}_${anon.substring(0, 10)}`;
-    const pooledClient = getPooledClient(poolKey);
-    if (pooledClient) {
-      return pooledClient;
-    }
-    
-    // Create new pooled client
+  // Try simple client first (bypass pooling temporarily)
+  if (!client) {
+    console.log('[SUPABASE] Creating simple client without complex configurations...');
     try {
-      const newClient = createClient(url, anon, {
+      client = createClient(url, anon, {
         auth: {
           persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: true,
           flowType: 'pkce',
-        },
-        global: { fetch: timeoutFetch },
-        // Enhanced performance settings
-        db: {
-          schema: 'public'
-        },
-        realtime: {
-          params: {
-            eventsPerSecond: 10 // Rate limit for better performance
-          }
         }
+        // No custom fetch for now - use default
       });
-      
-      setPooledClient(poolKey, newClient);
-      console.log('✅ [SUPABASE-POOL] New pooled client created successfully');
-      return newClient;
+      console.log('✅ [SUPABASE] Simple client created successfully');
+      return client;
     } catch (error) {
-      console.error('❌ [SUPABASE-POOL] Failed to create pooled client:', error);
+      console.error('❌ [SUPABASE] Failed to create simple client:', error);
       return null;
     }
   }
 
-  // Fallback to singleton client
-  if (client) return client;
-
-  console.log('[SUPABASE_DEBUG] Attempting to initialize Supabase client...');
-  console.log('[SUPABASE_DEBUG] VITE_SUPABASE_URL:', url ? 'present' : 'missing', url ? `(length: ${url.length})` : '');
-  console.log('[SUPABASE_DEBUG] VITE_SUPABASE_ANON_KEY:', anon ? 'present' : 'missing', anon ? `(length: ${anon.length})` : '');
-
-  try {
-    client = createClient(url, anon, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce',
-      },
-      global: { fetch: timeoutFetch },
-    });
-    console.log('✅ [SUPABASE_DEBUG] Supabase client initialized successfully');
-    return client;
-  } catch (error) {
-    console.error('❌ [SUPABASE_DEBUG] Failed to initialize Supabase client:', error);
-    return null;
-  }
+  return client;
 }
 
 // Legacy export for backward compatibility - will be removed gradually

@@ -10,6 +10,7 @@ import PhotoCapture from './PhotoCapture';
 import { formatPrice } from '../utils/itemUtils';
 import GenerateListingsPage from './GenerateListingsPage';
 import EbayEnvironmentStatus from '../components/EbayEnvironmentStatus';
+import InventoryDashboard from './InventoryDashboard';
 
 const AppDashboard = () => {
   const { user, authUser } = useAuth();
@@ -370,6 +371,8 @@ const AppDashboard = () => {
         return <SKUAssignmentPage isDarkMode={isDarkMode} key={refreshTrigger} onAssignmentComplete={() => setActiveTab('generate')} uploadedPhotos={uploadedPhotos} />;
       case 'generate':
         return <GenerateListingsPage key={`generate-${refreshTrigger}`} />;
+      case 'inventory':
+        return <InventoryDashboard />;
       case 'publish':
         return <PublishTab />;
       case 'coach':

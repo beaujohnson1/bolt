@@ -40,6 +40,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, activeTab, 
     { id: 'upload', label: 'Upload', icon: '📤' },
     { id: 'skus', label: 'SKUs', icon: '🏷️' },
     { id: 'generate', label: 'Generate Listings', icon: '✨' },
+    { id: 'inventory', label: 'Inventory', icon: '📦' },
     { id: 'publish', label: 'Publish', icon: '🚀' },
     { id: 'coach', label: 'Coach', icon: '🤖' },
   ];

@@ -187,8 +187,77 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onUploadComplete, embedded 
         setUploadStatus('All photos uploaded to cloud storage');
       }
 
-      // Skip database save for now - uploaded_photos table doesn't exist yet
-      console.log('📝 [PHOTO] Skipping database save (table not yet created)');
+      // Save photo records to database for SKU assignment
+      setUploadStatus('Saving photo records...');
+      console.log('🔍 [PHOTO] Current user for database save:', {
+        id: authUser?.id,
+        email: authUser?.email,
+        isAuthenticated: !!authUser
+      });
+      
+      const photoRecords = uploadedImages.map((img, index) => ({
+        user_id: authUser.id,
+        image_url: img.url,
+        filename: img.filename,
+        file_size: img.size,
+        file_type: img.type,
+        upload_order: index,
+        status: img.url.startsWith('data:') ? 'local' : 'uploaded',
+        created_at: new Date().toISOString()
+      }));
+      
+      console.log('📋 [PHOTO] Sample record structure:', photoRecords[0]);
+      
+      // Test basic database connection first
+      console.log('🔌 [PHOTO] Testing database connection...');
+      try {
+        const { data: testData, error: testError } = await supabase
+          .from('uploaded_photos')
+          .select('count', { count: 'exact', head: true });
+          
+        if (testError) {
+          console.error('❌ [PHOTO] Database connection test failed:', testError);
+          throw new Error(`Database connection failed: ${testError.message}`);
+        }
+        console.log('✅ [PHOTO] Database connection test passed');
+      } catch (testError) {
+        console.error('❌ [PHOTO] Database connection test failed:', testError);
+        throw testError;
+      }
+
+      const { error: saveError } = await supabase
+        .from('uploaded_photos')
+        .insert(photoRecords);
+
+      if (saveError) {
+        console.error('❌ [PHOTO] Error saving photo records:', saveError);
+        console.error('❌ [PHOTO] Full error details:', JSON.stringify(saveError, null, 2));
+        console.error('❌ [PHOTO] Error message:', saveError.message);
+        console.error('❌ [PHOTO] Error code:', saveError.code);
+        console.error('❌ [PHOTO] Error details:', saveError.details);
+        console.error('❌ [PHOTO] Error hint:', saveError.hint);
+        console.log('📊 [PHOTO] Photo records being saved:', JSON.stringify(photoRecords, null, 2));
+        
+        // FALLBACK: Store in localStorage for offline workflow
+        console.log('💾 [PHOTO] Storing photos in localStorage as fallback...');
+        try {
+          const existingPhotos = JSON.parse(localStorage.getItem('temp_uploaded_photos') || '[]');
+          const allPhotos = [...existingPhotos, ...photoRecords];
+          localStorage.setItem('temp_uploaded_photos', JSON.stringify(allPhotos));
+          console.log('✅ [PHOTO] Photos stored in localStorage successfully');
+          setUploadStatus(`Photos saved locally (${photoRecords.length} photos) - database unavailable`);
+        } catch (localError) {
+          console.error('❌ [PHOTO] LocalStorage fallback failed:', localError);
+          setUploadStatus('Photos processed but could not be saved');
+        }
+        
+        // Don't throw error - continue with workflow even if save fails
+        console.log('⚠️ [PHOTO] Database save failed, but continuing with workflow');
+      } else {
+        console.log('✅ [PHOTO] Photo records saved successfully');
+        console.log('📊 [PHOTO] Saved records count:', photoRecords.length);
+      }
+
       console.log('✅ [PHOTO] Photo upload process completed successfully');
       setUploadStatus('Complete!');
       setUploadComplete(true);

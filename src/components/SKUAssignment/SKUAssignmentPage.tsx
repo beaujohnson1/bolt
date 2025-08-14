@@ -40,24 +40,8 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
   const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
-    if (uploadedPhotos && uploadedPhotos.length > 0) {
-      console.log('📸 [SKU-ASSIGNMENT] Using passed uploaded photos:', uploadedPhotos.length);
-      // Convert uploaded photos to the expected format
-      const convertedPhotos: UploadedPhoto[] = uploadedPhotos.map((photo, index) => ({
-        id: `temp_${index}`,
-        user_id: authUser?.id || '',
-        image_url: photo.url,
-        filename: photo.filename,
-        status: 'uploaded',
-        upload_order: index,
-        created_at: new Date().toISOString()
-      }));
-      setPhotos(convertedPhotos);
-      setLoading(false);
-    } else {
-      fetchUploadedPhotos();
-    }
-  }, [authUser, uploadedPhotos]);
+    fetchUploadedPhotos();
+  }, [authUser]);
 
   // Clear messages after 5 seconds
   useEffect(() => {
@@ -78,35 +62,68 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
     if (!authUser) return;
     
     const supabase = getSupabase();
-    if (!supabase) {
-      setError('Database connection not available. Please check your configuration.');
-      setLoading(false);
-      return;
-    }
-
+    
     try {
       console.log('🔍 [SKU-ASSIGNMENT] Fetching uploaded photos...');
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('uploaded_photos')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .eq('status', 'uploaded') // Only show unassigned photos
-        .order('upload_order', { ascending: true })
-        .order('created_at', { ascending: true });
+      let dbPhotos: UploadedPhoto[] = [];
+      
+      // Try to fetch from database first
+      if (supabase) {
+        try {
+          const { data, error: fetchError } = await supabase
+            .from('uploaded_photos')
+            .select('*')
+            .eq('user_id', authUser.id)
+            .in('status', ['uploaded', 'local']) // Show both cloud and local photos
+            .is('assigned_sku', null) // Only show unassigned photos
+            .order('upload_order', { ascending: true })
+            .order('created_at', { ascending: true });
 
-      if (fetchError) {
-        console.error('❌ [SKU-ASSIGNMENT] Error fetching photos:', fetchError);
-        throw fetchError;
+          if (!fetchError && data) {
+            dbPhotos = data;
+            console.log('✅ [SKU-ASSIGNMENT] Database photos fetched successfully:', data?.length || 0);
+          } else {
+            console.warn('⚠️ [SKU-ASSIGNMENT] Database fetch failed, checking localStorage:', fetchError?.message);
+          }
+        } catch (dbError) {
+          console.warn('⚠️ [SKU-ASSIGNMENT] Database unavailable, checking localStorage:', dbError.message);
+        }
       }
 
-      console.log('✅ [SKU-ASSIGNMENT] Photos fetched successfully:', data?.length || 0);
-      setPhotos(data || []);
+      // If no database photos, check localStorage fallback
+      let localPhotos: UploadedPhoto[] = [];
+      if (dbPhotos.length === 0) {
+        console.log('🔍 [SKU-ASSIGNMENT] Checking localStorage for photos...');
+        try {
+          const tempPhotos = JSON.parse(localStorage.getItem('temp_uploaded_photos') || '[]');
+          localPhotos = tempPhotos
+            .filter((photo: any) => photo.user_id === authUser.id && !photo.assigned_sku)
+            .map((photo: any, index: number) => ({
+              ...photo,
+              id: photo.id || `temp_${Date.now()}_${index}`, // Generate ID if missing
+              created_at: photo.created_at || new Date().toISOString()
+            }));
+          console.log('✅ [SKU-ASSIGNMENT] LocalStorage photos found:', localPhotos.length);
+        } catch (localError) {
+          console.error('❌ [SKU-ASSIGNMENT] Error reading localStorage:', localError);
+        }
+      }
+
+      const allPhotos = [...dbPhotos, ...localPhotos];
+      console.log('✅ [SKU-ASSIGNMENT] Total photos loaded:', allPhotos.length);
+      
+      if (allPhotos.length === 0) {
+        console.log('📝 [SKU-ASSIGNMENT] No unassigned photos found');
+      }
+      
+      setPhotos(allPhotos);
     } catch (error) {
       console.error('❌ [SKU-ASSIGNMENT] Error in fetchUploadedPhotos:', error);
       setError('Failed to load photos. Please try again.');
+      setPhotos([]);
     } finally {
       setLoading(false);
     }
@@ -167,27 +184,55 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
         photoCount: selectedPhotos.size
       });
       
-      const supabase = getSupabase();
-      if (!supabase) {
-        setErrorMessage('Database connection not available. Please check your configuration.');
-        return;
-      }
-
       const selectedPhotoIds = Array.from(selectedPhotos);
+      const supabase = getSupabase();
+      let dbUpdateSuccessful = false;
+      
+      // Try to update database first (for photos that have real database IDs)
+      const dbPhotos = selectedPhotoIds.filter(id => !id.startsWith('temp_'));
+      if (supabase && dbPhotos.length > 0) {
+        try {
+          const { error: updateError } = await supabase
+            .from('uploaded_photos')
+            .update({
+              assigned_sku: skuInput.trim(),
+              status: 'assigned',
+              updated_at: new Date().toISOString()
+            })
+            .in('id', dbPhotos);
 
-      // Update selected photos with SKU assignment
-      const { error: updateError } = await supabase
-        .from('uploaded_photos')
-        .update({
-          assigned_sku: skuInput.trim(),
-          status: 'assigned',
-          updated_at: new Date().toISOString()
-        })
-        .in('id', selectedPhotoIds);
-
-      if (updateError) {
-        console.error('❌ [SKU-ASSIGNMENT] Error assigning SKU:', updateError);
-        throw updateError;
+          if (!updateError) {
+            console.log('✅ [SKU-ASSIGNMENT] Database photos updated successfully');
+            dbUpdateSuccessful = true;
+          } else {
+            console.warn('⚠️ [SKU-ASSIGNMENT] Database update failed:', updateError);
+          }
+        } catch (dbError) {
+          console.warn('⚠️ [SKU-ASSIGNMENT] Database unavailable for updates:', dbError.message);
+        }
+      }
+      
+      // Update localStorage for all photos (including temp ones)
+      console.log('💾 [SKU-ASSIGNMENT] Updating localStorage photos...');
+      try {
+        const tempPhotos = JSON.parse(localStorage.getItem('temp_uploaded_photos') || '[]');
+        const updatedPhotos = tempPhotos.map((photo: any) => {
+          if (selectedPhotoIds.includes(photo.id)) {
+            return {
+              ...photo,
+              assigned_sku: skuInput.trim(),
+              status: 'assigned',
+              updated_at: new Date().toISOString()
+            };
+          }
+          return photo;
+        });
+        
+        localStorage.setItem('temp_uploaded_photos', JSON.stringify(updatedPhotos));
+        console.log('✅ [SKU-ASSIGNMENT] LocalStorage photos updated successfully');
+      } catch (localError) {
+        console.error('❌ [SKU-ASSIGNMENT] LocalStorage update failed:', localError);
+        throw new Error('Failed to save SKU assignment locally');
       }
 
       console.log('✅ [SKU-ASSIGNMENT] SKU assigned successfully');
@@ -197,34 +242,25 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
       setSkuInput('');
       
       // Show success message
-      setSuccessMessage(`Successfully assigned SKU "${skuInput.trim()}" to ${selectedPhotoIds.length} photo${selectedPhotoIds.length > 1 ? 's' : ''}`);
+      const dbCount = dbPhotos.length;
+      const localCount = selectedPhotoIds.length - dbCount;
+      let statusMessage = `Successfully assigned SKU "${skuInput.trim()}" to ${selectedPhotoIds.length} photo${selectedPhotoIds.length > 1 ? 's' : ''}`;
+      if (localCount > 0 && !dbUpdateSuccessful) {
+        statusMessage += ` (saved locally - database unavailable)`;
+      }
+      setSuccessMessage(statusMessage);
       
       // Refresh the photos
       await fetchUploadedPhotos();
       
-      // Auto-advance workflow: if no more photos to assign, suggest moving to Generate Listings
-      if (onAssignmentComplete) {
-        // Check if there are any remaining unassigned photos
-        const supabase = getSupabase();
-        if (!supabase) {
-          console.error('❌ [SKU-ASSIGNMENT] Cannot check remaining photos - Supabase not available');
-          return;
-        }
-        
-        const { data: remainingPhotos, error } = await supabase
-          .from('uploaded_photos')
-          .select('id')
-          .eq('user_id', authUser.id)
-          .eq('status', 'uploaded');
-        
-        if (!error && remainingPhotos && remainingPhotos.length === 0) {
-          // No more photos to assign, suggest moving to Generate Listings
-          setTimeout(() => {
-            if (window.confirm('All photos have been assigned SKUs! Would you like to move to Generate Listings to create your item details?')) {
-              onAssignmentComplete();
-            }
-          }, 1500);
-        }
+      // Auto-advance workflow: Check if all photos are assigned
+      const remainingPhotos = photos.filter(p => !selectedPhotoIds.includes(p.id));
+      if (remainingPhotos.length === 0 && onAssignmentComplete) {
+        setTimeout(() => {
+          if (window.confirm('All photos have been assigned SKUs! Would you like to move to Generate Listings to create your item details?')) {
+            onAssignmentComplete();
+          }
+        }, 1500);
       }
     } catch (error) {
       console.error('❌ [SKU-ASSIGNMENT] Error assigning SKU:', error);
@@ -263,22 +299,51 @@ const SKUAssignmentPage: React.FC<SKUAssignmentPageProps> = ({
     
     try {
       const selectedPhotoIds = Array.from(selectedPhotos);
-      
       const supabase = getSupabase();
-      if (!supabase) {
-        setErrorMessage('Database connection not available. Please check your configuration.');
-        return;
+      let dbDeleteSuccessful = false;
+      
+      // Try to delete from database first (for photos that have real database IDs)
+      const dbPhotos = selectedPhotoIds.filter(id => !id.startsWith('temp_'));
+      if (supabase && dbPhotos.length > 0) {
+        try {
+          const { error: deleteError } = await supabase
+            .from('uploaded_photos')
+            .delete()
+            .in('id', dbPhotos);
+
+          if (!deleteError) {
+            console.log('✅ [SKU-ASSIGNMENT] Database photos deleted successfully');
+            dbDeleteSuccessful = true;
+          } else {
+            console.warn('⚠️ [SKU-ASSIGNMENT] Database delete failed:', deleteError);
+          }
+        } catch (dbError) {
+          console.warn('⚠️ [SKU-ASSIGNMENT] Database unavailable for deletes:', dbError.message);
+        }
+      }
+      
+      // Delete from localStorage for all photos (including temp ones)
+      console.log('🗑️ [SKU-ASSIGNMENT] Removing photos from localStorage...');
+      try {
+        const tempPhotos = JSON.parse(localStorage.getItem('temp_uploaded_photos') || '[]');
+        const remainingPhotos = tempPhotos.filter((photo: any) => !selectedPhotoIds.includes(photo.id));
+        
+        localStorage.setItem('temp_uploaded_photos', JSON.stringify(remainingPhotos));
+        console.log('✅ [SKU-ASSIGNMENT] LocalStorage photos deleted successfully');
+      } catch (localError) {
+        console.error('❌ [SKU-ASSIGNMENT] LocalStorage delete failed:', localError);
+        throw new Error('Failed to delete photos locally');
       }
 
-      const { error: deleteError } = await supabase
-        .from('uploaded_photos')
-        .delete()
-        .in('id', selectedPhotoIds);
-
-      if (deleteError) throw deleteError;
-
       console.log('✅ [SKU-ASSIGNMENT] Photos deleted successfully');
-      setSuccessMessage(`Successfully deleted ${selectedPhotoIds.length} photo${selectedPhotoIds.length > 1 ? 's' : ''}`);
+      
+      const dbCount = dbPhotos.length;
+      const localCount = selectedPhotoIds.length - dbCount;
+      let statusMessage = `Successfully deleted ${selectedPhotoIds.length} photo${selectedPhotoIds.length > 1 ? 's' : ''}`;
+      if (localCount > 0 && !dbDeleteSuccessful) {
+        statusMessage += ` (from local storage - database unavailable)`;
+      }
+      setSuccessMessage(statusMessage);
       
       setSelectedPhotos(new Set());
       await fetchUploadedPhotos();

@@ -17,6 +17,8 @@ import AuthConnectivityTest from './pages/AuthConnectivityTest'; // <--- This im
 import AIInsightsDashboard from './pages/AIInsightsDashboard';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
+import SupabaseTest from './pages/SupabaseTest';
+import NetworkTest from './pages/NetworkTest';
 
 function App() {
   return (
@@ -29,6 +31,8 @@ function App() {
             <Route path="/auth/ebay/callback" element={<EbayAuthCallback />} />
             <Route path="/test-connection" element={<ConnectionTestPage />} />
             <Route path="/auth-test" element={<AuthConnectivityTest />} /> {/* <--- This route is now valid */}
+            <Route path="/supabase-test" element={<SupabaseTest />} />
+            <Route path="/network-test" element={<NetworkTest />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
             <Route 
