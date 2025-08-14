@@ -146,8 +146,8 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Back to sub-account API key approach (v1 format - no version header)
-    console.log('🚀 [SUBSCRIBE] Using original sub-account API format (v1 - no version header)');
+    // Sub-account API key with required version header
+    console.log('🚀 [SUBSCRIBE] Using sub-account API key WITH version header (now required)');
     
     const directApiKey = process.env.GHL_API_KEY;
     const directApiUrl = process.env.GHL_API_URL || 'https://services.leadconnectorhq.com';
