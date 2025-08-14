@@ -156,7 +156,9 @@ exports.handler = async (event, context) => {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${directApiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Version': '2021-07-28'
       },
       body: JSON.stringify(contactData),
     });
