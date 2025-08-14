@@ -9,29 +9,66 @@ const POOL_TTL = 5 * 60 * 1000; // 5 minutes
 // PERFORMANCE OPTIMIZATION: Enhanced fetch with compression and retry logic
 const timeoutFetch: typeof fetch = async (input, init={}) => {
   const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), 8000); // 8 seconds timeout
+  const id = setTimeout(() => ctrl.abort(), 15000); // Increased to 15 seconds for uploads
   
-  // Add compression headers for better performance
+  // Ensure API key is included in headers
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+  
+  // Add compression headers and ensure Authorization header for better performance
   const headers = {
     'Accept-Encoding': 'gzip, deflate, br',
     'Connection': 'keep-alive',
-    ...init.headers
+    'apikey': anonKey || '',
+    'Authorization': `Bearer ${anonKey || ''}`,
+    ...init.headers // Don't override Content-Type for file uploads
   };
   
-  try {
-    const res = await fetch(input as any, { 
-      ...init, 
-      headers,
-      signal: ctrl.signal,
-      keepalive: true // Reuse connections for better performance
-    });
-    return res;
-  } catch (e) {
-    console.warn('[SUPABASE-FETCH] network error', { input, err: String(e) });
-    throw e;
-  } finally {
-    clearTimeout(id);
+  // Retry logic for network failures
+  const maxRetries = 3;
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(input as any, { 
+        ...init, 
+        headers,
+        signal: ctrl.signal,
+        keepalive: true // Reuse connections for better performance
+      });
+      
+      // Check for authentication errors
+      if (res.status === 401) {
+        console.error('[SUPABASE-FETCH] Authentication error - check API key');
+        const errorText = await res.text();
+        console.error('[SUPABASE-FETCH] Response:', errorText);
+      }
+      
+      return res;
+    } catch (e) {
+      lastError = e;
+      const isAbortError = e.name === 'AbortError';
+      const isNetworkError = e.message.includes('Failed to fetch') || e.message.includes('fetch');
+      
+      console.warn(`[SUPABASE-FETCH] Attempt ${attempt}/${maxRetries} failed:`, { 
+        input: typeof input === 'string' ? input : 'Request', 
+        err: String(e),
+        isAbortError,
+        isNetworkError
+      });
+      
+      // Don't retry on abort errors or on the last attempt
+      if (isAbortError || attempt === maxRetries) {
+        throw e;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      if (isNetworkError) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
+    }
   }
+  
+  throw lastError;
 };
 
 // Connection pool management for better performance
@@ -67,14 +104,33 @@ export function getSupabase(usePool: boolean = true): SupabaseClient | null {
   const anon = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
   if (!url || !anon) {
-    console.warn(
-      'Missing Supabase environment variables. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env.local file.'
-    );
-    console.warn('Current values:', {
-      VITE_SUPABASE_URL_present: !!url,
-      VITE_SUPABASE_ANON_KEY_present: !!anon,
-      VITE_SUPABASE_URL_host: url ? new URL(url).host : null
-    });
+    console.error('❌ [SUPABASE] Missing environment variables!');
+    console.error('VITE_SUPABASE_URL present:', !!url);
+    console.error('VITE_SUPABASE_ANON_KEY present:', !!anon);
+    if (url) {
+      try {
+        console.error('VITE_SUPABASE_URL host:', new URL(url).host);
+      } catch (e) {
+        console.error('VITE_SUPABASE_URL is malformed:', url);
+      }
+    }
+    return null;
+  }
+
+  // Validate the API key format
+  if (!anon.startsWith('eyJ')) {
+    console.error('❌ [SUPABASE] VITE_SUPABASE_ANON_KEY does not appear to be a valid JWT token');
+    return null;
+  }
+
+  // Validate URL format
+  try {
+    const parsedUrl = new URL(url);
+    if (!parsedUrl.hostname.includes('supabase')) {
+      console.warn('⚠️ [SUPABASE] URL does not appear to be a Supabase URL:', parsedUrl.hostname);
+    }
+  } catch (e) {
+    console.error('❌ [SUPABASE] VITE_SUPABASE_URL is not a valid URL:', url);
     return null;
   }
 

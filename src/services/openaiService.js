@@ -7,14 +7,10 @@ import { safeTrim, nullIfUnknown, safeUpper, toStr } from '../utils/strings';
 import { ocrKeywordOptimizer } from './OCRKeywordOptimizer';
 import { ebaySpecificsValidator } from './EbaySpecificsValidator';
 import { multiCategoryDetector } from './MultiCategoryDetector';
+import { cacheIntegration } from './CacheIntegrationService';
 
-// Primary clothing analysis function - now accepts URL or base64
-export const analyzeClothingItem = async (imageUrls, options = {}) => {
-  try {
-    console.log('🤖 [OPENAI-CLIENT] Starting enhanced multi-image analysis...', {
-      imageCount: Array.isArray(imageUrls) ? imageUrls.length : 1,
-      options
-    });
+// Core analysis function (moved for cache integration)
+const performAIAnalysis = async (imageUrls, options = {}) => {
     
     // Normalize input to array
     const imageArray = Array.isArray(imageUrls) ? imageUrls : [imageUrls];
@@ -343,7 +339,9 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       console.error('❌ [EBAY-VALIDATE] Error validating specifics:', error);
     }
 
-    // Rebuild clean title with enhanced eBay-optimized data
+    // Step 5: Final processing and result compilation
+    try {
+      // Rebuild clean title with enhanced eBay-optimized data
     const hasBrand = safeTrim(ai.brand);
     const hasItemType = safeTrim(ai.item_type);
     const hasColor = safeTrim(ai.color);
@@ -443,6 +441,24 @@ export const analyzeClothingItem = async (imageUrls, options = {}) => {
       error: error.message,
       source: 'openai-client'
     };
+  }
+};
+
+// Primary clothing analysis function with smart caching
+export const analyzeClothingItem = async (imageUrls, options = {}) => {
+  try {
+    console.log('🤖 [OPENAI-CLIENT] Starting enhanced multi-image analysis with smart caching...', {
+      imageCount: Array.isArray(imageUrls) ? imageUrls.length : 1,
+      options
+    });
+
+    // Use cached analysis for significant performance improvement
+    return await cacheIntegration.getCachedAIAnalysis(imageUrls, options, performAIAnalysis);
+  } catch (error) {
+    console.error('❌ [OPENAI-CLIENT] Cached analysis failed, falling back to direct analysis:', error);
+    
+    // Fallback to direct analysis
+    return await performAIAnalysis(imageUrls, options);
   }
 };
 
