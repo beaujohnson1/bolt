@@ -382,6 +382,152 @@ exports.handler = async (event, context) => {
       hasKnownFields: Object.keys(knownFields).length > 0
     });
 
+    // If no OCR text provided, extract it from the images using Google Vision API
+    let finalOcrText = toStr(ocrText);
+    if (!finalOcrText && imageArray.length > 0) {
+      console.log('🔍 [OPENAI-FUNCTION] No OCR text provided, extracting from images...');
+      try {
+        // Use direct API key approach instead of service account authentication
+        const visionApiKey = process.env.VITE_GOOGLE_VISION_API_KEY;
+        
+        if (!visionApiKey) {
+          console.warn('⚠️ [OPENAI-FUNCTION] Google Vision API key not configured, skipping OCR');
+          finalOcrText = '';
+        } else {
+          // Extract OCR from first few images (limit for performance)
+          const maxImages = Math.min(imageArray.length, 3);
+          console.log(`🔍 [OPENAI-FUNCTION] Extracting OCR from ${maxImages} images using API key...`);
+          
+          const ocrPromises = imageArray.slice(0, maxImages).map(async (imageUrl, i) => {
+            try {
+              console.log(`🔍 [OPENAI-FUNCTION] OCR for image ${i + 1}: ${imageUrl.substring(0, 80)}...`);
+              
+              // Fetch image and convert to base64
+              console.log(`📥 [OPENAI-FUNCTION] Fetching image ${i + 1}...`);
+              const imageResponse = await fetch(imageUrl);
+              console.log(`📥 [OPENAI-FUNCTION] Image ${i + 1} fetch status: ${imageResponse.status}`);
+              
+              if (!imageResponse.ok) {
+                throw new Error(`Failed to fetch image: ${imageResponse.status} ${imageResponse.statusText}`);
+              }
+              
+              const imageBuffer = await imageResponse.arrayBuffer();
+              const imageBase64 = Buffer.from(imageBuffer).toString('base64');
+              console.log(`🔢 [OPENAI-FUNCTION] Image ${i + 1} base64 length: ${imageBase64.length}`);
+              
+              // Call Google Vision API directly using REST API with enhanced text detection
+              console.log(`🔍 [OPENAI-FUNCTION] Calling Google Vision API for image ${i + 1}...`);
+              const visionResponse = await fetch(
+                `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    requests: [
+                      {
+                        image: {
+                          content: imageBase64,
+                        },
+                        features: [
+                          {
+                            type: 'TEXT_DETECTION',
+                            maxResults: 100,
+                          },
+                          {
+                            type: 'DOCUMENT_TEXT_DETECTION',
+                            maxResults: 1,
+                          }
+                        ],
+                        imageContext: {
+                          textDetectionParams: {
+                            enableTextDetectionConfidenceScore: true
+                          }
+                        }
+                      },
+                    ],
+                  }),
+                }
+              );
+              
+              console.log(`📡 [OPENAI-FUNCTION] Vision API response for image ${i + 1}: ${visionResponse.status}`);
+              
+              if (!visionResponse.ok) {
+                const errorText = await visionResponse.text();
+                console.error(`❌ [OPENAI-FUNCTION] Vision API error for image ${i + 1}:`, {
+                  status: visionResponse.status,
+                  statusText: visionResponse.statusText,
+                  errorText: errorText
+                });
+                throw new Error(`Google Vision API error: ${visionResponse.status} - ${errorText}`);
+              }
+              
+              const visionData = await visionResponse.json();
+              console.log(`📊 [OPENAI-FUNCTION] Vision API raw response for image ${i + 1}:`, {
+                hasResponses: !!visionData.responses,
+                responseCount: visionData.responses?.length || 0,
+                hasError: !!visionData.responses?.[0]?.error
+              });
+              
+              // Check for API errors in response
+              if (visionData.responses?.[0]?.error) {
+                console.error(`❌ [OPENAI-FUNCTION] Vision API error in response for image ${i + 1}:`, visionData.responses[0].error);
+                throw new Error(`Vision API error: ${visionData.responses[0].error.message}`);
+              }
+              
+              const fullText = visionData.responses?.[0]?.fullTextAnnotation?.text || '';
+              const textAnnotations = visionData.responses?.[0]?.textAnnotations || [];
+              
+              // Also check document text detection
+              const documentText = visionData.responses?.[0]?.fullTextAnnotation?.text || '';
+              const finalText = documentText || fullText;
+              
+              // Log individual text annotations for debugging
+              if (textAnnotations.length > 1) {
+                const individualTexts = textAnnotations.slice(1, 10).map(ann => ann.description || '').filter(t => t);
+                console.log(`🔍 [OPENAI-FUNCTION] Image ${i + 1} individual text annotations:`, individualTexts);
+              }
+              
+              console.log(`📝 [OPENAI-FUNCTION] Image ${i + 1} OCR result:`, {
+                fullTextLength: finalText.length,
+                annotationCount: textAnnotations.length,
+                textPreview: finalText.substring(0, 100).replace(/\n/g, ' | ')
+              });
+              
+              return finalText;
+            } catch (imageError) {
+              console.error(`❌ [OPENAI-FUNCTION] OCR failed for image ${i + 1}:`, {
+                error: imageError.message,
+                stack: imageError.stack
+              });
+              return '';
+            }
+          });
+          
+          const ocrResults = await Promise.allSettled(ocrPromises);
+          const successfulOcrTexts = ocrResults
+            .filter(result => result.status === 'fulfilled')
+            .map(result => result.value)
+            .filter(text => text.length > 0);
+          
+          finalOcrText = successfulOcrTexts.join('\n').trim();
+          
+          console.log('🎯 [OPENAI-FUNCTION] Combined OCR extraction complete:', {
+            totalTextLength: finalOcrText.length,
+            imagesProcessed: successfulOcrTexts.length,
+            textPreview: finalOcrText.substring(0, 200).replace(/\n/g, ' | ')
+          });
+        }
+        
+      } catch (ocrError) {
+        console.error('❌ [OPENAI-FUNCTION] OCR extraction failed:', ocrError);
+        finalOcrText = '';
+      }
+    } else if (finalOcrText) {
+      console.log('🔍 [OPENAI-FUNCTION] Using provided OCR text:', finalOcrText.length, 'characters');
+    }
+
     const openai = new OpenAI({
       apiKey: config.openai.apiKey,
     });
@@ -399,7 +545,7 @@ exports.handler = async (event, context) => {
           content: [
             {
               type: "text",
-              text: getAnalysisPrompt(analysisType, ocrText, candidates, ebayAspects, knownFields)
+              text: getAnalysisPrompt(analysisType, finalOcrText, candidates, ebayAspects, knownFields)
             },
             // Send up to 3 images to the LLM to avoid timeout
             ...imageArray.slice(0, 3).map(url => ({
@@ -420,9 +566,15 @@ exports.handler = async (event, context) => {
     
     let raw = response.choices[0]?.message?.content || "";
     
-    // Debug logging (temporary - remove later)
-    console.log("[SERVER] typeof raw:", typeof raw);
-    console.log("[SERVER] raw preview:", typeof raw === "string" ? raw.slice(0, 120) : raw);
+    // Debug logging for brand detection
+    console.log('🔍 [OPENAI-FUNCTION] Raw AI response type:', typeof raw);
+    console.log('🔍 [OPENAI-FUNCTION] Raw AI response preview:', typeof raw === "string" ? raw.slice(0, 200) : raw);
+    
+    // Try to extract brand from raw response before JSON parsing
+    if (typeof raw === "string" && raw.includes('"brand"')) {
+      const brandMatch = raw.match(/"brand":\s*"([^"]+)"/);
+      console.log('🔍 [OPENAI-FUNCTION] Brand found in raw response:', brandMatch ? brandMatch[1] : 'NOT FOUND');
+    }
     
     if (!raw) {
       console.error('❌ [OPENAI-FUNCTION] No content in OpenAI response');
@@ -575,9 +727,9 @@ exports.handler = async (event, context) => {
       console.log('🚀 [AI-OPTIMIZATION] Starting enhanced processing...');
 
       // 1. Enhanced OCR Processing
-      if (ocrText && ocrText.length > 0) {
+      if (finalOcrText && finalOcrText.length > 0) {
         console.log('🔍 [ENHANCED-OCR] Processing OCR text...');
-        const ocrResult = await enhancedOCRProcessor.processOCRText(ocrText);
+        const ocrResult = await enhancedOCRProcessor.processOCRText(finalOcrText);
         
         // Enhance brand detection with OCR insights
         if (ocrResult.extractedData.brands.length > 0 && !enhancedData.brand) {
@@ -864,11 +1016,30 @@ EBAY TITLE OPTIMIZATION STRATEGY:
 - Include pattern/print keywords like "Striped", "Plaid", "Floral", "Solid", "Graphic"
 - Add fit descriptors like "Slim Fit", "Regular", "Relaxed", "Oversized"
 
-CRITICAL EXTRACTION REQUIREMENTS:
-- LOOK FOR BRAND NAMES AND TEXT VISIBLE IN THE IMAGE - examine logos, graphics, text prints carefully
-- If you can read text in the image (like "Wall Street Bull", brand names, sizes), extract it for the TITLE
-- Brand names in graphic designs should go in the BRAND field (e.g., "Wall Street Bull" -> brand: "Wall Street Bull")  
-- Text visible in graphics should become part of the title (e.g., "Wall Street Bull Hoodie")
+CRITICAL BRAND EXTRACTION REQUIREMENTS:
+- EXHAUSTIVELY SEARCH for brand names in ALL locations:
+  * Main labels and tags (neck, side seam, waistband)
+  * Care instruction labels (often has brand at top)
+  * Embroidered or printed logos on the garment
+  * Small tags on sleeves, pockets, or hem
+  * Buttons, zippers, or hardware branding
+  * Copyright text (© Brand Name, ® symbols)
+- **SPECIAL FOCUS ON GAP BRAND**: Look for "GAP" text in ANY form:
+  * "GAP" written in capital letters
+  * "Gap" with capital G
+  * GAP logo (distinctive spacing)
+  * If you see ANY text that looks like "GAP", that IS the brand
+- Common clothing brands to look for:
+  * Premium: Ralph Lauren, Tommy Hilfiger, Calvin Klein, Hugo Boss, Armani
+  * Popular: Nike, Adidas, Under Armour, Champion, Puma, Reebok
+  * **DEPARTMENT STORE: GAP, Old Navy, Banana Republic** (GAP owns these)
+  * Fast Fashion: H&M, Zara, Forever 21
+  * Denim: Levi's, Wrangler, Lee, True Religion, Lucky Brand, 7 For All Mankind
+  * Target brands: Goodfellow, Universal Thread
+- If you see partial text, use context: "CK" = Calvin Klein, "RL" = Ralph Lauren, "GA" or "GAP" = Gap
+- Even small or stylized logos should be identified
+- **NEVER ignore "GAP" if visible - it's a major brand**
+- If no brand found after thorough search, use "Unbranded" (never "Unknown")
 
 GENDER DETECTION (CRITICAL FOR EBAY):
 - Analyze cut, style, and design to determine: "Men", "Women", "Unisex", "Boys", "Girls"
@@ -886,14 +1057,33 @@ MATERIAL & FABRIC ANALYSIS:
 - Look for fabric texture in images
 - Extract material info from care labels
 
+CLOTHING TAG ANALYSIS EXPERTISE:
+- CRITICAL: Examine ALL visible tags, labels, and text in images with extreme care
+- Tags can be at angles, blurry, or partially visible - analyze every readable character
+- Look for size information in multiple locations: neck tags, side seams, waistbands, care labels
+- For PANTS SPECIFICALLY: 
+  * Look for waist x length measurements (32x34, W32L34, 32W 34L, 32/34)
+  * Check waistband tags, back tags, and side seam labels
+  * Common waist sizes: 24-50, common lengths: 26-38
+  * European sizes for pants: 38-56 (map to US sizes)
+- Brand names can appear in:
+  * Logos and brand emblems (even if stylized)
+  * Text/graphics printed on garment
+  * Embroidered text on chest, sleeves, or back
+  * Tags sewn into garments (neck, side, waistband)
+  * Care instruction labels (often contains brand at top)
+- If text is partially obscured, use context to complete (e.g. "LEV" likely "LEVI'S")
+- Check for brand copyright symbols (©, ®, ™) which often precede brand names
+
 DETAILED SIZE EXTRACTION:
 - EXAMINE ALL CLOTHING TAGS AND LABELS VERY CAREFULLY FOR SIZE INFORMATION:
-  * Look for size tags sewn into garments (neck tags, side seams, waistbands)
-  * Check care labels which often contain size info (S, M, L, XL, numeric sizes)
-  * Look for size printed on fabric tags (like "MEDIUM", "L", "32x34")
-  * Examine any visible text on clothing for size indicators
-  * Check for European sizes (38, 40, 42), US sizes (S, M, L), or numeric sizes (2, 4, 6, 8)
-  * Look for kids sizes (2T, 4T, 6Y) or shoe sizes if applicable
+  * Primary size tags (neck, side seam, waistband) - most reliable
+  * Care instruction labels (often has size at top or bottom)
+  * For pants: Look for "SIZE:", "W:", "WAIST:", "LENGTH:", "INSEAM:"
+  * Size formats: S/M/L/XL, numeric (2,4,6,8), European (38,40,42), UK (8,10,12)
+  * Kids sizes: 2T, 4T, 5Y, 6X, 7/8, 10/12
+  * Plus sizes: 1X, 2X, 3X or 14W, 16W, 18W
+  * Check for multiple size systems on same tag (US/EU/UK)
 
 PATTERN & DESIGN ANALYSIS:
 - Identify patterns: Solid, Striped, Plaid, Checkered, Floral, Paisley, Animal Print, Abstract, Geometric
@@ -1003,5 +1193,7 @@ Do NOT include markdown or code fences.`;
   const fullPrompt = basePrompt + ebayAspectsPrompt + schemaPrompt;
 
   console.log('✅ [OPENAI-FUNCTION] Prompt generated successfully');
+  console.log('🔍 [OPENAI-FUNCTION] OCR Text for brand detection:', toStr(ocrText));
+  console.log('🔍 [OPENAI-FUNCTION] Candidates for brand detection:', safeStringify(candidates));
   return fullPrompt;
 }

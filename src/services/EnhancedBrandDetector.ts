@@ -224,6 +224,328 @@ export class EnhancedBrandDetector {
       categories: ['activewear', 'yoga'],
       patterns: [/\bathleta\b/i],
       popularity: 6
+    },
+
+    // Additional Popular Brands
+    {
+      name: 'Puma',
+      aliases: ['puma'],
+      priceRange: { min: 15, max: 200 },
+      categories: ['athletic', 'streetwear'],
+      patterns: [/\bpuma\b/i],
+      popularity: 8
+    },
+    {
+      name: 'Reebok',
+      aliases: ['reebok', 'rbk'],
+      priceRange: { min: 15, max: 150 },
+      categories: ['athletic', 'activewear'],
+      patterns: [/\breebok\b/i, /\brbk\b/i],
+      popularity: 7
+    },
+    {
+      name: 'New Balance',
+      aliases: ['new balance', 'nb'],
+      priceRange: { min: 20, max: 250 },
+      categories: ['athletic', 'shoes'],
+      patterns: [/\bnew\s?balance\b/i, /\bnb\b/i],
+      popularity: 7
+    },
+    {
+      name: 'ASICS',
+      aliases: ['asics'],
+      priceRange: { min: 20, max: 200 },
+      categories: ['athletic', 'running'],
+      patterns: [/\basics\b/i],
+      popularity: 7
+    },
+
+    // More Denim Brands
+    {
+      name: 'Lee',
+      aliases: ['lee'],
+      priceRange: { min: 15, max: 100 },
+      categories: ['denim', 'casual'],
+      patterns: [/\blee\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Lucky Brand',
+      aliases: ['lucky brand', 'lucky'],
+      priceRange: { min: 30, max: 200 },
+      categories: ['denim', 'premium'],
+      patterns: [/\blucky\s?brand\b/i, /\blucky\b/i],
+      popularity: 6
+    },
+    {
+      name: '7 For All Mankind',
+      aliases: ['7 for all mankind', '7fam', 'seven'],
+      priceRange: { min: 50, max: 300 },
+      categories: ['denim', 'premium'],
+      patterns: [/\b7\s?for\s?all\s?mankind\b/i, /\b7fam\b/i],
+      popularity: 6
+    },
+    {
+      name: 'American Eagle',
+      aliases: ['american eagle', 'ae', 'aeo'],
+      priceRange: { min: 15, max: 100 },
+      categories: ['denim', 'casual', 'young'],
+      patterns: [/\bamerican\s?eagle\b/i, /\baeo?\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Hollister',
+      aliases: ['hollister', 'hco'],
+      priceRange: { min: 15, max: 100 },
+      categories: ['casual', 'young', 'beach'],
+      patterns: [/\bhollister\b/i, /\bhco\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Abercrombie & Fitch',
+      aliases: ['abercrombie', 'a&f', 'anf'],
+      priceRange: { min: 20, max: 150 },
+      categories: ['casual', 'preppy'],
+      patterns: [/\babercrombie(?:\s?&\s?fitch)?\b/i, /\ba&f\b/i, /\banf\b/i],
+      popularity: 7
+    },
+
+    // Workwear & Outdoor
+    {
+      name: 'Carhartt',
+      aliases: ['carhartt'],
+      priceRange: { min: 25, max: 200 },
+      categories: ['workwear', 'outdoor'],
+      patterns: [/\bcarhartt\b/i],
+      popularity: 8
+    },
+    {
+      name: 'Dickies',
+      aliases: ['dickies'],
+      priceRange: { min: 15, max: 100 },
+      categories: ['workwear', 'streetwear'],
+      patterns: [/\bdickies\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Timberland',
+      aliases: ['timberland', 'timbs'],
+      priceRange: { min: 30, max: 250 },
+      categories: ['outdoor', 'boots', 'casual'],
+      patterns: [/\btimberland\b/i, /\btimbs\b/i],
+      popularity: 7
+    },
+    {
+      name: 'L.L.Bean',
+      aliases: ['llbean', 'l.l.bean', 'll bean'],
+      priceRange: { min: 20, max: 200 },
+      categories: ['outdoor', 'preppy'],
+      patterns: [/\bl\.?l\.?bean\b/i],
+      popularity: 6
+    },
+
+    // Target Brands
+    {
+      name: 'Goodfellow & Co',
+      aliases: ['goodfellow', 'goodfellow & co'],
+      priceRange: { min: 8, max: 50 },
+      categories: ['casual', 'basic', 'target'],
+      patterns: [/\bgoodfellow(?:\s?&\s?co)?\b/i],
+      popularity: 6
+    },
+    {
+      name: 'Universal Thread',
+      aliases: ['universal thread'],
+      priceRange: { min: 8, max: 40 },
+      categories: ['casual', 'women', 'target'],
+      patterns: [/\buniversal\s?thread\b/i],
+      popularity: 5
+    },
+    {
+      name: 'Wild Fable',
+      aliases: ['wild fable'],
+      priceRange: { min: 5, max: 35 },
+      categories: ['young', 'trendy', 'target'],
+      patterns: [/\bwild\s?fable\b/i],
+      popularity: 5
+    },
+
+    // Fast Fashion & Youth
+    {
+      name: 'Shein',
+      aliases: ['shein'],
+      priceRange: { min: 3, max: 50 },
+      categories: ['fast fashion', 'trendy'],
+      patterns: [/\bshein\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Fashion Nova',
+      aliases: ['fashion nova'],
+      priceRange: { min: 5, max: 60 },
+      categories: ['fast fashion', 'trendy'],
+      patterns: [/\bfashion\s?nova\b/i],
+      popularity: 6
+    },
+    {
+      name: 'Boohoo',
+      aliases: ['boohoo'],
+      priceRange: { min: 5, max: 50 },
+      categories: ['fast fashion', 'young'],
+      patterns: [/\bboohoo\b/i],
+      popularity: 5
+    },
+    {
+      name: 'ASOS',
+      aliases: ['asos'],
+      priceRange: { min: 10, max: 150 },
+      categories: ['fast fashion', 'trendy'],
+      patterns: [/\basos\b/i],
+      popularity: 7
+    },
+
+    // Department Store & Mall Brands
+    {
+      name: 'J.Crew',
+      aliases: ['j.crew', 'jcrew', 'j crew'],
+      priceRange: { min: 20, max: 200 },
+      categories: ['preppy', 'business casual'],
+      patterns: [/\bj\.?crew\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Ann Taylor',
+      aliases: ['ann taylor'],
+      priceRange: { min: 20, max: 150 },
+      categories: ['women', 'business', 'dress'],
+      patterns: [/\bann\s?taylor\b/i],
+      popularity: 6
+    },
+    {
+      name: 'Express',
+      aliases: ['express'],
+      priceRange: { min: 15, max: 150 },
+      categories: ['business casual', 'trendy'],
+      patterns: [/\bexpress\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Uniqlo',
+      aliases: ['uniqlo'],
+      priceRange: { min: 10, max: 100 },
+      categories: ['basic', 'casual', 'minimalist'],
+      patterns: [/\buniqlo\b/i],
+      popularity: 8
+    },
+    {
+      name: 'Anthropologie',
+      aliases: ['anthropologie', 'anthro'],
+      priceRange: { min: 30, max: 300 },
+      categories: ['bohemian', 'women', 'unique'],
+      patterns: [/\banthropologie\b/i, /\banthro\b/i],
+      popularity: 6
+    },
+
+    // Luxury & Designer
+    {
+      name: 'Gucci',
+      aliases: ['gucci'],
+      priceRange: { min: 100, max: 5000 },
+      categories: ['luxury', 'designer'],
+      patterns: [/\bgucci\b/i],
+      popularity: 8
+    },
+    {
+      name: 'Louis Vuitton',
+      aliases: ['louis vuitton', 'lv'],
+      priceRange: { min: 200, max: 10000 },
+      categories: ['luxury', 'designer'],
+      patterns: [/\blouis\s?vuitton\b/i, /\blv\b/i],
+      popularity: 8
+    },
+    {
+      name: 'Prada',
+      aliases: ['prada'],
+      priceRange: { min: 150, max: 5000 },
+      categories: ['luxury', 'designer'],
+      patterns: [/\bprada\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Versace',
+      aliases: ['versace'],
+      priceRange: { min: 100, max: 5000 },
+      categories: ['luxury', 'designer'],
+      patterns: [/\bversace\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Burberry',
+      aliases: ['burberry'],
+      priceRange: { min: 100, max: 3000 },
+      categories: ['luxury', 'british', 'designer'],
+      patterns: [/\bburberry\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Coach',
+      aliases: ['coach'],
+      priceRange: { min: 50, max: 800 },
+      categories: ['premium', 'accessories'],
+      patterns: [/\bcoach\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Michael Kors',
+      aliases: ['michael kors', 'mk'],
+      priceRange: { min: 30, max: 500 },
+      categories: ['premium', 'accessories'],
+      patterns: [/\bmichael\s?kors\b/i, /\bmk\b/i],
+      popularity: 7
+    },
+    {
+      name: 'Kate Spade',
+      aliases: ['kate spade'],
+      priceRange: { min: 30, max: 400 },
+      categories: ['premium', 'women', 'accessories'],
+      patterns: [/\bkate\s?spade\b/i],
+      popularity: 6
+    },
+
+    // Sports Teams & Brands
+    {
+      name: 'Fanatics',
+      aliases: ['fanatics'],
+      priceRange: { min: 15, max: 150 },
+      categories: ['sports', 'fan gear'],
+      patterns: [/\bfanatics\b/i],
+      popularity: 5
+    },
+    {
+      name: 'Mitchell & Ness',
+      aliases: ['mitchell & ness', 'mitchell and ness'],
+      priceRange: { min: 30, max: 300 },
+      categories: ['sports', 'vintage', 'jerseys'],
+      patterns: [/\bmitchell\s?&\s?ness\b/i],
+      popularity: 5
+    },
+
+    // Vintage & Specialty
+    {
+      name: 'Pendleton',
+      aliases: ['pendleton'],
+      priceRange: { min: 30, max: 300 },
+      categories: ['wool', 'outdoor', 'heritage'],
+      patterns: [/\bpendleton\b/i],
+      popularity: 5
+    },
+    {
+      name: 'Woolrich',
+      aliases: ['woolrich'],
+      priceRange: { min: 30, max: 400 },
+      categories: ['outdoor', 'wool', 'heritage'],
+      patterns: [/\bwoolrich\b/i],
+      popularity: 5
     }
   ];
 
@@ -308,9 +630,9 @@ export class EnhancedBrandDetector {
           alias.toLowerCase()
         );
         
-        // High similarity suggests OCR error
-        if (similarity > 0.75 && word.length >= 3) {
-          const confidence = 0.7 + (similarity - 0.75) * 0.8; // 0.7 to 0.9
+        // Lower threshold for better OCR error tolerance
+        if (similarity > 0.65 && word.length >= 3) {
+          const confidence = 0.6 + (similarity - 0.65) * 1.2; // 0.6 to 0.9
           
           return {
             brand: brand.name,

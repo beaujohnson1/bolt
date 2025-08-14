@@ -23,40 +23,80 @@ interface EbayKeywordData {
 export class OCRKeywordOptimizer {
   private supabase;
   private static readonly CLOTHING_KEYWORDS = [
-    // Brands (most searched)
+    // Premium & Designer Brands (highest search volume)
     'nike', 'adidas', 'lululemon', 'patagonia', 'north face', 'under armour',
+    'ralph lauren', 'tommy hilfiger', 'calvin klein', 'hugo boss', 'polo',
+    'gucci', 'prada', 'versace', 'burberry', 'coach', 'michael kors',
+    
+    // Popular & Fast Fashion Brands
     'gap', 'old navy', 'zara', 'h&m', 'uniqlo', 'american eagle',
-    'hollister', 'abercrombie', 'banana republic', 'j crew',
+    'hollister', 'abercrombie', 'banana republic', 'j crew', 'express',
+    'forever 21', 'shein', 'fashion nova', 'asos', 'anthropologie',
     
-    // Item types
-    'jacket', 'coat', 'shirt', 'blouse', 'dress', 'pants', 'jeans',
-    'sweater', 'hoodie', 'cardigan', 'blazer', 'skirt', 'shorts',
-    'tank top', 'polo', 't-shirt', 'sweatshirt',
+    // Denim & Streetwear
+    'levis', 'wrangler', 'true religion', 'lucky brand', '7 for all mankind',
+    'supreme', 'champion', 'puma', 'reebok', 'new balance', 'asics',
     
-    // Materials & Features
-    'cotton', 'wool', 'polyester', 'denim', 'leather', 'silk',
-    'fleece', 'cashmere', 'linen', 'vintage', 'rare', 'limited edition',
-    'waterproof', 'windbreaker', 'thermal', 'athletic', 'workout',
+    // Item Types (eBay optimized)
+    'jacket', 'coat', 'blazer', 'shirt', 'blouse', 'top', 'dress', 'pants', 'jeans',
+    'sweater', 'hoodie', 'sweatshirt', 'cardigan', 'skirt', 'shorts', 'leggings',
+    'tank top', 'polo', 't-shirt', 'tee', 'button down', 'pullover',
     
-    // Styles & Occasions
-    'business', 'casual', 'formal', 'party', 'wedding', 'summer',
-    'winter', 'spring', 'fall', 'outdoor', 'hiking', 'running',
+    // Pants Specific (high commercial value)
+    'bootcut', 'straight leg', 'skinny', 'wide leg', 'flare', 'high waisted',
+    'low rise', 'mid rise', 'stretch', 'distressed', 'ripped', 'dark wash',
+    'light wash', 'stonewashed', 'raw denim', 'selvedge',
     
-    // Colors (high-impact)
-    'black', 'white', 'blue', 'red', 'gray', 'navy', 'pink',
-    'green', 'brown', 'tan', 'purple', 'yellow', 'orange',
+    // Materials & Fabrics (search attractors)
+    'cotton', 'wool', 'polyester', 'denim', 'leather', 'silk', 'cashmere',
+    'fleece', 'linen', 'spandex', 'modal', 'bamboo', 'organic cotton',
+    'merino wool', 'alpaca', 'tweed', 'corduroy', 'velvet',
     
-    // Size indicators
-    'xl', 'large', 'medium', 'small', 'xs', 'plus size', 'petite',
-    'tall', 'regular', 'slim fit', 'relaxed fit'
+    // Features & Technology (premium indicators)
+    'waterproof', 'windbreaker', 'thermal', 'moisture wicking', 'quick dry',
+    'wrinkle resistant', 'stretch', 'breathable', 'insulated', 'reflective',
+    'antimicrobial', 'odor resistant', 'uv protection',
+    
+    // Style Descriptors (trending searches)
+    'vintage', 'retro', 'boho', 'preppy', 'minimalist', 'oversized',
+    'cropped', 'fitted', 'loose', 'tailored', 'structured', 'flowy',
+    'edgy', 'grunge', 'punk', 'goth', 'romantic', 'feminine',
+    
+    // Occasions & Seasons (high conversion)
+    'business', 'work', 'office', 'casual', 'formal', 'party', 'date night',
+    'wedding', 'vacation', 'beach', 'summer', 'winter', 'spring', 'fall',
+    'holiday', 'christmas', 'valentine', 'graduation',
+    
+    // Activities & Lifestyle
+    'athletic', 'workout', 'gym', 'yoga', 'running', 'hiking', 'outdoor',
+    'travel', 'maternity', 'nursing', 'school', 'college', 'teen',
+    
+    // Condition & Value Terms (search modifiers)
+    'new with tags', 'nwt', 'new without tags', 'nwot', 'like new',
+    'excellent condition', 'vintage', 'rare', 'limited edition', 'discontinued',
+    'collectible', 'deadstock', 'sample', 'prototype',
+    
+    // Colors (most searched combinations)
+    'black', 'white', 'navy', 'gray', 'grey', 'blue', 'red', 'pink',
+    'green', 'brown', 'tan', 'beige', 'cream', 'ivory', 'burgundy',
+    'maroon', 'purple', 'yellow', 'orange', 'turquoise', 'olive',
+    
+    // Fit & Size Terms (critical for pants)
+    'xs', 'small', 'medium', 'large', 'xl', 'xxl', 'plus size', 'petite',
+    'tall', 'regular', 'short', 'long', 'slim fit', 'regular fit',
+    'relaxed fit', 'loose fit', 'tight fit', 'compression'
   ];
   
   private static readonly KEYWORD_PATTERNS = {
-    brand: /\b(nike|adidas|lululemon|patagonia|north\s*face|under\s*armour|gap|old\s*navy|zara|h&m|uniqlo|american\s*eagle|hollister|abercrombie|banana\s*republic|j\s*crew|calvin\s*klein|tommy\s*hilfiger|ralph\s*lauren|polo|lacoste|hugo\s*boss|gucci|prada|louis\s*vuitton|chanel|versace|armani|burberry)\b/i,
-    material: /\b(cotton|wool|polyester|denim|leather|silk|fleece|cashmere|linen|nylon|spandex|rayon|modal|bamboo)\b/i,
-    style: /\b(vintage|retro|modern|classic|trendy|bohemian|minimalist|streetwear|preppy|gothic|punk|grunge)\b/i,
-    feature: /\b(waterproof|windbreaker|thermal|insulated|breathable|moisture\s*wicking|quick\s*dry|stretch|wrinkle\s*resistant)\b/i,
-    season: /\b(summer|winter|spring|fall|autumn|holiday|christmas|valentine|beach|vacation)\b/i
+    brand: /\b(nike|adidas|lululemon|patagonia|north\s*face|under\s*armour|ralph\s*lauren|tommy\s*hilfiger|calvin\s*klein|hugo\s*boss|polo|gucci|prada|versace|burberry|coach|michael\s*kors|gap|old\s*navy|zara|h&m|uniqlo|american\s*eagle|hollister|abercrombie|banana\s*republic|j\s*crew|express|forever\s*21|shein|fashion\s*nova|asos|anthropologie|levis?|levi'?s|wrangler|true\s*religion|lucky\s*brand|7\s*for\s*all\s*mankind|supreme|champion|puma|reebok|new\s*balance|asics)\b/i,
+    material: /\b(cotton|wool|polyester|denim|leather|silk|fleece|cashmere|linen|nylon|spandex|rayon|modal|bamboo|organic\s*cotton|merino\s*wool|alpaca|tweed|corduroy|velvet)\b/i,
+    pantsStyle: /\b(bootcut|straight\s*leg|skinny|wide\s*leg|flare|high\s*waisted?|low\s*rise|mid\s*rise|stretch|distressed|ripped|dark\s*wash|light\s*wash|stonewashed|raw\s*denim|selvedge)\b/i,
+    style: /\b(vintage|retro|modern|classic|trendy|bohemian|boho|minimalist|streetwear|preppy|gothic|punk|grunge|oversized|cropped|fitted|loose|tailored|structured|flowy|edgy|romantic|feminine)\b/i,
+    feature: /\b(waterproof|windbreaker|thermal|insulated|breathable|moisture\s*wicking|quick\s*dry|stretch|wrinkle\s*resistant|antimicrobial|odor\s*resistant|uv\s*protection|reflective)\b/i,
+    occasion: /\b(business|work|office|casual|formal|party|date\s*night|wedding|vacation|beach|athletic|workout|gym|yoga|running|hiking|outdoor|travel|maternity|nursing)\b/i,
+    season: /\b(summer|winter|spring|fall|autumn|holiday|christmas|valentine|graduation)\b/i,
+    condition: /\b(new\s*with\s*tags|nwt|new\s*without\s*tags|nwot|like\s*new|excellent\s*condition|rare|limited\s*edition|discontinued|collectible|deadstock|sample|prototype)\b/i,
+    fit: /\b(xs|small|medium|large|xl|xxl|plus\s*size|petite|tall|regular|short|long|slim\s*fit|regular\s*fit|relaxed\s*fit|loose\s*fit|tight\s*fit|compression)\b/i
   };
 
   constructor() {
@@ -226,6 +266,11 @@ export class OCRKeywordOptimizer {
     // Add high-performing generic keywords for the item type
     this.getHighPerformingKeywords(itemType).forEach(kw => combined.add(kw));
 
+    // Add pants-specific keywords if this is pants/jeans
+    if (this.isPantsItem(itemType)) {
+      this.getPantsSpecificKeywords(Array.from(combined)).forEach(kw => combined.add(kw));
+    }
+
     return Array.from(combined).slice(0, 15); // Limit to 15 for eBay optimization
   }
 
@@ -347,6 +392,51 @@ export class OCRKeywordOptimizer {
   }
 
   // Helper Methods
+
+  /**
+   * Check if the item is pants/jeans related
+   */
+  private isPantsItem(itemType: string): boolean {
+    const pantsTypes = ['pants', 'jeans', 'trousers', 'slacks', 'chinos', 'khakis', 'leggings', 'joggers', 'sweatpants'];
+    return pantsTypes.some(type => itemType.toLowerCase().includes(type));
+  }
+
+  /**
+   * Get pants-specific keywords based on existing keywords
+   */
+  private getPantsSpecificKeywords(existingKeywords: string[]): string[] {
+    const pantsKeywords: string[] = [];
+    const existing = existingKeywords.map(kw => kw.toLowerCase());
+
+    // Add style keywords if not present
+    const styleKeywords = ['straight leg', 'skinny', 'bootcut', 'wide leg', 'slim fit', 'relaxed fit'];
+    styleKeywords.forEach(style => {
+      if (!existing.some(kw => kw.includes(style.replace(' ', '')))) {
+        pantsKeywords.push(style);
+      }
+    });
+
+    // Add rise keywords if not present
+    const riseKeywords = ['high waisted', 'mid rise', 'low rise'];
+    if (!existing.some(kw => riseKeywords.some(rise => kw.includes(rise.replace(' ', ''))))) {
+      pantsKeywords.push('mid rise'); // Default safe choice
+    }
+
+    // Add wash keywords for denim
+    if (existing.some(kw => ['jeans', 'denim'].includes(kw))) {
+      const washKeywords = ['dark wash', 'light wash', 'medium wash'];
+      if (!existing.some(kw => washKeywords.some(wash => kw.includes(wash.replace(' ', ''))))) {
+        pantsKeywords.push('dark wash'); // Most popular
+      }
+    }
+
+    // Add material if missing
+    if (!existing.some(kw => ['cotton', 'denim', 'polyester', 'spandex', 'stretch'].includes(kw))) {
+      pantsKeywords.push('cotton'); // Most common
+    }
+
+    return pantsKeywords.slice(0, 3); // Limit to avoid keyword stuffing
+  }
 
   private extractCareInstructions(text: string): string[] {
     const instructions: string[] = [];

@@ -71,29 +71,66 @@ export class EnhancedSizeProcessor {
   ];
 
   private measurementMappings: SizeMapping[] = [
+    // Pants Size Patterns - HIGHEST PRIORITY
+    // Standard waist x length format (32x34, 30x32, etc)
+    { input: /^(\d{2,3})\s*[xX×]\s*(\d{2,3})$/i, output: '$1x$2', confidence: 0.95, gender: 'unisex', category: 'clothing' },
+    
+    // W32L34 format
+    { input: /^[Ww](\d{2,3})[Ll](\d{2,3})$/i, output: '$1x$2', confidence: 0.95, gender: 'unisex', category: 'clothing' },
+    
+    // 32W 34L format
+    { input: /^(\d{2,3})\s*[Ww]\s*(\d{2,3})\s*[Ll]$/i, output: '$1x$2', confidence: 0.95, gender: 'unisex', category: 'clothing' },
+    
+    // Waist 32 Length 34 format
+    { input: /^waist[:\s]*(\d{2,3})\s*length[:\s]*(\d{2,3})$/i, output: '$1x$2', confidence: 0.95, gender: 'unisex', category: 'clothing' },
+    
+    // 32/34 format (slash separator)
+    { input: /^(\d{2,3})\/(\d{2,3})$/i, output: '$1x$2', confidence: 0.9, gender: 'unisex', category: 'clothing' },
+    
+    // Size: 32x34 format (with prefix)
+    { input: /^(?:size|sz)[:\s]*(\d{2,3})\s*[xX×]\s*(\d{2,3})$/i, output: '$1x$2', confidence: 0.95, gender: 'unisex', category: 'clothing' },
+    
+    // W: 32 L: 34 format
+    { input: /^[Ww][:\s]*(\d{2,3})\s*[Ll][:\s]*(\d{2,3})$/i, output: '$1x$2', confidence: 0.95, gender: 'unisex', category: 'clothing' },
+    
     // Chest/Bust measurements
     { input: /^(\d{2,3})\s?(cm|centimeter)s?$/i, output: '$1cm', confidence: 0.8, gender: 'unisex', category: 'clothing' },
     { input: /^(\d{1,2})\s?(in|inch|")$/i, output: '$1"', confidence: 0.8, gender: 'unisex', category: 'clothing' },
     
-    // Waist measurements
+    // Single waist measurements (when length not specified)
     { input: /^(\d{2,3})\s?cm\s?(waist|w)$/i, output: '$1cm waist', confidence: 0.85, gender: 'unisex', category: 'clothing' },
     { input: /^(\d{1,2})\s?(in|inch|")\s?(waist|w)$/i, output: '$1" waist', confidence: 0.85, gender: 'unisex', category: 'clothing' },
+    { input: /^waist[:\s]*(\d{2,3})$/i, output: '$1" waist', confidence: 0.85, gender: 'unisex', category: 'clothing' },
+    { input: /^[Ww][:\s]*(\d{2,3})$/i, output: '$1" waist', confidence: 0.85, gender: 'unisex', category: 'clothing' },
     
-    // Length measurements
-    { input: /^(\d{2,3})\s?cm\s?(length|l)$/i, output: '$1cm length', confidence: 0.8, gender: 'unisex', category: 'clothing' },
-    { input: /^(\d{1,2})\s?(in|inch|")\s?(length|l)$/i, output: '$1" length', confidence: 0.8, gender: 'unisex', category: 'clothing' }
+    // Single length/inseam measurements
+    { input: /^(\d{2,3})\s?cm\s?(length|l|inseam)$/i, output: '$1cm length', confidence: 0.8, gender: 'unisex', category: 'clothing' },
+    { input: /^(\d{1,2})\s?(in|inch|")\s?(length|l|inseam)$/i, output: '$1" length', confidence: 0.8, gender: 'unisex', category: 'clothing' },
+    { input: /^(?:length|inseam)[:\s]*(\d{2,3})$/i, output: '$1" length', confidence: 0.8, gender: 'unisex', category: 'clothing' },
+    { input: /^[Ll][:\s]*(\d{2,3})$/i, output: '$1" length', confidence: 0.8, gender: 'unisex', category: 'clothing' }
   ];
 
   private internationalSizeMappings: SizeMapping[] = [
-    // European Sizes
-    { input: /^(3[4-9]|4[0-9]|5[0-6])$/, output: 'EU $1', confidence: 0.7, gender: 'women', category: 'clothing' },
+    // European Pants Sizes (Men's)
     { input: /^(4[4-9]|5[0-9]|6[0-4])$/, output: 'EU $1', confidence: 0.7, gender: 'men', category: 'clothing' },
+    
+    // European Pants Sizes (Women's)  
+    { input: /^(3[4-9]|4[0-9]|5[0-6])$/, output: 'EU $1', confidence: 0.7, gender: 'women', category: 'clothing' },
+    
+    // European size with explicit prefix
+    { input: /^(?:eu|eur|european)[:\s]*(\d{2})$/i, output: 'EU $1', confidence: 0.85, gender: 'unisex', category: 'clothing' },
     
     // UK Sizes
     { input: /^uk\s?(\d{1,2})$/i, output: 'UK $1', confidence: 0.8, gender: 'unisex', category: 'clothing' },
     
+    // French sizing (common for pants)
+    { input: /^(?:fr|french)[:\s]*(\d{2})$/i, output: 'FR $1', confidence: 0.8, gender: 'unisex', category: 'clothing' },
+    
+    // Italian sizing
+    { input: /^(?:it|ita|italian)[:\s]*(\d{2})$/i, output: 'IT $1', confidence: 0.8, gender: 'unisex', category: 'clothing' },
+    
     // Japanese Sizes
-    { input: /^jp\s?(\d{1,2})$/i, output: 'JP $1', confidence: 0.8, gender: 'unisex', category: 'clothing' }
+    { input: /^(?:jp|jpn|japanese)[:\s]*(\d{1,2})$/i, output: 'JP $1', confidence: 0.8, gender: 'unisex', category: 'clothing' }
   ];
 
   private ageSizeMappings: SizeMapping[] = [
