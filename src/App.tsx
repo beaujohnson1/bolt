@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import './styles/mobile.css';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthCallback from './components/AuthCallback';
+import EbayAuthCallback from './components/EbayAuthCallback';
 import LandingPage from './pages/LandingPage';
 import AppDashboard from './pages/AppDashboard';
 import PhotoCapture from './pages/PhotoCapture';
@@ -14,6 +15,8 @@ import EnvGuard from './components/EnvGuard';
 import AutoPromotionDashboard from './components/AutoPromotionDashboard';
 import AuthConnectivityTest from './pages/AuthConnectivityTest'; // <--- This import is now valid
 import AIInsightsDashboard from './pages/AIInsightsDashboard';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 
 function App() {
   return (
@@ -23,8 +26,11 @@ function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/auth/ebay/callback" element={<EbayAuthCallback />} />
             <Route path="/test-connection" element={<ConnectionTestPage />} />
             <Route path="/auth-test" element={<AuthConnectivityTest />} /> {/* <--- This route is now valid */}
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
             <Route 
               path="/ai-insights" 
               element={

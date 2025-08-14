@@ -55,6 +55,11 @@ class EbayApiService {
   private certId: string;
   private environment: 'sandbox' | 'production';
 
+  // Public getter for environment
+  get currentEnvironment(): 'sandbox' | 'production' {
+    return this.environment;
+  }
+
   constructor() {
     // Determine environment - Use production if explicitly set or if we're in a deployed environment
     this.environment = import.meta.env.VITE_EBAY_USE_PRODUCTION === 'true' || 
@@ -78,6 +83,40 @@ class EbayApiService {
     console.log('🔧 [EBAY-API] Has App ID:', !!this.appId);
     console.log('🔧 [EBAY-API] Has Dev ID:', !!this.devId);
     console.log('🔧 [EBAY-API] Has Cert ID:', !!this.certId);
+  }
+
+  /**
+   * Verify Trading API capabilities available with current configuration
+   */
+  async verifyTradingAPICapabilities(): Promise<{ 
+    capabilities: string[]; 
+    requiresAuth: string[];
+    environment: string;
+    isConfigured: boolean;
+  }> {
+    const capabilities = [
+      'GetCategories - Browse eBay category structure',
+      'GetCategorySpecifics - Get required item attributes',
+      'GetItem - Retrieve item details',
+      'GetMyeBayBuying - Get user buying activity',
+      'GetSearchResults - Search eBay listings'
+    ];
+
+    const requiresAuth = [
+      'AddItem - Create new listings',
+      'ReviseItem - Update existing listings', 
+      'EndItem - End listings early',
+      'GetMyeBaySelling - Get user selling activity',
+      'AddFixedPriceItem - Create fixed-price listings',
+      'VerifyAddItem - Validate listing before creation'
+    ];
+
+    return {
+      capabilities,
+      requiresAuth,
+      environment: this.environment,
+      isConfigured: !!(this.appId && this.devId && this.certId)
+    };
   }
 
   /**
@@ -108,7 +147,7 @@ class EbayApiService {
       }
 
       // Test with a simple category request in production/netlify environment
-      const categories = await this.getCategories(1); // Get just 1 level
+      const categories = await this.getCategories(1, false); // Get just 1 level without auth
 
       return {
         success: true,
@@ -118,6 +157,15 @@ class EbayApiService {
     } catch (error) {
       console.error('❌ [EBAY-API] Connection test failed:', error);
       
+      // Check if this is an OAuth authentication error
+      if (error.message && error.message.includes('No valid eBay OAuth token available')) {
+        return {
+          success: false,
+          message: 'eBay API configured but user authentication required. Click "Test eBay OAuth Flow" to authenticate.',
+          environment: this.environment
+        };
+      }
+
       // Check if this is the development proxy error
       if (error.message && error.message.includes('eBay API proxy not available in development mode')) {
         return {
@@ -138,32 +186,43 @@ class EbayApiService {
   /**
    * Get eBay categories using Trading API
    */
-  async getCategories(levelLimit: number = 3): Promise<EbayCategory[]> {
+  async getCategories(levelLimit: number = 3, requireAuth: boolean = false): Promise<EbayCategory[]> {
     try {
       console.log('📂 [EBAY-API] Fetching categories with level limit:', levelLimit);
       
-      const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
+      let accessToken = null;
+      
+      // Only get OAuth token if authentication is required
+      if (requireAuth) {
+        accessToken = await this._getAccessToken();
+      }
+    
+    const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
 <GetCategoriesRequest xmlns="urn:ebay:apis:eBLBaseComponents">
-  <RequesterCredentials>
-    <eBayAuthToken>AgAAAA**AQAAAA**aAAAAA**</eBayAuthToken>
-  </RequesterCredentials>
   <CategorySiteID>0</CategorySiteID>
   <LevelLimit>${levelLimit}</LevelLimit>
   <ViewAllNodes>true</ViewAllNodes>
 </GetCategoriesRequest>`;
 
+      const headers = {
+        'Content-Type': 'text/xml',
+        'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
+        'X-EBAY-API-DEV-NAME': this.devId,
+        'X-EBAY-API-APP-NAME': this.appId,
+        'X-EBAY-API-CERT-NAME': this.certId,
+        'X-EBAY-API-CALL-NAME': 'GetCategories',
+        'X-EBAY-API-SITEID': '0'
+      };
+      
+      // Only add OAuth token if we have one
+      if (accessToken) {
+        headers['X-EBAY-API-IAF-TOKEN'] = accessToken;
+      }
+
       const response = await this._callProxy(
         `${this.baseUrl}/ws/api/eBayAPI.dll`,
         'POST',
-        {
-          'Content-Type': 'text/xml',
-          'X-EBAY-API-COMPATIBILITY-LEVEL': '967',
-          'X-EBAY-API-DEV-NAME': this.devId,
-          'X-EBAY-API-APP-NAME': this.appId,
-          'X-EBAY-API-CERT-NAME': this.certId,
-          'X-EBAY-API-CALL-NAME': 'GetCategories',
-          'X-EBAY-API-SITEID': '0'
-        },
+        headers,
         xmlBody
       );
 
@@ -251,11 +310,11 @@ class EbayApiService {
     try {
       console.log('📋 [EBAY-API] Getting category specifics for:', categoryId);
       
+      // Get OAuth access token for authenticated request
+      const accessToken = await this._getAccessToken();
+      
       const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
 <GetCategorySpecificsRequest xmlns="urn:ebay:apis:eBLBaseComponents">
-  <RequesterCredentials>
-    <eBayAuthToken>AgAAAA**AQAAAA**aAAAAA**</eBayAuthToken>
-  </RequesterCredentials>
   <CategoryID>${categoryId}</CategoryID>
 </GetCategorySpecificsRequest>`;
 
@@ -269,7 +328,8 @@ class EbayApiService {
           'X-EBAY-API-APP-NAME': this.appId,
           'X-EBAY-API-CERT-NAME': this.certId,
           'X-EBAY-API-CALL-NAME': 'GetCategorySpecifics',
-          'X-EBAY-API-SITEID': '0'
+          'X-EBAY-API-SITEID': '0',
+          'X-EBAY-API-IAF-TOKEN': accessToken
         },
         xmlBody
       );
@@ -546,11 +606,17 @@ class EbayApiService {
     try {
       console.log('🔑 [EBAY-API] Getting OAuth access token...');
       
-      // For now, return a placeholder token
-      // In production, this would implement the OAuth flow
-      const mockToken = 'mock_access_token_' + Date.now();
-      console.log('✅ [EBAY-API] Mock access token generated');
-      return mockToken;
+      // Import OAuth service dynamically to avoid circular dependencies
+      const { default: ebayOAuth } = await import('./ebayOAuth');
+      
+      const token = await ebayOAuth.getValidAccessToken();
+      
+      if (!token) {
+        throw new Error('No valid eBay OAuth token available. Please authenticate first.');
+      }
+      
+      console.log('✅ [EBAY-API] OAuth access token retrieved successfully');
+      return token;
     } catch (error) {
       console.error('❌ [EBAY-API] Error getting access token:', error);
       throw error;

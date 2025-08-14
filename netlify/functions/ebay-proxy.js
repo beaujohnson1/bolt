@@ -68,31 +68,14 @@ exports.handler = async (event, context) => {
     
     if (!url) {
       console.error('❌ [EBAY-PROXY] No URL provided in request');
-      // If JSON parsing fails, check if response is empty or malformed
-      console.log('⚠️ [EBAY-PROXY] JSON parsing failed:', parseError.message);
-      console.log('📄 [EBAY-PROXY] Raw response preview:', responseText.substring(0, 200));
-      
-      // Check if response is completely empty
-      if (!responseText.trim()) {
-        responseData = {
-          error: 'Empty response from eBay API',
-          message: 'eBay API returned an empty response',
-          status: response.status,
-          statusText: response.statusText,
-          isEmpty: true
-        };
-      } else {
-        // Response has content but isn't valid JSON
-        responseData = {
-          error: 'Invalid JSON response from eBay API',
-          message: parseError.message,
-          rawResponse: responseText.substring(0, 500),
-          responseLength: responseText.length,
-          status: response.status,
-          statusText: response.statusText,
-          parseError: true
-        };
-      }
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          error: 'Missing URL parameter',
+          message: 'URL is required for proxy requests'
+        })
+      };
     }
 
     console.log('🔄 [EBAY-PROXY] Proxying request:', {
@@ -192,39 +175,14 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('❌ [EBAY-PROXY] Proxy error:', error);
-  }
-  // Ensure we always return valid JSON for the client
-  let responseBody;
-  try {
-    if (typeof responseData === 'string') {
-      // For XML responses, return as-is
-      if (responseContentType.includes('xml') || responseData.trim().startsWith('<?xml')) {
-        responseBody = responseData;
-      } else {
-        // For non-XML strings, wrap in JSON structure
-        responseBody = JSON.stringify({
-          success: true,
-          data: responseData,
-          contentType: 'text'
-        });
-      }
-    } else {
-      // For objects, stringify normally
-      responseBody = JSON.stringify(responseData);
-    }
-    
-    // Final validation: ensure JSON responses are valid
-    if (!responseContentType.includes('xml') && !responseData?.toString().trim().startsWith('<?xml')) {
-      JSON.parse(responseBody); // Validate JSON structure
-      console.log('✅ [EBAY-PROXY] Response body validated as valid JSON');
-    }
-  } catch (validationError) {
-    console.error('❌ [EBAY-PROXY] Final validation failed:', validationError);
-    responseBody = JSON.stringify({
-      error: 'Response validation failed',
-      message: validationError.message,
-      originalStatus: response.status,
-      fallback: true
-    });
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        error: 'Proxy request failed',
+        message: error.message,
+        url: url || 'unknown'
+      })
+    };
   }
 };

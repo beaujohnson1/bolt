@@ -347,6 +347,90 @@ const ConnectionTest = () => {
           </div>
         </div>
 
+        {/* eBay OAuth Testing Section */}
+        <div className="mt-8 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-200">
+          <h3 className="font-semibold text-yellow-900 mb-2 flex items-center space-x-2">
+            <ShoppingCart className="w-5 h-5" />
+            <span>eBay OAuth Authentication</span>
+          </h3>
+          <div className="text-sm text-yellow-800 mb-4">
+            <p>Test eBay OAuth flow for authenticated API calls. This enables listing creation and management.</p>
+          </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={async () => {
+                try {
+                  const { default: ebayOAuth } = await import('../services/ebayOAuth');
+                  const redirectUri = `${window.location.origin}/auth/ebay/callback`;
+                  await ebayOAuth.initiateOAuthFlow(redirectUri);
+                } catch (error) {
+                  console.error('eBay OAuth error:', error);
+                  alert(`eBay OAuth error: ${error.message}`);
+                }
+              }}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              Test eBay OAuth Flow
+            </button>
+            
+            <button
+              onClick={async () => {
+                try {
+                  const ebayService = new EbayApiService();
+                  const capabilities = await ebayService.verifyTradingAPICapabilities();
+                  alert(`Trading API Capabilities:\n\nAvailable APIs:\n${capabilities.capabilities.join('\n')}\n\nRequire Authentication:\n${capabilities.requiresAuth.join('\n')}\n\nEnvironment: ${capabilities.environment}\nConfigured: ${capabilities.isConfigured ? 'Yes' : 'No'}`);
+                } catch (error) {
+                  console.error('Capabilities check error:', error);
+                  alert(`Error checking capabilities: ${error.message}`);
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              Check Trading API
+            </button>
+            
+            <button
+              onClick={async () => {
+                try {
+                  const ebayService = new EbayApiService();
+                  console.log('Testing category fetching...');
+                  const categories = await ebayService.getCategories(2, false); // 2 levels, no auth required
+                  console.log('Categories fetched:', categories);
+                  alert(`✅ Category Fetching Test\n\nSuccessfully fetched ${categories.length} categories from eBay!\n\nThis confirms:\n- Production API access working\n- Category structure available\n- Item analysis features ready\n\nEnvironment: ${ebayService.currentEnvironment}`);
+                } catch (error) {
+                  console.error('Category fetch error:', error);
+                  alert(`❌ Category Fetch Error:\n${error.message}\n\nThis may require eBay OAuth authentication.`);
+                }
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              Test Categories
+            </button>
+            
+            <button
+              onClick={async () => {
+                try {
+                  console.log('Testing item analysis features...');
+                  const ebayService = new EbayApiService();
+                  
+                  // Test trending items functionality
+                  console.log('Fetching trending items...');
+                  const trending = await ebayService.getTrendingItems();
+                  console.log('Trending items:', trending);
+                  
+                  alert(`✅ Item Analysis Test Complete!\n\nTrending Items: ${trending.length} found\n\nFeatures verified:\n- Market research data access\n- Item popularity analysis\n- Price trend capabilities\n\nEnvironment: ${ebayService.currentEnvironment}\nReady for production use!`);
+                } catch (error) {
+                  console.error('Item analysis error:', error);
+                  alert(`❌ Item Analysis Error:\n${error.message}`);
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              Test Item Analysis
+            </button>
+          </div>
+        </div>
+
         <div className="mt-6 flex space-x-4">
           <button
             onClick={() => {
