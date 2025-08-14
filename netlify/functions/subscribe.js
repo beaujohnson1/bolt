@@ -106,6 +106,7 @@ exports.handler = async (event, context) => {
     });
     
     // Check for potential issues with the API key
+    // Enhanced JWT token validation
     console.log('🔍 [SUBSCRIBE] API Key Debug:', {
       keyExists: !!process.env.GHL_API_KEY,
       keyLength: process.env.GHL_API_KEY ? process.env.GHL_API_KEY.length : 0,
@@ -113,6 +114,36 @@ exports.handler = async (event, context) => {
       hasWhitespace: process.env.GHL_API_KEY ? /\s/.test(process.env.GHL_API_KEY) : false,
       isString: typeof process.env.GHL_API_KEY
     });
+    
+    // JWT Token Analysis
+    if (process.env.GHL_API_KEY && process.env.GHL_API_KEY.startsWith('eyJ')) {
+      try {
+        // Decode JWT header and payload (without verification for debugging)
+        const [headerB64, payloadB64] = process.env.GHL_API_KEY.split('.');
+        const header = JSON.parse(Buffer.from(headerB64, 'base64').toString());
+        const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString());
+        
+        const currentTime = Math.floor(Date.now() / 1000);
+        const isExpired = payload.exp && payload.exp < currentTime;
+        
+        console.log('🔐 [SUBSCRIBE] JWT Analysis:', {
+          header: header,
+          issuer: payload.iss,
+          subject: payload.sub,
+          audience: payload.aud,
+          expirationTime: payload.exp ? new Date(payload.exp * 1000).toISOString() : 'none',
+          issuedAt: payload.iat ? new Date(payload.iat * 1000).toISOString() : 'none',
+          isExpired: isExpired,
+          timeToExpiry: payload.exp ? payload.exp - currentTime : 'N/A'
+        });
+        
+        if (isExpired) {
+          console.log('⚠️  [SUBSCRIBE] JWT TOKEN IS EXPIRED! Generate a new API key.');
+        }
+      } catch (jwtError) {
+        console.log('❌ [SUBSCRIBE] Failed to decode JWT:', jwtError.message);
+      }
+    }
     
     console.log('🔧 [SUBSCRIBE] GHL Config:', {
       hasApiKey: !!config.ghl.apiKey,
@@ -152,16 +183,74 @@ exports.handler = async (event, context) => {
     const directApiKey = process.env.GHL_API_KEY;
     const directApiUrl = process.env.GHL_API_URL || 'https://services.leadconnectorhq.com';
     
-    const ghlResponse = await fetch(`${directApiUrl}/contacts/`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${directApiKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Version': '2021-07-28'
+    // Multiple endpoint attempts with proper JWT validation
+    const endpoints = [
+      {
+        name: 'LeadConnector v1.0',
+        url: `https://services.leadconnectorhq.com/contacts/`,
+        headers: {
+          'Authorization': `Bearer ${directApiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Version': '2021-07-28'
+        }
       },
-      body: JSON.stringify(contactData),
-    });
+      {
+        name: 'GHL REST API v1',
+        url: `https://rest.gohighlevel.com/v1/contacts/`,
+        headers: {
+          'Authorization': `Bearer ${directApiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      },
+      {
+        name: 'Legacy API',
+        url: `${directApiUrl}/contacts/`,
+        headers: {
+          'Authorization': `Bearer ${directApiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Version': '2021-07-28'
+        }
+      }
+    ];
+
+    let ghlResponse = null;
+    let lastError = null;
+
+    // Try each endpoint until one works
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`🔄 [SUBSCRIBE] Trying ${endpoint.name}: ${endpoint.url}`);
+        
+        ghlResponse = await fetch(endpoint.url, {
+          method: 'POST',
+          headers: endpoint.headers,
+          body: JSON.stringify(contactData),
+        });
+
+        console.log(`📊 [SUBSCRIBE] ${endpoint.name} Response: ${ghlResponse.status}`);
+        
+        // If we get a successful response or a non-auth error, use this endpoint
+        if (ghlResponse.ok || (ghlResponse.status !== 401 && ghlResponse.status !== 403)) {
+          console.log(`✅ [SUBSCRIBE] Using ${endpoint.name} endpoint`);
+          break;
+        } else {
+          const errorText = await ghlResponse.text();
+          console.log(`❌ [SUBSCRIBE] ${endpoint.name} failed: ${ghlResponse.status} - ${errorText}`);
+          lastError = errorText;
+        }
+      } catch (error) {
+        console.log(`💥 [SUBSCRIBE] ${endpoint.name} request failed:`, error.message);
+        lastError = error.message;
+      }
+    }
+
+    // If all endpoints failed, use the last response for error handling
+    if (!ghlResponse || (!ghlResponse.ok && ghlResponse.status === 401)) {
+      console.log('❌ [SUBSCRIBE] All endpoints failed with authentication errors');
+    }
 
     // Process the API response
     const responseData = await ghlResponse.text();
