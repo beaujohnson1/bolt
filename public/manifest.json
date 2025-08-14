@@ -1,7 +1,7 @@
 {
-  "name": "eBay AI Listing Assistant",
-  "short_name": "eBay AI",
-  "description": "AI-powered eBay listing creation with camera, barcode scanning, and intelligent categorization",
+  "name": "EasyFlip.ai - AI-Powered Resale Automation",
+  "short_name": "EasyFlip",
+  "description": "Transform your unused items into cash with AI-powered listing automation across multiple marketplaces",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

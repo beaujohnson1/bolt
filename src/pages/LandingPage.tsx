@@ -1,4 +1,5 @@
 import React from 'react';
+import { SEO } from '../components/SEO';
 import Header from '../components/Header';
 import Hero from '../components/Hero';
 import TrustIndicators from '../components/TrustIndicators';
@@ -14,8 +15,13 @@ import Footer from '../components/Footer';
 
 const LandingPage = () => {
   return (
-    <div className="min-h-screen">
-      <Header />
+    <>
+      <SEO 
+        title="AI-Powered Resale Automation - Sell Everywhere with One Click"
+        description="Turn your unused items into cash in seconds. EasyFlip.ai uses AI to create perfect listings and post them to eBay, Facebook Marketplace, and more - all with one photo."
+      />
+      <div className="min-h-screen">
+        <Header />
       <Hero />
       <TrustIndicators />
       <ProblemSection />
@@ -28,6 +34,7 @@ const LandingPage = () => {
       <FinalCTA />
       <Footer />
     </div>
+    </>
   );
 };
 
