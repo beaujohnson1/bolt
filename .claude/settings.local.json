@@ -9,7 +9,8 @@
       "Bash(npm run build:*)",
       "Bash(rm:*)",
       "Bash(npm run lint)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(supabase status:*)"
     ],
     "deny": [],
     "ask": [],
