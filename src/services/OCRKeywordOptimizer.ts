@@ -557,8 +557,14 @@ export class OCRKeywordOptimizer {
   }
 
   private isGenericWord(keyword: string): boolean {
-    const genericWords = ['clothing', 'item', 'piece', 'wear', 'fashion', 'style'];
-    return genericWords.includes(keyword);
+    const genericWords = [
+      'clothing', 'item', 'piece', 'wear', 'fashion', 'style',
+      // Marketing fluff words that don't help buyers find items
+      'premium', 'quality', 'authentic', 'great', 'nice', 'excellent', 
+      'amazing', 'beautiful', 'perfect', 'stunning', 'gorgeous', 'lovely',
+      'fantastic', 'wonderful', 'incredible', 'awesome', 'stylish'
+    ];
+    return genericWords.includes(keyword.toLowerCase());
   }
 
   private determineExtractionMethods(

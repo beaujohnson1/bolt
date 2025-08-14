@@ -208,7 +208,9 @@ const GenerateListingsPage = () => {
         // Validate and sanitize AI payload once before UI uses it
         try {
           const validatedAI = coerceAI(aiData);
-          sanitizedData = mapAIToListing(validatedAI);
+          // Pass OCR preprocessing data for better fallback handling
+          const ocrData = aiData.preprocessing || {};
+          sanitizedData = mapAIToListing(validatedAI, ocrData);
           
           // Add verification log to prove the value path
           console.log('[VERIFY-LISTING]', {

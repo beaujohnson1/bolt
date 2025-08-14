@@ -28,27 +28,50 @@ type RawAI = {
   __needsAttention?: boolean;
 };
 
-export function mapAIToListing(ai: RawAI) {
+export function mapAIToListing(ai: RawAI, ocrData = {}) {
   console.log('🔄 [AI-MAPPER] Sanitizing AI payload before UI use...');
   
   // Check if this is a flagged "needs attention" response
   if (!ai || ai.__needsAttention) {
     console.log('🚨 [AI-MAPPER] AI data flagged for manual review');
+    
+    // Extract available OCR data for fallback
+    const ocrBrand = ocrData.preBrand || null;
+    const ocrSize = ocrData.preSize || null;
+    const ocrColor = ocrData.preColor || null;
+    const ocrItemType = ocrData.detectedCategory || "Item";
+    
+    // Build a better title using available OCR data
+    const fallbackTitle = buildTitle({ 
+      brand: ocrBrand, 
+      item_type: ocrItemType, 
+      color: ocrColor, 
+      size: ocrSize 
+    }) || `${ocrBrand || "Item"} - Review Required`;
+    
+    console.log('🔄 [AI-MAPPER] Using OCR fallback data:', {
+      brand: ocrBrand,
+      size: ocrSize,
+      color: ocrColor,
+      itemType: ocrItemType,
+      title: fallbackTitle
+    });
+    
     return {
       needsAttention: true,
-      title: "Needs Manual Review (AI Analysis Failed)",
+      title: fallbackTitle,
       description: "AI could not confidently analyze this item. Please review and edit manually.",
-      brand: null,
-      size: null,
-      color: null,
-      item_type: "Item",
+      brand: ocrBrand,
+      size: ocrSize,
+      color: ocrColor,
+      item_type: ocrItemType,
       condition: "good",
       suggested_price: 25,
-      keywords: [],
+      keywords: [ocrBrand, ocrColor, ocrItemType].filter(Boolean),
       key_features: ["manual review required"],
       confidence: 0.1,
-      evidence: {},
-      ebay_item_specifics: {}
+      evidence: ocrData.evidence || {},
+      ebay_item_specifics: ocrBrand ? { Brand: ocrBrand } : {}
     };
   }
   

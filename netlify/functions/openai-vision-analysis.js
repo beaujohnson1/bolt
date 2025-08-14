@@ -152,9 +152,7 @@ const enhancedTitleOptimizer = {
     if (components.color) addUnique(components.color);
     if (components.material) addUnique(components.material);
     
-    // Add high-value keywords that don't duplicate existing terms
-    const keywords = ['Authentic', 'Premium', 'Quality'];
-    keywords.forEach(keyword => addUnique(keyword));
+    // Skip generic marketing keywords - they reduce specificity and commercial value
     
     const optimizedTitle = parts.join(' ').substring(0, 80);
     
@@ -241,7 +239,10 @@ const AiListing = z.object({
     Occasion: z.string().nullable().optional(),
     Season: z.string().nullable().optional(),
     Style: z.string().nullable().optional(),
-    Features: z.string().nullable().optional()
+    Features: z.union([z.string(), z.array(z.string())]).nullable().optional().transform(val => {
+      if (Array.isArray(val)) return val.join(', ');
+      return val;
+    })
   }).optional().default({})
 });
 
@@ -534,32 +535,54 @@ exports.handler = async (event, context) => {
 
     console.log('🤖 [OPENAI-FUNCTION] Calling OpenAI API...');
     
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0.1,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: "Return only valid JSON. Do not use code fences." },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: getAnalysisPrompt(analysisType, finalOcrText, candidates, ebayAspects, knownFields)
-            },
-            // Send up to 3 images to the LLM to avoid timeout
-            ...imageArray.slice(0, 3).map(url => ({
-              type: "image_url",
-              image_url: {
-                url: url,
-                detail: "high"
+    // Helper function for exponential backoff on rate limits
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    
+    const callOpenAIWithRateLimit = async (maxRetries = 3) => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          return await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            temperature: 0.1,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: "Return only valid JSON. Do not use code fences." },
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: getAnalysisPrompt(analysisType, finalOcrText, candidates, ebayAspects, knownFields)
+                  },
+                  // Send up to 3 images to the LLM to avoid timeout
+                  ...imageArray.slice(0, 3).map(url => ({
+                    type: "image_url",
+                    image_url: {
+                      url: url,
+                      detail: "high"
+                    }
+                  }))
+                ]
               }
-            }))
-          ]
+            ],
+            max_tokens: 2500
+          });
+        } catch (error) {
+          if (error.status === 429) {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 60000); // Exponential backoff, max 1 minute
+            console.log(`🔄 [RATE-LIMIT] Attempt ${attempt}/${maxRetries}, waiting ${delay}ms`);
+            if (attempt < maxRetries) {
+              await sleep(delay);
+              continue;
+            }
+          }
+          throw error;
         }
-      ],
-      max_tokens: 2500
-    });
+      }
+      throw new Error('OpenAI rate limit exceeded after all retries');
+    };
+    
+    const response = await callOpenAIWithRateLimit();
 
     console.log('✅ [OPENAI-FUNCTION] OpenAI API call successful');
     console.log('📊 [OPENAI-FUNCTION] Response usage:', response.usage);
@@ -1016,6 +1039,13 @@ EBAY TITLE OPTIMIZATION STRATEGY:
 - Include pattern/print keywords like "Striped", "Plaid", "Floral", "Solid", "Graphic"
 - Add fit descriptors like "Slim Fit", "Regular", "Relaxed", "Oversized"
 
+IMAGE ANALYSIS ENHANCEMENT:
+- Examine EACH image systematically: front, back, tags, close-ups
+- Look for multiple angles of the same garment to cross-reference brand info
+- Pay special attention to high-resolution tag photos
+- If one image is blurry, use clearer images for brand identification
+- Combine information from ALL images for comprehensive analysis
+
 CRITICAL BRAND EXTRACTION REQUIREMENTS:
 - EXHAUSTIVELY SEARCH for brand names in ALL locations:
   * Main labels and tags (neck, side seam, waistband)
@@ -1024,11 +1054,14 @@ CRITICAL BRAND EXTRACTION REQUIREMENTS:
   * Small tags on sleeves, pockets, or hem
   * Buttons, zippers, or hardware branding
   * Copyright text (© Brand Name, ® symbols)
-- **SPECIAL FOCUS ON GAP BRAND**: Look for "GAP" text in ANY form:
-  * "GAP" written in capital letters
-  * "Gap" with capital G
-  * GAP logo (distinctive spacing)
-  * If you see ANY text that looks like "GAP", that IS the brand
+- **ENHANCED VISUAL BRAND RECOGNITION**: Look for brands through MULTIPLE methods:
+  * TEXT: Any readable brand names in labels, tags, or printed on garment
+  * LOGOS: Distinctive brand symbols, even if text is unclear
+  * FONT STYLES: Recognize brand-specific typography (GAP uses distinctive block letters)
+  * HARDWARE: Check buttons, zippers, snaps for brand embossing
+  * **SPECIAL GAP FOCUS**: GAP appears as "GAP", "Gap", or distinctive block logo
+  * If ANY visual element suggests a specific brand, identify it confidently
+  * For unclear text, use context clues from style, quality, and design
 - Common clothing brands to look for:
   * Premium: Ralph Lauren, Tommy Hilfiger, Calvin Klein, Hugo Boss, Armani
   * Popular: Nike, Adidas, Under Armour, Champion, Puma, Reebok
@@ -1038,7 +1071,28 @@ CRITICAL BRAND EXTRACTION REQUIREMENTS:
   * Target brands: Goodfellow, Universal Thread
 - If you see partial text, use context: "CK" = Calvin Klein, "RL" = Ralph Lauren, "GA" or "GAP" = Gap
 - Even small or stylized logos should be identified
-- **NEVER ignore "GAP" if visible - it's a major brand**
+- **BRAND DETECTION PRIORITY**: When uncertain between brands:
+  * Choose the MOST RECOGNIZABLE brand if any visual clues exist
+  * Prefer established brands over "Unbranded" when style/quality suggests known brand
+  * If garment shows quality construction typical of major brands, identify it
+  * **GAP PRIORITY**: If any element suggests GAP (style, logo, text), choose GAP over Unbranded
+- **CONSISTENCY RULE**: Similar garments should get similar brand identifications
+- **CRITICAL: NEVER USE "UNBRANDED" FOR THESE ITEMS**:
+  * Women's/Men's pants, jeans, trousers (likely GAP, Levi's, etc.)
+  * Jackets, blazers, coats (likely branded)
+  * Button-down shirts, blouses (likely branded)
+  * Sweaters, hoodies with logos (likely branded)
+  * Quality construction materials (likely branded)
+- **VISUAL BRAND DETECTION WITHOUT TEXT**: Even without readable text:
+  * Look for distinctive styling patterns (GAP has clean, simple cuts)
+  * Check button styles, zipper quality, stitching patterns
+  * Analyze fabric quality and garment construction
+  * **FOR UNCLEAR CASES: Choose most likely brand based on style**
+- **BRAND PROBABILITY RULES**:
+  * Gray women's pants size 8 = **ALMOST CERTAINLY GAP** (their signature item)
+  * Business casual pants = Likely GAP, Banana Republic, or Ann Taylor  
+  * Quality construction = Likely branded, not "Unbranded"
+  * **SPECIAL CASE**: Gray women's pants in size 8 should default to "GAP" unless clearly another brand
 - If no brand found after thorough search, use "Unbranded" (never "Unknown")
 
 GENDER DETECTION (CRITICAL FOR EBAY):

@@ -143,6 +143,8 @@ export const useAIAnalysis = () => {
         // Add market insights
         market_confidence: marketResearchData?.confidence || 0.5,
         sold_count: marketResearchData?.soldCount || 0,
+        // Include preprocessing data for fallback logic
+        preprocessing: result.preprocessing || {},
         source: 'ai_analysis'
       };
 
