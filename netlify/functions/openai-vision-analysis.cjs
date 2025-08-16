@@ -826,7 +826,90 @@ exports.handler = async (event, context) => {
         console.log('✅ [TITLE-OPTIMIZER] Optimized title:', enhancedData.title);
       }
 
-      // 5. Calculate overall accuracy
+      // 5. Enhanced eBay Item Specifics Processing
+      console.log('🏷️ [EBAY-SPECIFICS] Enhancing eBay item specifics...');
+      if (enhancedData.ebay_item_specifics) {
+        const specifics = enhancedData.ebay_item_specifics;
+        
+        // Auto-populate missing required fields from main data
+        if (!specifics.Brand && enhancedData.brand) {
+          specifics.Brand = enhancedData.brand;
+        }
+        if (!specifics.Size && enhancedData.size) {
+          specifics.Size = enhancedData.size;
+        }
+        if (!specifics.Color && enhancedData.color) {
+          specifics.Color = enhancedData.color;
+        }
+        if (!specifics.Type && enhancedData.item_type) {
+          specifics.Type = enhancedData.item_type;
+        }
+        if (!specifics.Material && enhancedData.material) {
+          specifics.Material = enhancedData.material;
+        }
+        
+        // Set intelligent defaults for required fields
+        if (!specifics.Department) {
+          if (enhancedData.gender === 'men') specifics.Department = 'Men';
+          else if (enhancedData.gender === 'women') specifics.Department = 'Women';
+          else if (enhancedData.gender === 'boys') specifics.Department = 'Boys';
+          else if (enhancedData.gender === 'girls') specifics.Department = 'Girls';
+          else specifics.Department = 'Unisex Adult';
+        }
+        if (!specifics['Size Type']) {
+          // Check if it's plus size
+          if (enhancedData.size && (enhancedData.size.includes('X') || enhancedData.size.includes('W'))) {
+            if (enhancedData.size.match(/[2-9]X/i) || enhancedData.size.match(/1[6-9]W|2[0-9]W/)) {
+              specifics['Size Type'] = 'Plus';
+            } else {
+              specifics['Size Type'] = 'Regular';
+            }
+          } else {
+            specifics['Size Type'] = 'Regular';
+          }
+        }
+        
+        // Enhanced field population based on AI analysis
+        if (!specifics.Pattern && enhancedData.pattern) {
+          specifics.Pattern = enhancedData.pattern;
+        }
+        if (!specifics.Fit && enhancedData.fit) {
+          specifics.Fit = enhancedData.fit;
+        }
+        if (!specifics.Occasion && enhancedData.occasion) {
+          specifics.Occasion = enhancedData.occasion;
+        }
+        if (!specifics.Season && enhancedData.season) {
+          specifics.Season = enhancedData.season;
+        }
+        if (!specifics.Style && enhancedData.style_keywords && enhancedData.style_keywords.length > 0) {
+          specifics.Style = enhancedData.style_keywords[0];
+        }
+        
+        console.log('✅ [EBAY-SPECIFICS] Enhanced eBay specifics:', {
+          Brand: specifics.Brand,
+          Department: specifics.Department,
+          Type: specifics.Type,
+          Size: specifics.Size,
+          'Size Type': specifics['Size Type'],
+          totalFieldsPopulated: Object.keys(specifics).filter(k => specifics[k] && specifics[k] !== null).length
+        });
+        
+        // Calculate eBay specifics completeness score
+        const requiredFields = ['Brand', 'Department', 'Type', 'Size Type', 'Size'];
+        const recommendedFields = ['Color', 'Material', 'Pattern', 'Fit', 'Occasion', 'Season', 'Style'];
+        
+        const requiredComplete = requiredFields.filter(f => specifics[f] && specifics[f] !== null).length;
+        const recommendedComplete = recommendedFields.filter(f => specifics[f] && specifics[f] !== null).length;
+        
+        const completenessScore = (requiredComplete / requiredFields.length) * 0.7 + 
+                                 (recommendedComplete / recommendedFields.length) * 0.3;
+        
+        accuracyMetrics.ebaySpecificsCompleteness = Math.round(completenessScore * 100);
+        console.log(`📊 [EBAY-SPECIFICS] Completeness: ${accuracyMetrics.ebaySpecificsCompleteness}% (${requiredComplete}/${requiredFields.length} required, ${recommendedComplete}/${recommendedFields.length} recommended)`);
+      }
+
+      // 6. Calculate overall accuracy
       accuracyMetrics.overallAccuracy = (
         accuracyMetrics.brandAccuracy * 0.25 +
         accuracyMetrics.sizeAccuracy * 0.25 +
@@ -999,28 +1082,137 @@ function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspe
     knownFieldsProvided: Object.keys(knownFields)
   });
   
-  // Define comprehensive eBay clothing item specifics
-  const defaultEbaySpecifics = [
-    { name: 'Brand', required: true, allowedValues: null },
-    { name: 'Department', required: true, allowedValues: ['Men', 'Women', 'Unisex Adult', 'Boys', 'Girls'] },
-    { name: 'Type', required: true, allowedValues: null },
-    { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall', 'Maternity'] },
-    { name: 'Size', required: true, allowedValues: null },
-    { name: 'Color', required: false, allowedValues: null },
-    { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Wool', 'Silk', 'Denim', 'Leather', 'Cashmere', 'Linen', 'Spandex', 'Viscose', 'Modal', 'Bamboo'] },
-    { name: 'Pattern', required: false, allowedValues: ['Solid', 'Striped', 'Plaid', 'Floral', 'Animal Print', 'Abstract', 'Geometric', 'Polka Dot', 'Paisley', 'Camouflage'] },
-    { name: 'Sleeve Length', required: false, allowedValues: ['Short Sleeve', 'Long Sleeve', '3/4 Sleeve', 'Sleeveless', 'Cap Sleeve'] },
-    { name: 'Neckline', required: false, allowedValues: ['Crew Neck', 'V-Neck', 'Scoop Neck', 'Boat Neck', 'Off Shoulder', 'High Neck', 'Cowl Neck'] },
-    { name: 'Fit', required: false, allowedValues: ['Slim', 'Regular', 'Relaxed', 'Oversized', 'Tailored', 'Loose'] },
-    { name: 'Closure', required: false, allowedValues: ['Button', 'Zip', 'Pullover', 'Snap', 'Hook & Eye', 'Tie'] },
-    { name: 'Occasion', required: false, allowedValues: ['Casual', 'Business', 'Party', 'Wedding', 'Work', 'Travel', 'Beach', 'Athletic'] },
-    { name: 'Season', required: false, allowedValues: ['Spring', 'Summer', 'Fall', 'Winter', 'All Seasons'] },
-    { name: 'Style', required: false, allowedValues: ['Vintage', 'Classic', 'Modern', 'Bohemian', 'Preppy', 'Gothic', 'Streetwear', 'Minimalist'] },
-    { name: 'Features', required: false, allowedValues: ['Pockets', 'Lined', 'Embroidered', 'Sequined', 'Beaded', 'Pleated', 'Ruffled'] }
-  ];
+  // Get category-specific eBay item specifics based on detected item type
+  function getCategorySpecificEbaySpecifics(itemType) {
+    const normalizedType = (itemType || '').toLowerCase().trim();
+    
+    // Pants & Trousers
+    if (normalizedType.includes('pants') || normalizedType.includes('trousers') || 
+        normalizedType.includes('slacks') || normalizedType.includes('chinos') ||
+        normalizedType.includes('khakis')) {
+      return [
+        { name: 'Brand', required: true, allowedValues: null },
+        { name: 'Department', required: true, allowedValues: ['Men', 'Women', 'Unisex Adult', 'Boys', 'Girls'] },
+        { name: 'Type', required: true, allowedValues: null },
+        { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall', 'Maternity'] },
+        { name: 'Size', required: true, allowedValues: null },
+        { name: 'Color', required: false, allowedValues: null },
+        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Wool', 'Denim', 'Linen', 'Spandex', 'Viscose'] },
+        { name: 'Pattern', required: false, allowedValues: ['Solid', 'Striped', 'Plaid', 'Checkered'] },
+        { name: 'Fit', required: false, allowedValues: ['Slim', 'Regular', 'Relaxed', 'Straight', 'Bootcut', 'Tapered', 'Wide Leg'] },
+        { name: 'Rise', required: false, allowedValues: ['Low Rise', 'Mid Rise', 'High Rise'] },
+        { name: 'Closure', required: false, allowedValues: ['Button Fly', 'Zip Fly', 'Hook & Eye', 'Drawstring'] },
+        { name: 'Features', required: false, allowedValues: ['Pockets', 'Belt Loops', 'Pleats', 'Cuffs', 'Wrinkle Resistant'] },
+        { name: 'Occasion', required: false, allowedValues: ['Casual', 'Business', 'Work', 'Athletic'] },
+        { name: 'Season', required: false, allowedValues: ['Spring', 'Summer', 'Fall', 'Winter', 'All Seasons'] },
+        { name: 'Style', required: false, allowedValues: ['Classic', 'Modern', 'Preppy', 'Casual'] }
+      ];
+    }
+    
+    // Jeans
+    if (normalizedType.includes('jeans') || normalizedType.includes('denim')) {
+      return [
+        { name: 'Brand', required: true, allowedValues: null },
+        { name: 'Department', required: true, allowedValues: ['Men', 'Women', 'Unisex Adult', 'Boys', 'Girls'] },
+        { name: 'Type', required: true, allowedValues: null },
+        { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall', 'Maternity'] },
+        { name: 'Size', required: true, allowedValues: null },
+        { name: 'Color', required: false, allowedValues: null },
+        { name: 'Material', required: false, allowedValues: ['100% Cotton', 'Cotton Blend', 'Stretch Denim', 'Raw Denim'] },
+        { name: 'Wash', required: false, allowedValues: ['Dark Wash', 'Medium Wash', 'Light Wash', 'Stone Wash', 'Acid Wash', 'Distressed'] },
+        { name: 'Fit', required: false, allowedValues: ['Skinny', 'Slim', 'Straight', 'Regular', 'Relaxed', 'Bootcut', 'Flare'] },
+        { name: 'Rise', required: false, allowedValues: ['Low Rise', 'Mid Rise', 'High Rise'] },
+        { name: 'Inseam', required: false, allowedValues: null },
+        { name: 'Features', required: false, allowedValues: ['Distressed', 'Ripped', 'Faded', 'Embroidered', 'Pockets'] },
+        { name: 'Occasion', required: false, allowedValues: ['Casual', 'Work'] },
+        { name: 'Style', required: false, allowedValues: ['Vintage', 'Classic', 'Modern', 'Streetwear'] }
+      ];
+    }
+    
+    // Shorts
+    if (normalizedType.includes('shorts') || normalizedType.includes('short pants')) {
+      return [
+        { name: 'Brand', required: true, allowedValues: null },
+        { name: 'Department', required: true, allowedValues: ['Men', 'Women', 'Unisex Adult', 'Boys', 'Girls'] },
+        { name: 'Type', required: true, allowedValues: null },
+        { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall'] },
+        { name: 'Size', required: true, allowedValues: null },
+        { name: 'Color', required: false, allowedValues: null },
+        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Nylon', 'Spandex', 'Cotton Blend'] },
+        { name: 'Pattern', required: false, allowedValues: ['Solid', 'Striped', 'Plaid', 'Floral'] },
+        { name: 'Fit', required: false, allowedValues: ['Slim', 'Regular', 'Relaxed', 'Cargo', 'Board', 'Athletic'] },
+        { name: 'Inseam', required: false, allowedValues: ['5"', '7"', '9"', '11"', '13"'] },
+        { name: 'Closure', required: false, allowedValues: ['Button Fly', 'Zip Fly', 'Drawstring', 'Elastic Waist'] },
+        { name: 'Features', required: false, allowedValues: ['Pockets', 'Cargo Pockets', 'Belt Loops', 'Quick Dry'] },
+        { name: 'Occasion', required: false, allowedValues: ['Casual', 'Beach', 'Athletic', 'Work'] },
+        { name: 'Season', required: false, allowedValues: ['Spring', 'Summer', 'All Seasons'] }
+      ];
+    }
+    
+    // Shirts & Tops (has sleeve length and neckline)
+    if (normalizedType.includes('shirt') || normalizedType.includes('blouse') || 
+        normalizedType.includes('top') || normalizedType.includes('tunic')) {
+      return [
+        { name: 'Brand', required: true, allowedValues: null },
+        { name: 'Department', required: true, allowedValues: ['Men', 'Women', 'Unisex Adult', 'Boys', 'Girls'] },
+        { name: 'Type', required: true, allowedValues: null },
+        { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall', 'Maternity'] },
+        { name: 'Size', required: true, allowedValues: null },
+        { name: 'Color', required: false, allowedValues: null },
+        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Silk', 'Linen', 'Viscose', 'Modal'] },
+        { name: 'Pattern', required: false, allowedValues: ['Solid', 'Striped', 'Plaid', 'Floral', 'Checkered'] },
+        { name: 'Sleeve Length', required: false, allowedValues: ['Long Sleeve', 'Short Sleeve', '3/4 Sleeve', 'Sleeveless'] },
+        { name: 'Neckline', required: false, allowedValues: ['Crew Neck', 'V-Neck', 'Scoop Neck', 'Button Down Collar', 'Spread Collar'] },
+        { name: 'Fit', required: false, allowedValues: ['Slim Fit', 'Regular Fit', 'Relaxed Fit', 'Tailored', 'Oversized'] },
+        { name: 'Closure', required: false, allowedValues: ['Button', 'Zip', 'Pullover'] },
+        { name: 'Features', required: false, allowedValues: ['Pockets', 'French Cuffs', 'Wrinkle Free'] },
+        { name: 'Occasion', required: false, allowedValues: ['Casual', 'Business', 'Work', 'Party'] },
+        { name: 'Season', required: false, allowedValues: ['Spring', 'Summer', 'Fall', 'Winter', 'All Seasons'] }
+      ];
+    }
+    
+    // T-Shirts (has sleeve length and neckline)
+    if (normalizedType.includes('t-shirt') || normalizedType.includes('tee') || 
+        normalizedType.includes('tank')) {
+      return [
+        { name: 'Brand', required: true, allowedValues: null },
+        { name: 'Department', required: true, allowedValues: ['Men', 'Women', 'Unisex Adult', 'Boys', 'Girls'] },
+        { name: 'Type', required: true, allowedValues: null },
+        { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall'] },
+        { name: 'Size', required: true, allowedValues: null },
+        { name: 'Color', required: false, allowedValues: null },
+        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Cotton Blend', 'Tri-Blend'] },
+        { name: 'Pattern', required: false, allowedValues: ['Solid', 'Striped', 'Graphic Print'] },
+        { name: 'Sleeve Length', required: false, allowedValues: ['Short Sleeve', 'Long Sleeve', 'Sleeveless', 'Cap Sleeve'] },
+        { name: 'Neckline', required: false, allowedValues: ['Crew Neck', 'V-Neck', 'Scoop Neck', 'Henley', 'Tank'] },
+        { name: 'Fit', required: false, allowedValues: ['Slim Fit', 'Regular Fit', 'Relaxed Fit', 'Oversized'] },
+        { name: 'Features', required: false, allowedValues: ['Graphic Print', 'Logo', 'Embroidered', 'Vintage', 'Pockets'] },
+        { name: 'Occasion', required: false, allowedValues: ['Casual', 'Athletic', 'Beach'] },
+        { name: 'Season', required: false, allowedValues: ['Spring', 'Summer', 'All Seasons'] }
+      ];
+    }
+    
+    // Default fallback for unknown items
+    return [
+      { name: 'Brand', required: true, allowedValues: null },
+      { name: 'Department', required: true, allowedValues: ['Men', 'Women', 'Unisex Adult', 'Boys', 'Girls'] },
+      { name: 'Type', required: true, allowedValues: null },
+      { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall', 'Maternity'] },
+      { name: 'Size', required: true, allowedValues: null },
+      { name: 'Color', required: false, allowedValues: null },
+      { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Wool', 'Silk'] },
+      { name: 'Pattern', required: false, allowedValues: ['Solid', 'Striped', 'Plaid'] },
+      { name: 'Occasion', required: false, allowedValues: ['Casual', 'Business', 'Athletic'] },
+      { name: 'Season', required: false, allowedValues: ['Spring', 'Summer', 'Fall', 'Winter', 'All Seasons'] }
+    ];
+  }
   
-  // Use provided eBay aspects or fall back to comprehensive defaults
-  const effectiveEbayAspects = (Array.isArray(ebayAspects) && ebayAspects.length > 0) ? ebayAspects : defaultEbaySpecifics;
+  // Determine item type for category-specific specifications
+  const detectedItemType = candidates.item_type || knownFields.item_type || 'clothing';
+  
+  // Use provided eBay aspects or get category-specific defaults
+  const effectiveEbayAspects = (Array.isArray(ebayAspects) && ebayAspects.length > 0) ? 
+    ebayAspects : getCategorySpecificEbaySpecifics(detectedItemType);
   
   // Determine category-specific expertise
   const detectedCategory = candidates.category || 'clothing';
@@ -1046,14 +1238,32 @@ IMAGE ANALYSIS ENHANCEMENT:
 - If one image is blurry, use clearer images for brand identification
 - Combine information from ALL images for comprehensive analysis
 
-CRITICAL BRAND EXTRACTION REQUIREMENTS:
-- EXHAUSTIVELY SEARCH for brand names in ALL locations:
-  * Main labels and tags (neck, side seam, waistband)
-  * Care instruction labels (often has brand at top)
-  * Embroidered or printed logos on the garment
-  * Small tags on sleeves, pockets, or hem
-  * Buttons, zippers, or hardware branding
-  * Copyright text (© Brand Name, ® symbols)
+🎯 ULTRA-ACCURATE BRAND EXTRACTION PROTOCOL:
+
+STEP 1: SYSTEMATIC SEARCH - Check these locations IN ORDER:
+1️⃣ PRIMARY ZONES (90% of brands found here):
+   □ Neck label (inside collar) - ZOOM IN mentally, read even tilted text
+   □ Waistband label (pants/skirts) - often largest/clearest text
+   □ Main interior tag - usually below neck label
+
+2️⃣ SECONDARY ZONES (if primary unclear):
+   □ Care instruction label - brand often at top line
+   □ Side seam labels - backup brand location  
+   □ Small tags on sleeves/hem - additional placement
+
+3️⃣ EXTERNAL ZONES (visible branding):
+   □ Chest area - embroidered/printed logos/text
+   □ Back of garment - large graphics or text
+   □ Pockets - small labels or embroidery
+   □ Hardware - buttons/zippers with embossed text
+
+STEP 2: READING TECHNIQUE - Read EXACTLY what you see:
+✓ If text is sideways/upside-down, mentally rotate it
+✓ If text is partially obscured, use visible letters to complete
+✓ If text is blurry, use context (font style, placement) to deduce
+✓ Look for © ® ™ symbols - brand names usually follow these
+✓ Report EXACT text: if you see "GAP" write "GAP", if "CK" write "CK"
+✓ Include partial text - even "GA" or "NIK" is valuable information
 - **ENHANCED VISUAL BRAND RECOGNITION**: Look for brands through MULTIPLE methods:
   * TEXT: Any readable brand names in labels, tags, or printed on garment
   * LOGOS: Distinctive brand symbols, even if text is unclear
@@ -1129,15 +1339,36 @@ CLOTHING TAG ANALYSIS EXPERTISE:
 - If text is partially obscured, use context to complete (e.g. "LEV" likely "LEVI'S")
 - Check for brand copyright symbols (©, ®, ™) which often precede brand names
 
-DETAILED SIZE EXTRACTION:
-- EXAMINE ALL CLOTHING TAGS AND LABELS VERY CAREFULLY FOR SIZE INFORMATION:
-  * Primary size tags (neck, side seam, waistband) - most reliable
-  * Care instruction labels (often has size at top or bottom)
-  * For pants: Look for "SIZE:", "W:", "WAIST:", "LENGTH:", "INSEAM:"
-  * Size formats: S/M/L/XL, numeric (2,4,6,8), European (38,40,42), UK (8,10,12)
-  * Kids sizes: 2T, 4T, 5Y, 6X, 7/8, 10/12
-  * Plus sizes: 1X, 2X, 3X or 14W, 16W, 18W
-  * Check for multiple size systems on same tag (US/EU/UK)
+📏 ULTRA-ACCURATE SIZE EXTRACTION PROTOCOL:
+
+STEP 1: LOCATE SIZE INFORMATION - Check these zones:
+1️⃣ PRIMARY LOCATIONS (most reliable):
+   □ Size tag at neck/collar - often most prominent
+   □ Waistband interior (pants/skirts) - main size location
+   □ Main interior tag - size usually clearly marked
+
+2️⃣ SECONDARY LOCATIONS:
+   □ Care instruction label - size often repeated here
+   □ Side seam tags - backup size information
+   □ Printed on fabric - athletic wear often has this
+
+STEP 2: RECOGNIZE ALL SIZE FORMATS:
+📋 STANDARD FORMATS:
+   • Letters: XS, S, M, L, XL, XXL, 2XL, 3XL, 4XL
+   • Women's numeric: 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20
+   • Men's pants: 28, 30, 32, 34, 36, 38, 40, 42, 44
+   • Pants (waist x length): 32x34, W32 L34, 32/34, 32W 34L
+   • Shirts: 14.5-32, 15-33, S(34-36), M(38-40)
+   • European: 36, 38, 40, 42, 44, 46, 48, 50, 52
+   • UK: 8, 10, 12, 14, 16, 18, 20, 22
+   • Kids: 2T, 3T, 4T, 5Y, 6X, 7/8, 10/12, 14/16
+   • Plus: 1X, 2X, 3X, 4X or 14W, 16W, 18W, 20W
+
+STEP 3: READ EXACTLY WHAT YOU SEE:
+✓ Report complete size markings: "32x34" not just "32"
+✓ Include size type indicators: "14W" not just "14"
+✓ Note multiple size systems if shown: "M (EU 40)"
+✓ Read all numbers/letters even if unsure of meaning
 
 PATTERN & DESIGN ANALYSIS:
 - Identify patterns: Solid, Striped, Plaid, Checkered, Floral, Paisley, Animal Print, Abstract, Geometric
@@ -1149,13 +1380,30 @@ EBAY KEYWORD OPTIMIZATION:
 - Add descriptive adjectives that improve searchability
 - Consider synonyms and alternative terms
 
-VALIDATION RULES:
-- If you cannot verify a field from the image or OCR, return null (NEVER use the word "Unknown")
-- Prefer OCR text over visual guesses when available, but use vision when OCR is empty
-- Use provided CANDIDATES when they match what you see
-- Choose ONLY from allowed values when provided for eBay aspects
-- Be extremely specific with item types and descriptions
-- Report evidence for how you determined brand/size (ocr|vision|null)
+🚀 FINAL VALIDATION & ACCURACY RULES:
+
+CRITICAL EXTRACTION REQUIREMENTS:
+✅ Read EXACTLY what you see - never interpret or guess brand names
+✅ Report null for uncertain fields (NEVER use "Unknown" or "Unbranded")
+✅ Include confidence level for each extraction: HIGH/MEDIUM/LOW
+✅ Document WHERE you found each piece of information
+✅ Cross-reference information across multiple images when available
+
+CONFIDENCE SCORING:
+• HIGH (90-100%): Text is crystal clear and fully readable
+• MEDIUM (70-89%): Text is partially visible or slightly blurry but identifiable
+• LOW (50-69%): Making educated guess based on partial visual evidence
+• RETURN NULL: If confidence is below 50% or insufficient evidence
+
+EVIDENCE TRACKING:
+- Brand evidence: "neck_label", "waistband_tag", "chest_logo", "hardware", etc.
+- Size evidence: "size_tag", "care_label", "waistband", "printed_fabric", etc.
+- Always specify exact location where information was found
+
+MULTI-IMAGE CORRELATION:
+- If you have multiple images, use the CLEAREST view for each field
+- Cross-validate findings across different angles
+- Combine partial information from multiple images when logical
 
 CANDIDATES (pre-extracted from OCR):
 ${safeStringify(candidates)}
@@ -1169,24 +1417,102 @@ ${toStr(ocrText)}`;
   // Add eBay aspects prompt with comprehensive specifics
   const ebayAspectsPrompt = `
 
-EBAY ITEM SPECIFICS (REQUIRED - fill these comprehensively):
+🏷️ COMPREHENSIVE EBAY ITEM SPECIFICS AUTO-GENERATION:
+
+PHASE 1: REQUIRED FIELDS (Must complete for eBay listing):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔸 Brand: Extract exact text from labels/tags. If none visible, analyze style/quality to infer likely brand, or use null
+🔸 Department: Analyze garment cut/style to determine:
+   • "Men" - straight cuts, boxy fits, wider shoulders, masculine styling
+   • "Women" - fitted cuts, darts, curved seams, feminine details
+   • "Unisex Adult" - neutral styling, loose fits
+   • "Boys"/"Girls" - if clearly children's sizing/styling
+🔸 Type: Identify specific garment type (Shirt, T-Shirt, Pants, Jeans, Dress, Jacket, Sweater, etc.)
+🔸 Size Type: Determine from construction and target demographic:
+   • "Regular" - standard sizing (most common)
+   • "Plus" - if clearly plus-size construction (18W+, 2X+)
+   • "Petite" - if marked or appears shorter proportions
+   • "Big & Tall" - men's extended sizes
+   • "Maternity" - if clearly maternity design
+🔸 Size: Extract from tags using protocol above
+
+PHASE 2: VISUAL ANALYSIS FIELDS (Extract from image observation):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎨 Color: Primary color name (Navy, Black, White, Gray, Red, Blue, etc.)
+🧵 Material: Analyze fabric texture/care labels:
+   • Cotton, Polyester, Wool, Silk, Denim, Leather, Cashmere, Linen, Spandex, Viscose, Modal, Bamboo
+   • Look for percentages on care labels: "100% Cotton", "60% Cotton 40% Polyester"
+🎭 Pattern: Visual pattern identification:
+   • Solid, Striped, Plaid, Floral, Animal Print, Abstract, Geometric, Polka Dot, Paisley, Camouflage
+
+PHASE 3: STYLE & CONSTRUCTION ANALYSIS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👔 Sleeve Length (if applicable):
+   • Short Sleeve, Long Sleeve, 3/4 Sleeve, Sleeveless, Cap Sleeve
+👗 Neckline (if applicable):
+   • Crew Neck, V-Neck, Scoop Neck, Boat Neck, Off Shoulder, High Neck, Cowl Neck
+📐 Fit: Analyze garment silhouette:
+   • Slim, Regular, Relaxed, Oversized, Tailored, Loose
+🔒 Closure: Identify how garment fastens:
+   • Button, Zip, Pullover, Snap, Hook & Eye, Tie
+
+PHASE 4: CONTEXTUAL INFERENCE (Based on style/design):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎪 Occasion: Infer from style/formality:
+   • Casual (t-shirts, jeans, sneakers)
+   • Business (dress shirts, slacks, blazers)
+   • Party (cocktail dresses, formal wear)
+   • Athletic (sportswear, activewear)
+   • Work, Travel, Beach, Wedding (based on style cues)
+🍂 Season: Determine from fabric weight/style:
+   • Spring/Summer (lightweight, bright colors, shorts, tank tops)
+   • Fall/Winter (heavy fabrics, coats, sweaters, dark colors)
+   • All Seasons (versatile pieces)
+🎨 Style: Identify aesthetic category:
+   • Vintage, Classic, Modern, Bohemian, Preppy, Gothic, Streetwear, Minimalist
+✨ Features: Identify special design elements:
+   • Pockets, Lined, Embroidered, Sequined, Beaded, Pleated, Ruffled
+
+PHASE 5: EBAY COMPLIANCE VALIDATION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For each field with allowedValues, choose EXACT MATCH from provided list:
 ${safeStringify(effectiveEbayAspects)}
 
-CRITICAL EBAY REQUIREMENTS:
-- Brand: REQUIRED - Extract from image/OCR or set to "Unbranded" if no brand visible
-- Department: REQUIRED - Choose from: Men, Women, Unisex Adult, Boys, Girls (analyze fit/cut/style)
-- Type: REQUIRED - Specific item type (Shirt, Pants, Dress, Jacket, etc.)
-- Size Type: REQUIRED - Usually "Regular" unless clearly Plus, Petite, Big & Tall, or Maternity
-- Size: REQUIRED - Extract from tags/labels or estimate from visual cues
-- Color: RECOMMENDED - Primary color or color combination
-- Material: RECOMMENDED - Fabric type from visual texture or care labels
-- Pattern: RECOMMENDED - Visual pattern analysis
-- Style details: RECOMMENDED - Fit, closure, sleeve length, neckline, occasion, season, style, features
+CRITICAL: Use ONLY the exact values from allowedValues lists. If uncertain, choose closest match.
 
-For each aspect:
-- If allowedValues exist, choose the BEST MATCH from the list
-- If no allowedValues, provide concise descriptive text
-- For REQUIRED fields, never return null - make best educated guess
+⚠️ CRITICAL: ONLY generate fields that are RELEVANT to the item type.
+
+ITEM TYPE FIELD MAPPING:
+• PANTS/TROUSERS: Brand, Department, Type, Size, Color, Material, Pattern, Fit, Rise, Closure, Features, Occasion, Season, Style
+  → NO Sleeve Length, NO Neckline (pants don't have sleeves or necks!)
+• JEANS: Brand, Department, Type, Size, Color, Material, Wash, Fit, Rise, Inseam, Features, Occasion, Style
+  → NO Sleeve Length, NO Neckline
+• SHORTS: Brand, Department, Type, Size, Color, Material, Pattern, Fit, Inseam, Closure, Features, Occasion, Season
+  → NO Sleeve Length, NO Neckline  
+• SHIRTS/TOPS: Brand, Department, Type, Size, Color, Material, Pattern, Sleeve Length, Neckline, Fit, Closure, Features, Occasion, Season
+  → HAS Sleeve Length and Neckline (shirts have sleeves and necks)
+• T-SHIRTS: Brand, Department, Type, Size, Color, Material, Pattern, Sleeve Length, Neckline, Fit, Features, Occasion, Season
+  → HAS Sleeve Length and Neckline
+
+VALIDATION RULE: If you're analyzing PANTS, do NOT include "Sleeve Length" or "Neckline" fields.
+
+REQUIRED OUTPUT FORMAT - Only include RELEVANT fields for the item type:
+{
+  "Brand": "[exact brand text or inferred brand]",
+  "Department": "[Men/Women/Unisex Adult/Boys/Girls]",
+  "Type": "[specific item type - CRITICAL for field selection]",
+  "Size Type": "[Regular/Plus/Petite/Big & Tall/Maternity]", 
+  "Size": "[extracted size]",
+  "Color": "[primary color]",
+  "Material": "[fabric type or blend]",
+  "Pattern": "[pattern type]",
+  ... [ONLY RELEVANT FIELDS based on item type]
+}
 - For RECOMMENDED fields, return null only if completely indeterminate
 - Use eBay-standard terminology that buyers search for`;
 
