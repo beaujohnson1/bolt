@@ -19,6 +19,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import SupabaseTest from './pages/SupabaseTest';
 import NetworkTest from './pages/NetworkTest';
+import AIAccuracyTest from './pages/AIAccuracyTest';
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
             <Route path="/auth-test" element={<AuthConnectivityTest />} /> {/* <--- This route is now valid */}
             <Route path="/supabase-test" element={<SupabaseTest />} />
             <Route path="/network-test" element={<NetworkTest />} />
+            <Route path="/ai-accuracy-test" element={<AIAccuracyTest />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<TermsOfService />} />
             <Route 

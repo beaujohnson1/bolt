@@ -56,6 +56,7 @@ const GenerateListingsPage = () => {
   const [bulkGenerating, setBulkGenerating] = useState(false);
   const [editingItem, setEditingItem] = useState<GeneratedItem | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [useEnhancedAI, setUseEnhancedAI] = useState(true); // Enhanced AI is now default
 
   // Fetch SKU groups and existing listings
   useEffect(() => {
@@ -188,7 +189,10 @@ const GenerateListingsPage = () => {
           sku: item.sku,
           photos: item.photos,
           includeMarketResearch: true,
-          includeCategoryAnalysis: true
+          includeCategoryAnalysis: true,
+          useEnhanced: useEnhancedAI,
+          userId: authUser?.id,
+          itemId: item.id
         });
         
         console.log('📊 [GENERATE-LISTINGS] AI analysis result:', analysisResult);

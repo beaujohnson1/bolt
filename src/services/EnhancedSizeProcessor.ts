@@ -23,16 +23,19 @@ export interface SizeMapping {
 
 export class EnhancedSizeProcessor {
   private letterSizeMappings: SizeMapping[] = [
-    // Standard Letter Sizes
+    // PRIORITY ORDER: More specific sizes first to avoid mismatches
+    // Extended sizes (highest priority - must come first)
+    { input: /^(5xl|xxxxxl|5x-large)$/i, output: '5X Large', confidence: 0.98, gender: 'unisex', category: 'clothing' },
+    { input: /^(4xl|xxxxl|4x-large)$/i, output: '4X Large', confidence: 0.98, gender: 'unisex', category: 'clothing' },
+    { input: /^(xxxl|3xl|xxx-large|3x-large)$/i, output: '3X Large', confidence: 0.98, gender: 'unisex', category: 'clothing' },
+    { input: /^(xxl|2xl|xx-large|2x-large|double\s?xl)$/i, output: '2X Large', confidence: 0.98, gender: 'unisex', category: 'clothing' },
+    { input: /^(xl|extra\s?large|x-large)$/i, output: 'Extra Large', confidence: 0.95, gender: 'unisex', category: 'clothing' },
+    
+    // Standard sizes (after extended sizes to prevent conflicts)
     { input: /^(xs|extra\s?small|x-small)$/i, output: 'Extra Small', confidence: 0.95, gender: 'unisex', category: 'clothing' },
     { input: /^(sm?|small)$/i, output: 'Small', confidence: 0.95, gender: 'unisex', category: 'clothing' },
     { input: /^(md?|medium|med)$/i, output: 'Medium', confidence: 0.95, gender: 'unisex', category: 'clothing' },
     { input: /^(lg?|large)$/i, output: 'Large', confidence: 0.95, gender: 'unisex', category: 'clothing' },
-    { input: /^(xl|extra\s?large|x-large)$/i, output: 'Extra Large', confidence: 0.95, gender: 'unisex', category: 'clothing' },
-    { input: /^(xxl|2xl|xx-large|2x-large)$/i, output: '2X Large', confidence: 0.95, gender: 'unisex', category: 'clothing' },
-    { input: /^(xxxl|3xl|xxx-large|3x-large)$/i, output: '3X Large', confidence: 0.95, gender: 'unisex', category: 'clothing' },
-    { input: /^(4xl|xxxxl|4x-large)$/i, output: '4X Large', confidence: 0.95, gender: 'unisex', category: 'clothing' },
-    { input: /^(5xl|xxxxxl|5x-large)$/i, output: '5X Large', confidence: 0.95, gender: 'unisex', category: 'clothing' },
 
     // Plus Size Variations
     { input: /^(1x|plus\s?1x)$/i, output: '1X', confidence: 0.9, gender: 'women', category: 'clothing' },
@@ -420,6 +423,105 @@ export class EnhancedSizeProcessor {
       isValid: issues.length === 0,
       suggestions,
       issues
+    };
+  }
+
+  /**
+   * Extract size from text with enhanced detection
+   */
+  async extractSize(
+    text: string, 
+    options?: { 
+      category?: string;
+      gender?: string;
+      brand?: string;
+    }
+  ): Promise<{ size: string | undefined; confidence: number }> {
+    console.log('📏 [SIZE-PROCESSOR] Extracting size from text:', text.substring(0, 200));
+    
+    // Enhanced patterns specifically for XXL detection
+    const enhancedSizePatterns = [
+      // Priority patterns for extended sizes (XXL, XXXL, etc.)
+      /\b(XXL|2XL|XX-L|2X-L|DOUBLE\s?XL)\b/gi,
+      /\b(XXXL|3XL|XXX-L|3X-L|TRIPLE\s?XL)\b/gi,
+      /\b(XXXXL|4XL|XXXX-L|4X-L)\b/gi,
+      /\b(XXXXXL|5XL|XXXXX-L|5X-L)\b/gi,
+      
+      // Standard size patterns (after extended to prevent conflicts)
+      /\b(XL|X-L|EXTRA\s?LARGE)\b/gi,
+      /\b(L|LARGE)\b/gi,
+      /\b(M|MEDIUM|MED)\b/gi,
+      /\b(S|SMALL|SM)\b/gi,
+      /\b(XS|X-S|EXTRA\s?SMALL)\b/gi,
+      
+      // Numeric patterns
+      /\b(SIZE\s+)?(\d{1,2})\b/gi,
+      
+      // Plus size patterns
+      /\b(\d+X|\d+XL|\d+X-L)\b/gi
+    ];
+    
+    let foundSize: string | undefined;
+    let bestConfidence = 0;
+    
+    // Process each pattern in priority order
+    for (const pattern of enhancedSizePatterns) {
+      const matches = text.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          const cleanMatch = match.trim().toUpperCase();
+          
+          // Process the found size
+          const processed = await this.processSize(
+            cleanMatch,
+            options?.gender as any,
+            options?.category as any
+          );
+          
+          if (processed.length > 0) {
+            const result = processed[0];
+            if (result.confidence > bestConfidence) {
+              foundSize = result.standardSize;
+              bestConfidence = result.confidence;
+              
+              console.log('✅ [SIZE-PROCESSOR] Found better size match:', {
+                original: match,
+                standardized: foundSize,
+                confidence: bestConfidence
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    // If no pattern match, try word-by-word processing
+    if (!foundSize) {
+      const words = text.split(/\s+/);
+      for (const word of words) {
+        if (word.length > 0) {
+          const processed = await this.processSize(
+            word,
+            options?.gender as any,
+            options?.category as any
+          );
+          
+          if (processed.length > 0) {
+            const result = processed[0];
+            if (result.confidence > bestConfidence) {
+              foundSize = result.standardSize;
+              bestConfidence = result.confidence;
+            }
+          }
+        }
+      }
+    }
+    
+    console.log('📏 [SIZE-PROCESSOR] Final result:', { size: foundSize, confidence: bestConfidence });
+    
+    return {
+      size: foundSize,
+      confidence: bestConfidence
     };
   }
 

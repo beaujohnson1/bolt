@@ -13,6 +13,9 @@ interface AnalysisOptions {
   photos?: string[];
   includeMarketResearch?: boolean;
   includeCategoryAnalysis?: boolean;
+  useEnhanced?: boolean;
+  userId?: string;
+  itemId?: string;
 }
 
 interface AnalysisResult {
@@ -57,7 +60,10 @@ export const useAIAnalysis = () => {
       const result = await withRetry(
         () => analyzeClothingItem(imageArray, {
           includeEbayAspects: options.includeCategoryAnalysis || false,
-          sku: options.sku
+          sku: options.sku,
+          useEnhanced: options.useEnhanced,
+          userId: options.userId,
+          itemId: options.itemId
         }),
         2, // Reduced retries to avoid long waits
         2000 // 2 second delay between retries
