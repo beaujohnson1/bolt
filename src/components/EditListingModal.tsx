@@ -244,22 +244,6 @@ const EditListingModal: React.FC<EditListingModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Keywords */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Keywords
-                    </label>
-                    <textarea
-                      value={formData.ai_suggested_keywords.join(', ')}
-                      onChange={(e) => updateFormData('ai_suggested_keywords', e.target.value.split(',').map(k => k.trim()).filter(k => k))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      rows={2}
-                      placeholder="Enter keywords separated by commas"
-                    />
-                    <div className="text-xs text-gray-500 mt-1">
-                      Keywords help buyers find your item. Separate with commas.
-                    </div>
-                  </div>
 
                   {/* Description */}
                   <div>
@@ -287,85 +271,130 @@ const EditListingModal: React.FC<EditListingModalProps> = ({
                   eBay Item Specifics
                 </h3>
                 
-                {item.ai_analysis?.ebay_item_specifics ? (
-                  <div className="space-y-4">
-                    <div className="bg-blue-50 rounded-lg p-4">
-                      <h4 className="font-medium text-blue-900 mb-3">AI-Generated Specifics</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.entries(item.ai_analysis.ebay_item_specifics).map(([key, value]) => {
-                          if (!value || value === 'unknown' || value === 'Unknown') return null;
-                          return (
-                            <div key={key}>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                {key.replace(/_/g, ' ')}
-                              </label>
-                              <input
-                                type="text"
-                                value={value as string}
-                                className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                                onChange={(e) => {
-                                  const updatedSpecifics = {
-                                    ...item.ai_analysis.ebay_item_specifics,
-                                    [key]: e.target.value
-                                  };
-                                  item.ai_analysis.ebay_item_specifics = updatedSpecifics;
-                                }}
-                              />
-                            </div>
-                          );
-                        })}
+                <div className="space-y-4">
+                  {/* Standard eBay Fields for Clothing */}
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <h4 className="font-medium text-blue-900 mb-3">Required eBay Specifics</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                          <option value="">Select department</option>
+                          <option value="Men">Men</option>
+                          <option value="Women">Women</option>
+                          <option value="Unisex Adult">Unisex Adult</option>
+                          <option value="Boys">Boys</option>
+                          <option value="Girls">Girls</option>
+                        </select>
                       </div>
-                    </div>
-                    
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h4 className="font-medium text-gray-900 mb-3">Additional Specifics</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Style</label>
-                          <input
-                            type="text"
-                            placeholder="e.g., Casual, Formal, Athletic"
-                            className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Occasion</label>
-                          <input
-                            type="text"
-                            placeholder="e.g., Work, Party, Everyday"
-                            className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Features</label>
-                          <input
-                            type="text"
-                            placeholder="e.g., Pockets, Lined, Breathable"
-                            className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Season</label>
-                          <select className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
-                            <option value="">Select season</option>
-                            <option value="Spring">Spring</option>
-                            <option value="Summer">Summer</option>
-                            <option value="Fall">Fall</option>
-                            <option value="Winter">Winter</option>
-                            <option value="All Seasons">All Seasons</option>
-                          </select>
-                        </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                        <input
+                          type="text"
+                          value={formData.category}
+                          onChange={(e) => updateFormData('category', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                          placeholder="e.g., Jacket, Shirt, Pants"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Size Type</label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                          <option value="">Select size type</option>
+                          <option value="Regular">Regular</option>
+                          <option value="Plus">Plus</option>
+                          <option value="Petite">Petite</option>
+                          <option value="Big & Tall">Big & Tall</option>
+                          <option value="Maternity">Maternity</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Fit</label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                          <option value="">Select fit</option>
+                          <option value="Slim">Slim</option>
+                          <option value="Regular">Regular</option>
+                          <option value="Relaxed">Relaxed</option>
+                          <option value="Loose">Loose</option>
+                          <option value="Tight">Tight</option>
+                        </select>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="bg-yellow-50 rounded-lg p-4">
-                    <h4 className="font-medium text-yellow-900 mb-2">No eBay Specifics Available</h4>
-                    <p className="text-sm text-yellow-800">
-                      eBay specifics will be generated when you run AI analysis on your item.
-                    </p>
+                  
+                  {/* Optional eBay Fields */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-medium text-gray-900 mb-3">Additional Specifics</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Style</label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                          <option value="">Select style</option>
+                          <option value="Casual">Casual</option>
+                          <option value="Formal">Formal</option>
+                          <option value="Athletic">Athletic</option>
+                          <option value="Business">Business</option>
+                          <option value="Vintage">Vintage</option>
+                          <option value="Bohemian">Bohemian</option>
+                          <option value="Classic">Classic</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Occasion</label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                          <option value="">Select occasion</option>
+                          <option value="Everyday">Everyday</option>
+                          <option value="Work">Work</option>
+                          <option value="Party">Party</option>
+                          <option value="Wedding">Wedding</option>
+                          <option value="Travel">Travel</option>
+                          <option value="Outdoor">Outdoor</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Season</label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                          <option value="">Select season</option>
+                          <option value="Spring">Spring</option>
+                          <option value="Summer">Summer</option>
+                          <option value="Fall">Fall</option>
+                          <option value="Winter">Winter</option>
+                          <option value="All Seasons">All Seasons</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Sleeve Length</label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                          <option value="">Select sleeve length</option>
+                          <option value="Sleeveless">Sleeveless</option>
+                          <option value="Short Sleeve">Short Sleeve</option>
+                          <option value="3/4 Sleeve">3/4 Sleeve</option>
+                          <option value="Long Sleeve">Long Sleeve</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Neckline</label>
+                        <select className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                          <option value="">Select neckline</option>
+                          <option value="Crew Neck">Crew Neck</option>
+                          <option value="V-Neck">V-Neck</option>
+                          <option value="Scoop Neck">Scoop Neck</option>
+                          <option value="Turtle Neck">Turtle Neck</option>
+                          <option value="Collar">Collar</option>
+                          <option value="Hood">Hood</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Features</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., Pockets, Lined, Breathable"
+                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                      </div>
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Price Optimizer */}

@@ -132,9 +132,25 @@ export function mapAIToListing(ai: RawAI, ocrData = {}) {
     keywords
   });
 
-  // Safe description handling
-  const description = safeTrim(ai.description) || 
-    `${title} in ${condition} condition. Quality item ready to ship!`;
+  // Safe description handling - use enhanced size instead of original AI size
+  const descriptionTemplate = safeTrim(ai.description);
+  let description;
+  
+  if (descriptionTemplate) {
+    // If AI provided a description, ensure it uses the corrected/enhanced size
+    description = descriptionTemplate;
+    
+    // If description contains incorrect size references, fix them
+    if (size && description.toLowerCase().includes('size')) {
+      // Replace any "Size [number]" patterns with the correct size
+      description = description.replace(/\bsize\s+\d+\b/gi, `Size ${size}`);
+    }
+  } else {
+    // Build description using correct enhanced components
+    const sizeText = size ? ` Size ${size}.` : '';
+    const brandText = brand ? ` ${brand} brand.` : '';
+    description = `${title} in ${condition} condition.${sizeText}${brandText} Quality item ready to ship!`;
+  }
 
   // Safe confidence handling
   const confidence = typeof ai.confidence === "number" ? ai.confidence : 0.5;

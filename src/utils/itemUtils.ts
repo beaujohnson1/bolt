@@ -802,14 +802,29 @@ export const buildTitle = (components: {
     addUniquePart(descriptor, 'style descriptor');
   }
   
-  // 7. High-value keywords (trending/searchable terms)
+  // 7. Material (if space allows)
+  addUniquePart(material, 'material');
+  
+  // 8. High-value keywords (trending/searchable terms) - use MORE keywords to fill title
   const prioritizedKeywords = prioritizeEbayKeywords(allKeywords);
   for (const keyword of prioritizedKeywords) {
+    if (remainingChars <= 5) break; // Stop when we're close to limit
     addUniquePart(keyword, 'keyword');
   }
   
-  // 8. Material (if space allows)
-  addUniquePart(material, 'material');
+  // 9. Additional keywords to maximize eBay search visibility (up to 80 chars)
+  if (remainingChars > 10) {
+    const additionalKeywords = allKeywords.filter(k => 
+      !prioritizedKeywords.includes(k) && 
+      k.length <= remainingChars - 1 &&
+      !usedWords.has(k.toLowerCase())
+    );
+    
+    for (const keyword of additionalKeywords) {
+      if (remainingChars <= 5) break;
+      addUniquePart(keyword, 'additional keyword');
+    }
+  }
   
   const title = titleParts.join(' ');
   const finalTitle = title.length > 80 ? title.substring(0, 77) + '...' : title;
@@ -895,9 +910,9 @@ const prioritizeEbayKeywords = (keywords: string[]): string[] => {
     return a.length - b.length;
   });
   
-  // Remove duplicates and return top 5 keywords
+  // Remove duplicates and return top 10 keywords (increased from 5 for better title filling)
   const uniqueKeywords = [...new Set(sortedKeywords.map(k => safeTrim(toStr(k))))];
-  return uniqueKeywords.slice(0, 5);
+  return uniqueKeywords.slice(0, 10);
 };
 
 // Helper function to capitalize first letter
