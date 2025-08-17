@@ -1274,6 +1274,11 @@ UNIVERSAL TITLE OPTIMIZATION STRATEGY:
   * Collectibles: Brand + Series + Model/Character + Number + Condition
   * Tools: Brand + Model Number + Type + Voltage/Power + Accessories
 - ALWAYS include model names when recognized (e.g., "Canon EOS Rebel T7" not just "Canon Camera")
+- **CRITICAL FOR SEARCHABILITY: INCLUDE MODEL NUMBERS IN TITLES**:
+  * Levi's jeans: "Levi's 527 Slim Bootcut Jeans" (include the number like 527, 501, 511)
+  * Electronics: "Canon EOS Rebel T7 DSLR Camera" (include model T7, D3500, etc.)
+  * Nike shoes: "Nike Air Max 97 Running Shoes" (include model 97, 270, etc.)
+  * All brands: Extract visible model numbers from tags/labels and include in title
 - MAXIMUM 80 characters - prioritize searchable model names and numbers
 - Use category-specific keywords that buyers actually search for
 
@@ -1336,6 +1341,7 @@ STEP 2: READING TECHNIQUE - Read EXACTLY what you see:
 - **UNIVERSAL BRAND & MODEL DETECTION (ALL PRODUCT CATEGORIES)**: 
   * 🔍 ALWAYS look for MODEL NUMBERS on labels, stickers, or engraved/printed on the item
   * 📸 For ELECTRONICS: Find model numbers on back panels, bottom labels, or near serial numbers
+  * 👖 For JEANS/DENIM: Look for model numbers on waistband tags, back pocket labels, inner tags (e.g., "527", "501", "511") - MUST extract exact number and include in title for searchability
   * 📚 For BOOKS/MEDIA: Extract ISBN, catalog numbers, edition info
   * 🎮 For GAMES/TOYS: Look for product codes, series numbers, set numbers
   
@@ -1356,7 +1362,7 @@ STEP 2: READING TECHNIQUE - Read EXACTLY what you see:
     ** CLOTHING/SHOES **
     - Nike: Air Max 90/95/97/270, Air Force 1, Dunk, Jordan (1-35)
     - Adidas: Stan Smith, Superstar, Ultraboost, NMD, Yeezy
-    - Levi's: 501/505/511/514 (include fit type)
+    - Levi's: 501 Original, 505 Regular, 511 Slim, 514 Straight, 527 Slim Bootcut, 721 High Rise, 311 Shaping (CRITICAL: Extract exact number like "527" from tags AND include in title)
     - North Face: Nuptse, Denali, Venture
     
     ** TOOLS/EQUIPMENT **
@@ -1630,7 +1636,7 @@ REQUIRED OUTPUT FORMAT - Only include RELEVANT fields for the item type:
 
 Return ONLY JSON matching this schema:
 {
-  "title": string (MAX 80 chars, format: Brand ModelName Item Gender Size Color Keywords),
+  "title": string (MAX 80 chars, MUST include model numbers when detected: Brand + Model# + Item + Details),
   "brand": string|null,
   "size": string|null,
   "item_type": string,
@@ -1675,10 +1681,12 @@ Return ONLY JSON matching this schema:
   }
 }
 
-TITLE EXAMPLES:
-- "Ralph Lauren Shirt Men L Blue Button Up Preppy Cotton"
-- "Nike Hoodie Women M Black Athletic Pullover Fleece"
-- "Levi's Jeans Men 32x34 Dark Blue Straight Fit Denim"
+TITLE EXAMPLES (ALWAYS INCLUDE MODEL NUMBERS WHEN DETECTED):
+- "Levi's 527 Slim Bootcut Jeans Men 32x34 Dark Blue Denim" (include model number)
+- "Nike Air Max 97 Running Shoes Men 10.5 White Athletic" (include model number)
+- "Canon EOS Rebel T7 DSLR Camera Black with 18-55mm Lens" (include model number)
+- "Ralph Lauren Polo Shirt Men L Blue Button Up Cotton" (when no model # visible)
+- "Nike Hoodie Women M Black Athletic Pullover Fleece" (when no model # visible)
 
 Do NOT include markdown or code fences.`;
 
