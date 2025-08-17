@@ -850,11 +850,29 @@ exports.handler = async (event, context) => {
         
         // Set intelligent defaults for required fields
         if (!specifics.Department) {
-          if (enhancedData.gender === 'men') specifics.Department = 'Men';
-          else if (enhancedData.gender === 'women') specifics.Department = 'Women';
-          else if (enhancedData.gender === 'boys') specifics.Department = 'Boys';
-          else if (enhancedData.gender === 'girls') specifics.Department = 'Girls';
-          else specifics.Department = 'Unisex Adult';
+          // Try multiple gender field formats and be case-insensitive
+          const genderLower = (enhancedData.gender || '').toLowerCase();
+          if (genderLower.includes('men') && !genderLower.includes('women')) {
+            specifics.Department = 'Men';
+          } else if (genderLower.includes('women') || genderLower.includes('ladies')) {
+            specifics.Department = 'Women';
+          } else if (genderLower.includes('boys')) {
+            specifics.Department = 'Boys';
+          } else if (genderLower.includes('girls')) {
+            specifics.Department = 'Girls';
+          } else if (genderLower.includes('unisex')) {
+            specifics.Department = 'Unisex Adult';
+          } else {
+            // Fallback: try to infer from item type or size
+            if (enhancedData.size && (enhancedData.size.includes('Women') || enhancedData.size.includes('Ladies'))) {
+              specifics.Department = 'Women';
+            } else if (enhancedData.size && enhancedData.size.includes('Men')) {
+              specifics.Department = 'Men';
+            } else {
+              specifics.Department = 'Unisex Adult';
+            }
+          }
+          console.log('🔧 [DEPARTMENT-MAPPING] Set Department to:', specifics.Department, 'from gender:', enhancedData.gender);
         }
         if (!specifics['Size Type']) {
           // Check if it's plus size
@@ -869,7 +887,7 @@ exports.handler = async (event, context) => {
           }
         }
         
-        // Enhanced field population based on AI analysis
+        // Enhanced field population based on AI analysis - POPULATE ALL RELEVANT FIELDS
         if (!specifics.Pattern && enhancedData.pattern) {
           specifics.Pattern = enhancedData.pattern;
         }
@@ -886,6 +904,25 @@ exports.handler = async (event, context) => {
           specifics.Style = enhancedData.style_keywords[0];
         }
         
+        // Additional fields for comprehensive eBay listing
+        if (!specifics['Sleeve Length'] && enhancedData.sleeve_length) {
+          specifics['Sleeve Length'] = enhancedData.sleeve_length;
+        }
+        if (!specifics.Neckline && enhancedData.neckline) {
+          specifics.Neckline = enhancedData.neckline;
+        }
+        if (!specifics.Closure && enhancedData.closure) {
+          specifics.Closure = enhancedData.closure;
+        }
+        if (!specifics.Features && enhancedData.key_features && enhancedData.key_features.length > 0) {
+          specifics.Features = enhancedData.key_features.join(', ');
+        }
+        
+        // Ensure all basic fields are populated
+        if (!specifics.Type && enhancedData.item_type) {
+          specifics.Type = enhancedData.item_type;
+        }
+        
         console.log('✅ [EBAY-SPECIFICS] Enhanced eBay specifics:', {
           Brand: specifics.Brand,
           Department: specifics.Department,
@@ -897,7 +934,7 @@ exports.handler = async (event, context) => {
         
         // Calculate eBay specifics completeness score
         const requiredFields = ['Brand', 'Department', 'Type', 'Size Type', 'Size'];
-        const recommendedFields = ['Color', 'Material', 'Pattern', 'Fit', 'Occasion', 'Season', 'Style'];
+        const recommendedFields = ['Color', 'Material', 'Pattern', 'Fit', 'Occasion', 'Season', 'Style', 'Sleeve Length', 'Neckline', 'Closure', 'Features'];
         
         const requiredComplete = requiredFields.filter(f => specifics[f] && specifics[f] !== null).length;
         const recommendedComplete = recommendedFields.filter(f => specifics[f] && specifics[f] !== null).length;
@@ -1360,11 +1397,21 @@ STEP 2: READING TECHNIQUE - Read EXACTLY what you see:
   * **SPECIAL CASE**: Gray women's pants in size 8 should default to "GAP" unless clearly another brand
 - If no brand found after thorough search, use "Unbranded" (never "Unknown")
 
-GENDER DETECTION (CRITICAL FOR EBAY):
-- Analyze cut, style, and design to determine: "Men", "Women", "Unisex", "Boys", "Girls"
+GENDER DETECTION (CRITICAL FOR EBAY - EXTRACT FROM TAGS FIRST):
+🔍 **PRIMARY: LOOK FOR GENDER TEXT ON TAGS/LABELS**:
+- **"Women's", "Ladies", "Womens"** = Women
+- **"Men's", "Mens"** = Men  
+- **"Boys", "Boy's"** = Boys
+- **"Girls", "Girl's"** = Girls
+- **"Unisex", "One Size"** = Unisex
+- **CRITICAL**: Text like "Women's Extra Large" clearly indicates Women's department
+
+🔍 **SECONDARY: Analyze cut, style, and design**:
 - Look for feminine details (darts, curved seams, fitted waist)
 - Look for masculine details (straight cuts, boxy fit, wider shoulders)
 - Check for kids' styling if smaller sizes
+
+⚠️ **EXTRACTION PRIORITY**: Tags/labels override visual analysis for gender!
 
 STYLE KEYWORD EXTRACTION:
 - Extract style descriptors: Preppy, Vintage, Casual, Formal, Business, Athletic, Streetwear, Bohemian, Gothic, Punk, Classic, Modern
@@ -1478,11 +1525,15 @@ PHASE 1: REQUIRED FIELDS (Must complete for eBay listing):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🔸 Brand: Extract exact text from labels/tags. If none visible, analyze style/quality to infer likely brand, or use null
-🔸 Department: Analyze garment cut/style to determine:
-   • "Men" - straight cuts, boxy fits, wider shoulders, masculine styling
-   • "Women" - fitted cuts, darts, curved seams, feminine details
-   • "Unisex Adult" - neutral styling, loose fits
-   • "Boys"/"Girls" - if clearly children's sizing/styling
+🔸 Department: **EXTRACT FROM TAGS FIRST, THEN VISUAL ANALYSIS**:
+   • **PRIMARY**: Look for "Women's", "Ladies", "Men's", "Boys", "Girls" text on tags/labels
+   • **"Women's Extra Large"** = "Women" (not null!)
+   • **SECONDARY**: Analyze garment cut/style:
+     - "Men" - straight cuts, boxy fits, wider shoulders, masculine styling
+     - "Women" - fitted cuts, darts, curved seams, feminine details
+     - "Unisex Adult" - neutral styling, loose fits
+     - "Boys"/"Girls" - if clearly children's sizing/styling
+   • **NEVER leave Department as null if any gender clues exist**
 🔸 Type: Identify specific garment type (Shirt, T-Shirt, Pants, Jeans, Dress, Jacket, Sweater, etc.)
 🔸 Size Type: Determine from construction and target demographic:
    • "Regular" - standard sizing (most common)
@@ -1540,7 +1591,11 @@ ${safeStringify(effectiveEbayAspects)}
 
 CRITICAL: Use ONLY the exact values from allowedValues lists. If uncertain, choose closest match.
 
-⚠️ CRITICAL: ONLY generate fields that are RELEVANT to the item type.
+⚠️ CRITICAL REQUIREMENTS:
+- **POPULATE ALL RELEVANT FIELDS** - Don't leave fields null unless truly indeterminate
+- **Department is REQUIRED** - Extract from tags like "Women's Extra Large" 
+- **ONLY generate fields that are RELEVANT to the item type**
+- **Fill out EVERY applicable eBay specific** for a complete listing
 
 ITEM TYPE FIELD MAPPING:
 • PANTS/TROUSERS: Brand, Department, Type, Size, Color, Material, Pattern, Fit, Rise, Closure, Features, Occasion, Season, Style
