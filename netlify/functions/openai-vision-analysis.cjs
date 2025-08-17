@@ -1141,7 +1141,7 @@ function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspe
         { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall', 'Maternity'] },
         { name: 'Size', required: true, allowedValues: null },
         { name: 'Color', required: false, allowedValues: null },
-        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Wool', 'Denim', 'Linen', 'Spandex', 'Viscose'] },
+        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Wool', 'Denim', 'Linen', 'Spandex', 'Viscose', 'Gore-Tex', 'Fleece', 'Nylon', 'Ripstop'] },
         { name: 'Pattern', required: false, allowedValues: ['Solid', 'Striped', 'Plaid', 'Checkered'] },
         { name: 'Fit', required: false, allowedValues: ['Slim', 'Regular', 'Relaxed', 'Straight', 'Bootcut', 'Tapered', 'Wide Leg'] },
         { name: 'Rise', required: false, allowedValues: ['Low Rise', 'Mid Rise', 'High Rise'] },
@@ -1182,7 +1182,7 @@ function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspe
         { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall'] },
         { name: 'Size', required: true, allowedValues: null },
         { name: 'Color', required: false, allowedValues: null },
-        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Nylon', 'Spandex', 'Cotton Blend'] },
+        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Nylon', 'Spandex', 'Cotton Blend', 'Gore-Tex', 'Fleece', 'Ripstop', 'Quick-Dry'] },
         { name: 'Pattern', required: false, allowedValues: ['Solid', 'Striped', 'Plaid', 'Floral'] },
         { name: 'Fit', required: false, allowedValues: ['Slim', 'Regular', 'Relaxed', 'Cargo', 'Board', 'Athletic'] },
         { name: 'Inseam', required: false, allowedValues: ['5"', '7"', '9"', '11"', '13"'] },
@@ -1203,7 +1203,7 @@ function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspe
         { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall', 'Maternity'] },
         { name: 'Size', required: true, allowedValues: null },
         { name: 'Color', required: false, allowedValues: null },
-        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Silk', 'Linen', 'Viscose', 'Modal'] },
+        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Silk', 'Linen', 'Viscose', 'Modal', 'Gore-Tex', 'Fleece', 'Merino Wool'] },
         { name: 'Pattern', required: false, allowedValues: ['Solid', 'Striped', 'Plaid', 'Floral', 'Checkered'] },
         { name: 'Sleeve Length', required: false, allowedValues: ['Long Sleeve', 'Short Sleeve', '3/4 Sleeve', 'Sleeveless'] },
         { name: 'Neckline', required: false, allowedValues: ['Crew Neck', 'V-Neck', 'Scoop Neck', 'Button Down Collar', 'Spread Collar'] },
@@ -1225,7 +1225,7 @@ function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspe
         { name: 'Size Type', required: true, allowedValues: ['Regular', 'Plus', 'Petite', 'Big & Tall'] },
         { name: 'Size', required: true, allowedValues: null },
         { name: 'Color', required: false, allowedValues: null },
-        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Cotton Blend', 'Tri-Blend'] },
+        { name: 'Material', required: false, allowedValues: ['Cotton', 'Polyester', 'Cotton Blend', 'Tri-Blend', 'Moisture-Wicking', 'Performance'] },
         { name: 'Pattern', required: false, allowedValues: ['Solid', 'Striped', 'Graphic Print'] },
         { name: 'Sleeve Length', required: false, allowedValues: ['Short Sleeve', 'Long Sleeve', 'Sleeveless', 'Cap Sleeve'] },
         { name: 'Neckline', required: false, allowedValues: ['Crew Neck', 'V-Neck', 'Scoop Neck', 'Henley', 'Tank'] },
@@ -1385,6 +1385,28 @@ STEP 2: READING TECHNIQUE - Read EXACTLY what you see:
   * If garment shows quality construction typical of major brands, identify it
   * **GAP PRIORITY**: If any element suggests GAP (style, logo, text), choose GAP over Unbranded
 - **CONSISTENCY RULE**: Similar garments should get similar brand identifications
+
+🧪 **TECHNICAL MATERIAL DETECTION** (CRITICAL FOR OUTDOOR/PERFORMANCE GEAR):
+- **ALWAYS SCAN FOR TECHNICAL MATERIALS** on tags, labels, and fabric:
+  * Gore-Tex, DryVent, H2No, eVent (waterproof breathable)
+  * Fleece, Polartec, Thermal, Merino Wool (insulation)
+  * Ripstop, Cordura, Ballistic Nylon (durability)
+  * Moisture-wicking, Quick-dry, Anti-microbial (performance)
+  * Down, Synthetic fill, PrimaLoft (insulation)
+- **INCLUDE IN TITLE & KEYWORDS**: Technical materials are high-value search terms
+- **EXAMPLES**: "Patagonia Gore-Tex Rain Jacket", "North Face Fleece Pullover"
+
+🏈 **SPORTS TEAM & GRAPHIC T-SHIRT TITLE PRIORITY**:
+- **FOR SPORTS TEAMS**: Team name becomes PRIMARY "brand" in title structure
+  * "Washington Commanders NFL T-Shirt Men L Black Cotton"
+  * "Lakers NBA Jersey Men XL Yellow Polyester"
+  * Team name takes precedence over manufacturer (Nike, Adidas, etc.)
+- **FOR GRAPHIC TEES**: Main graphic text becomes primary identifier
+  * "Marvel Spider-Man T-Shirt Men M Red Cotton Graphic"
+  * "Star Wars Darth Vader T-Shirt Women L Black Cotton"
+- **TITLE STRUCTURE**: [Team/Graphic] + [Item Type] + [Gender] + [Size] + [Details]
+- **SECONDARY BRAND**: Include actual manufacturer (Nike, Fanatics) in description
+
 - **CRITICAL: NEVER USE "UNBRANDED" FOR THESE ITEMS**:
   * Women's/Men's pants, jeans, trousers (likely GAP, Levi's, etc.)
   * Jackets, blazers, coats (likely branded)
@@ -1685,8 +1707,11 @@ TITLE EXAMPLES (ALWAYS INCLUDE MODEL NUMBERS WHEN DETECTED):
 - "Levi's 527 Slim Bootcut Jeans Men 32x34 Dark Blue Denim" (include model number)
 - "Nike Air Max 97 Running Shoes Men 10.5 White Athletic" (include model number)
 - "Canon EOS Rebel T7 DSLR Camera Black with 18-55mm Lens" (include model number)
+- "Washington Commanders NFL T-Shirt Men L Black Cotton" (sports team priority)
+- "Marvel Spider-Man T-Shirt Women M Red Cotton Graphic" (graphic content priority)
+- "Patagonia Gore-Tex Rain Jacket Men L Blue Waterproof" (technical material)
+- "North Face Fleece Pullover Women S Pink Polartec Thermal" (technical material)
 - "Ralph Lauren Polo Shirt Men L Blue Button Up Cotton" (when no model # visible)
-- "Nike Hoodie Women M Black Athletic Pullover Fleece" (when no model # visible)
 
 Do NOT include markdown or code fences.`;
 
