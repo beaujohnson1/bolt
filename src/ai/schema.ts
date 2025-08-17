@@ -13,6 +13,7 @@ export const AiSchema = z.object({
   keywords: z.array(z.string()).optional(),
   key_features: z.array(z.string()).optional(),
   model_number: z.union([z.string(), z.null()]).optional(),
+  model_name: z.union([z.string(), z.null()]).optional(),
   evidence: z.object({
     brand: z.string().optional(),
     size: z.string().optional()

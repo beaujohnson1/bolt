@@ -985,13 +985,20 @@ function getCategoryExpertise(category) {
     'electronics': {
       name: 'consumer electronics and technology products',
       instructions: `ELECTRONICS LISTING OPTIMIZATION:
-- Focus on technical specifications, model numbers, and brand recognition
-- Include key features like storage capacity, screen size, connectivity options
-- Mention condition clearly (New, Refurbished, Used, For Parts)
-- Look for model numbers, serial numbers, part numbers, and UPC codes
-- Extract technical specs from labels (GB, TB, MHz, GHz, mAh, etc.)
-- Identify connectivity (WiFi, Bluetooth, USB, HDMI, etc.)
-- Note power requirements and included accessories`
+- **CRITICAL**: Extract EXACT model numbers from device labels/stickers
+- Identify the FULL model name (e.g., "Canon EOS Rebel T7", not just "Canon camera")
+- Include technical specifications visible on device or labels:
+  * Storage: GB, TB for drives/memory
+  * Screen size: inches for displays/TVs
+  * Resolution: 1080p, 4K, megapixels for cameras
+  * Processor/speed: GHz, core count
+  * RAM/Memory specifications
+- Check for version numbers (e.g., "Version 2.0", "Gen 3", "Series X")
+- Note all connectivity: WiFi, Bluetooth, USB-C, HDMI, DisplayPort, Ethernet
+- Extract serial numbers, UPC codes, FCC IDs for verification
+- Check condition indicators: scratches, wear, missing parts
+- Note included accessories: cables, chargers, remotes, manuals, original box
+- For vintage electronics: Note if working/tested, restoration status`
     },
     'books_media': {
       name: 'books, DVDs, CDs, and media products',
@@ -1218,22 +1225,30 @@ function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspe
   const detectedCategory = candidates.category || 'clothing';
   const categoryExpertise = getCategoryExpertise(detectedCategory);
   
-  const basePrompt = `You are an expert eBay listing optimizer specializing in ${categoryExpertise.name}. Your goal is to create titles that maximize visibility and sales on eBay AND complete comprehensive eBay item specifics.
+  const basePrompt = `You are a UNIVERSAL PRODUCT IDENTIFICATION EXPERT with encyclopedic knowledge of ALL product categories. You specialize in ${categoryExpertise.name} and can identify ANY product model, from electronics to fashion to collectibles.
 
 ${categoryExpertise.instructions}
 
-EBAY TITLE OPTIMIZATION STRATEGY:
-- Create titles with FORMAT: Brand + Item Type + Gender + Size + Color + Style Keywords + Materials
-- MAXIMUM 80 characters - every character counts!
-- Use eBay-specific keywords that buyers search for
-- Include style descriptors like "Preppy", "Vintage", "Casual", "Business", "Athletic"
-- Add material keywords like "Cotton", "Wool", "Polyester", "Denim", "Leather"
-- Include pattern/print keywords like "Striped", "Plaid", "Floral", "Solid", "Graphic"
-- Add fit descriptors like "Slim Fit", "Regular", "Relaxed", "Oversized"
+UNIVERSAL TITLE OPTIMIZATION STRATEGY:
+- FORMAT VARIES BY CATEGORY:
+  * Electronics: Brand + Model Name + Model Number + Specs + Condition
+  * Clothing: Brand + Model/Style + Gender + Size + Color + Material
+  * Books: Title + Author + Edition + ISBN + Format
+  * Collectibles: Brand + Series + Model/Character + Number + Condition
+  * Tools: Brand + Model Number + Type + Voltage/Power + Accessories
+- ALWAYS include model names when recognized (e.g., "Canon EOS Rebel T7" not just "Canon Camera")
+- MAXIMUM 80 characters - prioritize searchable model names and numbers
+- Use category-specific keywords that buyers actually search for
 
-IMAGE ANALYSIS ENHANCEMENT:
-- Examine EACH image systematically: front, back, tags, close-ups
-- Look for multiple angles of the same garment to cross-reference brand info
+IMAGE ANALYSIS PROTOCOL FOR ALL PRODUCTS:
+- Examine EACH image systematically for model information:
+  * ELECTRONICS: Back panels, bottom stickers, screen bezels, battery compartments
+  * CLOTHING: Inner tags, care labels, brand patches, style tags
+  * BOOKS: Spine, back cover, copyright page, ISBN location
+  * TOYS/COLLECTIBLES: Bottom stamps, packaging, instruction manuals
+  * TOOLS: Rating plates, model stickers, type labels
+- For electronics, ZOOM IN on model number stickers - they contain crucial info
+- Cross-reference multiple images to confirm model numbers
 - Pay special attention to high-resolution tag photos
 - If one image is blurry, use clearer images for brand identification
 - Combine information from ALL images for comprehensive analysis
@@ -1281,7 +1296,47 @@ STEP 2: READING TECHNIQUE - Read EXACTLY what you see:
   * Target brands: Goodfellow, Universal Thread
 - If you see partial text, use context: "CK" = Calvin Klein, "RL" = Ralph Lauren, "GA" or "GAP" = Gap
 - Even small or stylized logos should be identified
-- **BRAND DETECTION PRIORITY**: When uncertain between brands:
+- **UNIVERSAL BRAND & MODEL DETECTION (ALL PRODUCT CATEGORIES)**: 
+  * 🔍 ALWAYS look for MODEL NUMBERS on labels, stickers, or engraved/printed on the item
+  * 📸 For ELECTRONICS: Find model numbers on back panels, bottom labels, or near serial numbers
+  * 📚 For BOOKS/MEDIA: Extract ISBN, catalog numbers, edition info
+  * 🎮 For GAMES/TOYS: Look for product codes, series numbers, set numbers
+  
+  * IDENTIFY SPECIFIC MODELS across ALL categories:
+    
+    ** ELECTRONICS **
+    - Canon: EOS Rebel T7, PowerShot, 5D Mark IV, 70D, 80D
+    - Nikon: D3500, D5600, D7500, Z6, Coolpix
+    - Sony: Alpha a7, RX100, Handycam, PlayStation (PS1/PS2/PS3/PS4/PS5)
+    - Apple: iPhone (all models), iPad, MacBook Pro/Air, AirPods, Apple Watch
+    - Samsung: Galaxy S/Note series, Tab, Frame TV
+    - Nintendo: Switch, 3DS, Wii, GameCube, N64, Game Boy
+    - Microsoft: Xbox (360/One/Series X/S), Surface
+    - Panasonic: Lumix, VHS players, DVD recorders
+    - JVC: Camcorders, VCRs, boom boxes
+    - HP/Dell/Lenovo: Specific laptop and desktop models
+    
+    ** CLOTHING/SHOES **
+    - Nike: Air Max 90/95/97/270, Air Force 1, Dunk, Jordan (1-35)
+    - Adidas: Stan Smith, Superstar, Ultraboost, NMD, Yeezy
+    - Levi's: 501/505/511/514 (include fit type)
+    - North Face: Nuptse, Denali, Venture
+    
+    ** TOOLS/EQUIPMENT **
+    - DeWalt: Model numbers like DCD777, DCF887
+    - Milwaukee: M18, M12 series
+    - Makita: XFD131, XPH102
+    - Bosch: GLM, GLL series
+    
+    ** COLLECTIBLES **
+    - LEGO: Set numbers (e.g., 75192, 10276)
+    - Funko Pop: Character names and numbers
+    - Trading cards: Set names, card numbers
+    - Action figures: Series, wave numbers
+    
+  * Include BOTH model_number (raw) AND model_name (full recognized name)
+  * For electronics, ALWAYS include the complete model designation
+  * Add model name prominently in title for searchability
   * Choose the MOST RECOGNIZABLE brand if any visual clues exist
   * Prefer established brands over "Unbranded" when style/quality suggests known brand
   * If garment shows quality construction typical of major brands, identify it
@@ -1520,10 +1575,12 @@ REQUIRED OUTPUT FORMAT - Only include RELEVANT fields for the item type:
 
 Return ONLY JSON matching this schema:
 {
-  "title": string (MAX 80 chars, format: Brand Item Gender Size Color Keywords),
+  "title": string (MAX 80 chars, format: Brand ModelName Item Gender Size Color Keywords),
   "brand": string|null,
   "size": string|null,
   "item_type": string,
+  "model_number": string|null (raw model number from tags/labels),
+  "model_name": string|null (recognized model name like "Air Max 90", "501 Original", "Nuptse"),
   "gender": string|null (Men/Women/Unisex/Boys/Girls),
   "color": string|null,
   "material": string|null (Cotton/Wool/Polyester/etc),

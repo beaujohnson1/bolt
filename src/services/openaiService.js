@@ -409,6 +409,43 @@ const performAIAnalysis = async (imageUrls, options = {}) => {
       console.error('❌ [EBAY-VALIDATE] Error validating specifics:', error);
     }
 
+    // Step 4c: Model Name Enhancement (GPT Vision already extracted model_number and model_name)
+    try {
+      console.log('🔍 [OPENAI-CLIENT] Step 4c: Enhancing with model information...');
+      
+      // If GPT Vision found a model name, add it to keywords
+      if (ai.model_name && safeTrim(ai.model_name)) {
+        console.log('✅ [MODEL-ENHANCE] GPT Vision recognized model:', ai.model_name);
+        
+        // Add model name to keywords for better searchability
+        const currentKeywords = ai.keywords || [];
+        const modelKeywords = [ai.model_name];
+        
+        // Add brand-specific keywords based on model
+        if (ai.brand && ai.model_name) {
+          if (ai.brand.toLowerCase().includes('nike') && ai.model_name.includes('Air Max')) {
+            modelKeywords.push('athletic', 'sneakers', 'sport', 'running');
+          } else if (ai.brand.toLowerCase().includes('levi') && ai.model_name.includes('501')) {
+            modelKeywords.push('denim', 'classic', 'original', 'vintage');
+          } else if (ai.brand.toLowerCase().includes('north face') && ai.model_name.includes('Nuptse')) {
+            modelKeywords.push('puffer', 'winter', 'down', 'outdoor');
+          }
+        }
+        
+        const combinedKeywords = [...currentKeywords, ...modelKeywords];
+        ai.keywords = [...new Set(combinedKeywords)]; // Remove duplicates
+        
+        console.log('🔧 [MODEL-ENHANCE] Added model keywords:', modelKeywords);
+      } else if (ai.model_number && safeTrim(ai.model_number)) {
+        console.log('ℹ️ [MODEL-ENHANCE] Model number found but no recognized model name:', ai.model_number);
+        // Add model number to keywords if no model name was recognized
+        const currentKeywords = ai.keywords || [];
+        ai.keywords = [...new Set([...currentKeywords, `Model ${ai.model_number}`])];
+      }
+    } catch (error) {
+      console.error('❌ [MODEL-ENHANCE] Error enhancing model data:', error);
+    }
+
     // Step 5: Final processing and result compilation
     try {
       // Rebuild clean title with enhanced eBay-optimized data
@@ -432,7 +469,9 @@ const performAIAnalysis = async (imageUrls, options = {}) => {
         neckline: nullIfUnknown(ai.neckline),
         style_keywords: ai.style_keywords || [],
         ebay_keywords: ai.ebay_keywords || [],
-        keywords: ai.keywords || []
+        keywords: ai.keywords || [],
+        model_name: nullIfUnknown(ai.model_name),
+        model_number: nullIfUnknown(ai.model_number)
       });
       console.log('🏗️ [POST-PROCESS] Rebuilt eBay-optimized title:', newTitle);
       ai.title = newTitle;

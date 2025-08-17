@@ -82,6 +82,7 @@ export function mapAIToListing(ai: RawAI, ocrData = {}) {
   const item_type = safeTrim(ai.item_type) || "Jacket";
   const condition = safeTrim(ai.condition) || "good";
   const model_number = nullIfUnknown(ai.model_number);
+  const model_name = nullIfUnknown(ai.model_name);
   const gender = nullIfUnknown(ai.gender);
   const material = nullIfUnknown(ai.material);
   const pattern = nullIfUnknown(ai.pattern);
@@ -169,6 +170,7 @@ export function mapAIToListing(ai: RawAI, ocrData = {}) {
     size,
     color,
     model_number,
+    model_name,
     item_type,
     condition,
     description,

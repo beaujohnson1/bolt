@@ -730,6 +730,8 @@ export const buildTitle = (components: {
   style_keywords?: string[];
   ebay_keywords?: string[];
   keywords?: string[];
+  model_name?: string | null;
+  model_number?: string | null;
 }): string => {
   console.log('🏗️ [BUILD-TITLE] Starting eBay title optimization with components:', components);
   
@@ -745,6 +747,8 @@ export const buildTitle = (components: {
   const closure = nullIfUnknown(components.closure);
   const sleeveLength = nullIfUnknown(components.sleeve_length);
   const neckline = nullIfUnknown(components.neckline);
+  const modelName = nullIfUnknown(components.model_name);
+  const modelNumber = nullIfUnknown(components.model_number);
   
   // Combine all keyword sources and prioritize
   const allKeywords = [
@@ -784,35 +788,43 @@ export const buildTitle = (components: {
   // 1. Brand (highest priority)
   addUniquePart(brand, 'brand');
   
-  // 2. Item Type (essential)
+  // 2. Model Name (very high priority for searchability)
+  addUniquePart(modelName, 'model name');
+  
+  // 3. Item Type (essential)
   addUniquePart(itemType, 'item type');
   
-  // 3. Gender (very important for eBay search)
+  // 4. Gender (very important for eBay search)
   addUniquePart(normalizeGenderForTitle(gender), 'gender');
   
-  // 4. Size (critical for clothing)
+  // 5. Size (critical for clothing)
   addUniquePart(size, 'size');
   
-  // 5. Color (important for search)
+  // 6. Color (important for search)
   addUniquePart(color, 'color');
   
-  // 6. Style descriptors (adds searchability)
+  // 7. Style descriptors (adds searchability)
   const styleDescriptors = [closure, fit, pattern, sleeveLength, neckline].filter(Boolean);
   for (const descriptor of styleDescriptors) {
     addUniquePart(descriptor, 'style descriptor');
   }
   
-  // 7. Material (if space allows)
+  // 8. Material (if space allows)
   addUniquePart(material, 'material');
   
-  // 8. High-value keywords (trending/searchable terms) - use MORE keywords to fill title
+  // 9. Model Number (if no model name was added and space allows)
+  if (!modelName && modelNumber) {
+    addUniquePart(`Model ${modelNumber}`, 'model number');
+  }
+  
+  // 10. High-value keywords (trending/searchable terms) - use MORE keywords to fill title
   const prioritizedKeywords = prioritizeEbayKeywords(allKeywords);
   for (const keyword of prioritizedKeywords) {
     if (remainingChars <= 5) break; // Stop when we're close to limit
     addUniquePart(keyword, 'keyword');
   }
   
-  // 9. Additional keywords to maximize eBay search visibility (up to 80 chars)
+  // 11. Additional keywords to maximize eBay search visibility (up to 80 chars)
   if (remainingChars > 10) {
     const additionalKeywords = allKeywords.filter(k => 
       !prioritizedKeywords.includes(k) && 
