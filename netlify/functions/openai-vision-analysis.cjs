@@ -1262,7 +1262,7 @@ function getAnalysisPrompt(analysisType, ocrText = '', candidates = {}, ebayAspe
   const detectedCategory = candidates.category || 'clothing';
   const categoryExpertise = getCategoryExpertise(detectedCategory);
   
-  const basePrompt = `You are a UNIVERSAL PRODUCT IDENTIFICATION EXPERT with encyclopedic knowledge of ALL product categories. You specialize in ${categoryExpertise.name} and can identify ANY product model, from electronics to fashion to collectibles.
+  const basePrompt = `You are GPT-4 Vision with COMPREHENSIVE KNOWLEDGE of virtually every consumer product made since 1970. You have been trained on millions of product images, manuals, catalogs, and specifications. You specialize in ${categoryExpertise.name} and can identify ANY product model across ALL categories using your vast training data.
 
 ${categoryExpertise.instructions}
 
@@ -1274,13 +1274,12 @@ UNIVERSAL TITLE OPTIMIZATION STRATEGY:
   * Collectibles: Brand + Series + Model/Character + Number + Condition
   * Tools: Brand + Model Number + Type + Voltage/Power + Accessories
 - ALWAYS include model names when recognized (e.g., "Canon EOS Rebel T7" not just "Canon Camera")
-- **CRITICAL FOR SEARCHABILITY: INCLUDE MODEL NUMBERS & GENDER IN TITLES**:
-  * Levi's jeans: "Levi's 527 Slim Bootcut Jeans Men 32x34" (include number + gender)
-  * Eddie Bauer jackets: "Eddie Bauer EV650 Jacket Men's Large Black" (include model + gender)
-  * Electronics: "Canon EOS Rebel T7 DSLR Camera" (include model T7, D3500, etc.)
-  * Nike shoes: "Nike Air Max 97 Running Shoes Men 10.5" (include model + gender)
+- **CRITICAL FOR SEARCHABILITY: USE YOUR COMPREHENSIVE PRODUCT KNOWLEDGE**:
+  * **RECOGNIZE ANY MODEL**: Use your training data to identify model numbers/names from ANY brand
+  * **INCLUDE MODELS IN TITLES**: When you recognize a model, always include it in the title
   * **GENDER REQUIREMENT**: Always include Men's/Women's/Unisex in clothing titles
-  * All brands: Extract visible model numbers from tags/labels and include in title
+  * **READ LABELS/TAGS**: Extract any visible model numbers, style codes, or product identifiers
+  * **TRUST YOUR KNOWLEDGE**: You know virtually every consumer product - use that knowledge!
 - MAXIMUM 80 characters - prioritize searchable model names and numbers
 - Use category-specific keywords that buyers actually search for
 
@@ -1340,45 +1339,23 @@ STEP 2: READING TECHNIQUE - Read EXACTLY what you see:
   * Target brands: Goodfellow, Universal Thread
 - If you see partial text, use context: "CK" = Calvin Klein, "RL" = Ralph Lauren, "GA" or "GAP" = Gap
 - Even small or stylized logos should be identified
-- **UNIVERSAL BRAND & MODEL DETECTION (ALL PRODUCT CATEGORIES)**: 
-  * 🔍 ALWAYS look for MODEL NUMBERS on labels, stickers, or engraved/printed on the item
-  * 📸 For ELECTRONICS: Find model numbers on back panels, bottom labels, or near serial numbers
-  * 👖 For JEANS/DENIM: Look for model numbers on waistband tags, back pocket labels, inner tags (e.g., "527", "501", "511") - MUST extract exact number and include in title for searchability
-  * 📚 For BOOKS/MEDIA: Extract ISBN, catalog numbers, edition info
-  * 🎮 For GAMES/TOYS: Look for product codes, series numbers, set numbers
+- **UNIVERSAL BRAND & MODEL DETECTION (USE YOUR TRAINING DATA)**: 
+  * 🧠 **PRIMARY**: Use your vast product knowledge to recognize models from visual cues
+  * 🔍 **SECONDARY**: Look for MODEL NUMBERS on labels, stickers, or engraved/printed on the item
+  * 📸 For ELECTRONICS: Recognize models visually + find model numbers on back panels, bottom labels
+  * 👖 For JEANS/DENIM: Recognize style numbers from fit/cut + extract from waistband tags ("527", "501", "511")
+  * 📚 For BOOKS/MEDIA: Use cover design knowledge + extract ISBN, catalog numbers, edition info
+  * 🎮 For GAMES/TOYS: Recognize from packaging/design + look for product codes, series numbers
+  * **KEY**: You have extensive training on product identification - trust your knowledge first!
   
-  * IDENTIFY SPECIFIC MODELS across ALL categories:
-    
-    ** ELECTRONICS **
-    - Canon: EOS Rebel T7, PowerShot, 5D Mark IV, 70D, 80D
-    - Nikon: D3500, D5600, D7500, Z6, Coolpix
-    - Sony: Alpha a7, RX100, Handycam, PlayStation (PS1/PS2/PS3/PS4/PS5)
-    - Apple: iPhone (all models), iPad, MacBook Pro/Air, AirPods, Apple Watch
-    - Samsung: Galaxy S/Note series, Tab, Frame TV
-    - Nintendo: Switch, 3DS, Wii, GameCube, N64, Game Boy
-    - Microsoft: Xbox (360/One/Series X/S), Surface
-    - Panasonic: Lumix, VHS players, DVD recorders
-    - JVC: Camcorders, VCRs, boom boxes
-    - HP/Dell/Lenovo: Specific laptop and desktop models
-    
-    ** CLOTHING/SHOES **
-    - Nike: Air Max 90/95/97/270, Air Force 1, Dunk, Jordan (1-35)
-    - Adidas: Stan Smith, Superstar, Ultraboost, NMD, Yeezy
-    - Levi's: 501 Original, 505 Regular, 511 Slim, 514 Straight, 527 Slim Bootcut, 721 High Rise, 311 Shaping (CRITICAL: Extract exact number like "527" from tags AND include in title)
-    - Eddie Bauer: EV650, EB650, Guide Pro, Cloud Cap, MicroTherm models (CRITICAL: Extract model numbers like "EV650" from tags AND include in title with gender)
-    - North Face: Nuptse, Denali, Venture
-    
-    ** TOOLS/EQUIPMENT **
-    - DeWalt: Model numbers like DCD777, DCF887
-    - Milwaukee: M18, M12 series
-    - Makita: XFD131, XPH102
-    - Bosch: GLM, GLL series
-    
-    ** COLLECTIBLES **
-    - LEGO: Set numbers (e.g., 75192, 10276)
-    - Funko Pop: Character names and numbers
-    - Trading cards: Set names, card numbers
-    - Action figures: Series, wave numbers
+  * **LEVERAGE YOUR VAST PRODUCT KNOWLEDGE**: You know virtually every consumer product made in the last 50+ years
+  * **TRUST YOUR TRAINING DATA**: You have extensive knowledge of model numbers, product lines, and specifications
+  * **READ AND RECOGNIZE**: Extract model numbers/names directly from images using your comprehensive product database
+  * **EXAMPLES OF YOUR KNOWLEDGE**:
+    - Electronics: Canon EOS models, iPhone generations, PlayStation/Xbox versions, laptop series
+    - Clothing: Levi's numbered styles (501, 527, etc.), Nike Air Max models, outdoor gear lines
+    - Tools: DeWalt/Milwaukee model numbers, appliance versions, equipment specifications
+    - Collectibles: LEGO set numbers, Funko editions, trading card series, vintage items
     
   * Include BOTH model_number (raw) AND model_name (full recognized name)
   * For electronics, ALWAYS include the complete model designation
@@ -1706,16 +1683,16 @@ Return ONLY JSON matching this schema:
   }
 }
 
-TITLE EXAMPLES (ALWAYS INCLUDE MODEL NUMBERS & GENDER WHEN DETECTED):
-- "Eddie Bauer EV650 Jacket Men's XL Black Puffer Outerwear" (model + gender)
-- "Levi's 527 Slim Bootcut Jeans Men 32x34 Dark Blue Denim" (model + gender)
-- "Nike Air Max 97 Running Shoes Men 10.5 White Athletic" (model + gender)
-- "Canon EOS Rebel T7 DSLR Camera Black with 18-55mm Lens" (model number)
-- "Washington Commanders NFL T-Shirt Men L Black Cotton" (sports team + gender)
-- "Marvel Spider-Man T-Shirt Women M Red Cotton Graphic" (graphic + gender)
-- "Patagonia Gore-Tex Rain Jacket Men L Blue Waterproof" (technical + gender)
-- "North Face Fleece Pullover Women S Pink Polartec" (technical + gender)
-- "Ralph Lauren Polo Shirt Men L Blue Button Up Cotton" (always include gender)
+TITLE EXAMPLES (USE YOUR PRODUCT KNOWLEDGE TO IDENTIFY MODELS):
+- "Eddie Bauer EV650 Jacket Men's XL Black Puffer" (recognized EV650 model)
+- "Levi's 527 Jeans Men 32x34 Dark Blue Bootcut" (recognized 527 style)  
+- "Nike Air Max 97 Shoes Men 10.5 White" (recognized Air Max 97 model)
+- "Canon EOS Rebel T7 DSLR Camera Black" (recognized T7 model)
+- "Washington Commanders NFL T-Shirt Men L Black" (sports team priority)
+- "Marvel Spider-Man T-Shirt Women M Red Graphic" (character priority)
+- "Patagonia Rain Jacket Men L Blue Gore-Tex" (technical material)
+- "North Face Fleece Pullover Women S Pink" (brand recognition)
+- "[Brand] [Model/Style] [Item] [Gender] [Size] [Key Details]" (general format)
 
 Do NOT include markdown or code fences.`;
 
