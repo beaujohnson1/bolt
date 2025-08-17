@@ -526,6 +526,55 @@ This document tracks all development tasks for EasyFlip.ai, derived from the Pro
 
 ### ✅ Completed Today (August 17, 2025):
 
+#### 🎯 LEVI'S MODEL NUMBER & SPORTS TEAM TITLE OPTIMIZATION ✅ COMPLETED
+**BREAKTHROUGH: Enhanced Model Detection & Sports Team Priority System**
+
+1. ✅ **Levi's Model Number Title Integration** 
+   - **ISSUE SOLVED**: Model numbers like "527" appearing in description but not titles
+   - **ENHANCEMENT**: Added explicit model number inclusion instructions for ALL brands
+   - **TITLE EXAMPLES**: "Levi's 527 Slim Bootcut Jeans Men 32x34 Dark Blue Denim"
+   - **JEANS DETECTION**: Enhanced waistband tag extraction with "MUST include in title" instructions
+   - **UNIVERSAL**: Works for Nike Air Max 97, Canon EOS Rebel T7, etc.
+   - **SEARCHABILITY**: Ensures model numbers appear prominently for better eBay search ranking
+
+2. ✅ **Gore-Tex & Technical Material Detection** 
+   - **ISSUE SOLVED**: Gore-Tex and other technical materials not being detected from photos
+   - **TECHNICAL MATERIALS**: Gore-Tex, DryVent, Fleece, Polartec, Ripstop, Merino Wool
+   - **ENHANCED SCANNING**: Added explicit technical material search instructions
+   - **eBay INTEGRATION**: Updated all material allowedValues to include technical fabrics
+   - **TITLE EXAMPLES**: "Patagonia Gore-Tex Rain Jacket Men L Blue Waterproof"
+   - **HIGH-VALUE KEYWORDS**: Technical materials are premium search terms for outdoor gear
+
+3. ✅ **Sports Team & Graphic T-Shirt Title Priority**
+   - **ISSUE SOLVED**: Team names like "Washington Commanders" not prioritized in titles  
+   - **TITLE STRUCTURE**: [Team/Graphic] + [Item Type] + [Gender] + [Size] + [Details]
+   - **SPORTS EXAMPLES**: "Washington Commanders NFL T-Shirt Men L Black Cotton"
+   - **GRAPHIC EXAMPLES**: "Marvel Spider-Man T-Shirt Women M Red Cotton Graphic"
+   - **BRAND PRECEDENCE**: Team names take priority over manufacturers (Nike, Fanatics)
+   - **SECONDARY BRANDING**: Actual manufacturer included in description
+
+4. ✅ **Enhanced Material Detection System**
+   - **OUTDOOR GEAR**: Comprehensive technical material database
+   - **PERFORMANCE FABRICS**: Moisture-wicking, Quick-dry, Anti-microbial detection
+   - **INSULATION**: Down, Synthetic fill, PrimaLoft recognition
+   - **DURABILITY**: Cordura, Ballistic Nylon identification
+   - **eBay OPTIMIZATION**: All material types properly mapped to item specifics
+
+**Technical Implementation**:
+- Enhanced GPT Vision prompts with model number title generation instructions
+- Added technical material scanning protocols in `openai-vision-analysis.cjs`
+- Updated eBay item specifics material allowedValues across all categories
+- Implemented sports team/graphic content title priority system
+- Enhanced title examples with model numbers and technical materials
+
+**Results Achieved**:
+- ✅ Model numbers now consistently appear in titles for better searchability
+- ✅ Gore-Tex and technical materials properly detected and included in listings
+- ✅ Sports team names take precedence in title structure 
+- ✅ Graphic t-shirt content becomes primary identifier
+- ✅ Technical materials appear in titles as high-value keywords
+- ✅ All changes deployed and live via commit `a27af72`
+
 #### 🌟 GAME-CHANGING BREAKTHROUGH: Universal Product Recognition System 🌟
 **WORLD'S MOST COMPREHENSIVE AI-POWERED PRODUCT IDENTIFICATION**
 
