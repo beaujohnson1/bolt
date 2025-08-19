@@ -144,111 +144,149 @@ exports.handler = async (event, context) => {
       scope: tokenData.scope
     });
 
-    // Create a simple HTML page that stores the token and redirects
+    // Create HTML page that stores tokens and immediately redirects
+    const tokenDataJson = JSON.stringify(tokenData).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+    
     const html = `
     <!DOCTYPE html>
     <html>
     <head>
       <title>eBay Authentication Success</title>
-      <style>
-        body { 
-          font-family: Arial, sans-serif; 
-          text-align: center; 
-          padding: 50px; 
-          background-color: #f5f5f5; 
-        }
-        .success-box { 
-          background: white; 
-          padding: 30px; 
-          border-radius: 10px; 
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
-          max-width: 500px; 
-          margin: 0 auto; 
-        }
-        .spinner { 
-          border: 4px solid #f3f3f3; 
-          border-top: 4px solid #3498db; 
-          border-radius: 50%; 
-          width: 30px; 
-          height: 30px; 
-          animation: spin 1s linear infinite; 
-          margin: 20px auto; 
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      </style>
+      <meta http-equiv="refresh" content="0;url=${baseUrl}/app?ebay_connected=true&timestamp=${Date.now()}">
       <script>
-        console.log('🎉 [EBAY-CALLBACK] Storing eBay OAuth tokens...');
-        
-        // Store the tokens in localStorage immediately
-        const tokenData = ${JSON.stringify(tokenData)};
-        
-        try {
-          // Calculate expiry timestamp if not present
-          if (tokenData.expires_in && !tokenData.expires_at) {
-            tokenData.expires_at = Date.now() + (tokenData.expires_in * 1000);
+        (function() {
+          console.log('🎉 [EBAY-CALLBACK] Storing eBay OAuth tokens...');
+          
+          try {
+            const tokenData = ${tokenDataJson};
+            
+            // Calculate expiry timestamp if not present
+            if (tokenData.expires_in && !tokenData.expires_at) {
+              tokenData.expires_at = Date.now() + (tokenData.expires_in * 1000);
+            }
+            
+            // Store tokens immediately
+            localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+            localStorage.setItem('ebay_manual_token', tokenData.access_token);
+            
+            console.log('✅ [EBAY-CALLBACK] Tokens stored successfully');
+            
+            // Dispatch events for cross-tab communication
+            window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+              detail: { authenticated: true, tokens: tokenData }
+            }));
+            
+            // Enhanced redirect with robust error handling and fallbacks
+            function performRedirect() {
+              try {
+                // Get and clean up return URL
+                const returnUrl = localStorage.getItem('ebay_oauth_return_url') || '${baseUrl}/app';
+                localStorage.removeItem('ebay_oauth_return_url');
+                
+                // Validate and construct final URL
+                const baseUrl = returnUrl.startsWith('http') ? returnUrl : '${baseUrl}/app';
+                const separator = baseUrl.includes('?') ? '&' : '?';
+                const finalUrl = baseUrl + separator + 'ebay_connected=true&timestamp=' + Date.now();
+                
+                console.log('🔄 [EBAY-CALLBACK] Redirecting to:', finalUrl);
+                
+                // Try multiple redirect methods for maximum compatibility
+                let redirected = false;
+                
+                // Method 1: window.location.replace() - Most reliable
+                if (window.location && typeof window.location.replace === 'function') {
+                  try {
+                    window.location.replace(finalUrl);
+                    redirected = true;
+                  } catch (e) {
+                    console.warn('⚠️ location.replace failed:', e.message);
+                  }
+                }
+                
+                // Method 2: Fallback to href assignment
+                if (!redirected && window.location) {
+                  try {
+                    window.location.href = finalUrl;
+                    redirected = true;
+                  } catch (e) {
+                    console.warn('⚠️ location.href failed:', e.message);
+                  }
+                }
+                
+                // Method 3: Top window redirect (for iframe contexts)
+                if (!redirected && window.top && window.top !== window) {
+                  try {
+                    window.top.location.href = finalUrl;
+                    redirected = true;
+                  } catch (e) {
+                    console.warn('⚠️ top.location failed:', e.message);
+                  }
+                }
+                
+                // Method 4: Parent window redirect (for nested contexts)
+                if (!redirected && window.parent && window.parent !== window) {
+                  try {
+                    window.parent.location.href = finalUrl;
+                    redirected = true;
+                  } catch (e) {
+                    console.warn('⚠️ parent.location failed:', e.message);
+                  }
+                }
+                
+                if (!redirected) {
+                  throw new Error('All redirect methods failed');
+                }
+                
+              } catch (error) {
+                console.error('❌ [EBAY-CALLBACK] Redirect failed:', error);
+                
+                // Show manual redirect as last resort
+                const manualRedirectHtml = \`
+                  <div style="background: #28a745; color: white; padding: 20px; border-radius: 8px; text-align: center;">
+                    <h2>🎉 eBay Connected Successfully!</h2>
+                    <p>Automatic redirect failed. Please click below to continue:</p>
+                    <a href="${baseUrl}/app?ebay_connected=true&manual=true" 
+                       style="display: inline-block; background: white; color: #28a745; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 10px;">
+                      Continue to EasyFlip
+                    </a>
+                  </div>
+                \`;
+                
+                if (document.body) {
+                  document.body.innerHTML = manualRedirectHtml;
+                }
+              }
+            }
+            
+            // Verify storage completed before redirect
+            const verifyAndRedirect = () => {
+              const tokens = localStorage.getItem('ebay_oauth_tokens');
+              const manualToken = localStorage.getItem('ebay_manual_token');
+              
+              if (tokens && manualToken && JSON.parse(tokens).access_token === tokenData.access_token) {
+                console.log('✅ [EBAY-CALLBACK] Storage verified, proceeding with redirect');
+                performRedirect();
+              } else {
+                console.log('⚠️ [EBAY-CALLBACK] Storage verification failed, retrying...');
+                setTimeout(verifyAndRedirect, 100); // Quick retry
+              }
+            };
+            
+            // Start verification process with small delay
+            setTimeout(verifyAndRedirect, 50);
+            
+          } catch (error) {
+            console.error('❌ [EBAY-CALLBACK] Error storing tokens:', error);
+            window.location.replace('${baseUrl}/app?ebay_error=token_storage_failed');
           }
-          
-          // Store in multiple locations for compatibility
-          localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
-          localStorage.setItem('ebay_manual_token', tokenData.access_token);
-          
-          console.log('✅ [EBAY-CALLBACK] Tokens stored successfully');
-          console.log('📊 [EBAY-CALLBACK] Token data:', {
-            hasAccessToken: !!tokenData.access_token,
-            hasRefreshToken: !!tokenData.refresh_token,
-            expiresAt: tokenData.expires_at,
-            tokenType: tokenData.token_type
-          });
-          
-          // Dispatch custom event to notify other windows/tabs
-          window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
-            detail: { authenticated: true, tokens: tokenData }
-          }));
-          
-          // Also trigger storage event manually for cross-tab communication
-          window.dispatchEvent(new StorageEvent('storage', {
-            key: 'ebay_oauth_tokens',
-            newValue: JSON.stringify(tokenData),
-            storageArea: localStorage
-          }));
-          
-          console.log('🔄 [EBAY-CALLBACK] Redirecting to app...');
-          
-          // Add a small delay to ensure localStorage operations complete
-          setTimeout(() => {
-            // Get stored return URL or default to app dashboard
-            const returnUrl = localStorage.getItem('ebay_oauth_return_url') || '${baseUrl}/app';
-            localStorage.removeItem('ebay_oauth_return_url'); // Clean up
-            
-            // Add success parameters to the return URL
-            const separator = returnUrl.includes('?') ? '&' : '?';
-            const finalUrl = returnUrl + separator + 'ebay_connected=true&timestamp=' + Date.now();
-            
-            console.log('🎯 [EBAY-CALLBACK] Redirecting to:', finalUrl);
-            
-            // Force immediate redirect to prevent staying on function URL
-            window.location.replace(finalUrl);
-          }, 300); // Reduced delay for faster redirect
-          
-        } catch (error) {
-          console.error('❌ [EBAY-CALLBACK] Error storing tokens:', error);
-          alert('Failed to store authentication tokens. Please try again.');
-          window.location.replace('${baseUrl}/app?ebay_error=token_storage_failed');
-        }
+        })();
       </script>
     </head>
     <body>
-      <div class="success-box">
-        <h2>🎉 eBay Connected Successfully!</h2>
-        <p>Your eBay account has been linked to EasyFlip.</p>
-        <p>You can now create live eBay listings!</p>
-        <div class="spinner"></div>
-        <p>Redirecting you back to the app...</p>
-        <p><a href="${baseUrl}/app?ebay_connected=true">Click here if you're not redirected automatically</a></p>
-        <noscript>
-          <meta http-equiv="refresh" content="2;url=${baseUrl}/app?ebay_connected=true">
-          <p>JavaScript is disabled. You will be redirected automatically, or <a href="${baseUrl}/app?ebay_connected=true">click here</a>.</p>
-        </noscript>
+      <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+        <h2>🎉 eBay Connected!</h2>
+        <p>Redirecting you back to EasyFlip...</p>
+        <p><a href="${baseUrl}/app?ebay_connected=true">Click here if you're not redirected</a></p>
       </div>
     </body>
     </html>
@@ -258,7 +296,8 @@ exports.handler = async (event, context) => {
       statusCode: 200,
       headers: {
         ...headers,
-        'Content-Type': 'text/html'
+        'Content-Type': 'text/html',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
       },
       body: html
     };

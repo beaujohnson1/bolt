@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>eBay Callback Redirect Debug Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: #f5f5f5; 
+        }
+        .test-box { 
+            background: white; 
+            padding: 20px; 
+            margin: 10px 0; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #007bff; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        #log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>eBay Callback Redirect Debug Test</h1>
+    
+    <div class="test-box">
+        <h3>Test Environment Detection</h3>
+        <div id="env-info"></div>
+    </div>
+    
+    <div class="test-box">
+        <h3>Redirect Mechanism Tests</h3>
+        <button onclick="testWindowLocationReplace()">Test window.location.replace()</button>
+        <button onclick="testWindowLocationHref()">Test window.location.href</button>
+        <button onclick="testMetaRefresh()">Test Meta Refresh</button>
+        <button onclick="testWithDelay()">Test with 300ms Delay</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div class="test-box">
+        <h3>Debug Log</h3>
+        <div id="log"></div>
+    </div>
+    
+    <div class="test-box">
+        <h3>Callback Function Simulation</h3>
+        <button onclick="simulateCallbackFlow()">Simulate Complete Callback Flow</button>
+        <button onclick="testStorageOperations()">Test localStorage Operations</button>
+        <button onclick="testEventDispatching()">Test Event Dispatching</button>
+    </div>
+
+    <script>
+        // Logging utility
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            logDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[CALLBACK-DEBUG] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // Environment detection
+        function detectEnvironment() {
+            const envInfo = document.getElementById('env-info');
+            const info = [];
+            
+            info.push(`<strong>User Agent:</strong> ${navigator.userAgent}`);
+            info.push(`<strong>URL:</strong> ${window.location.href}`);
+            info.push(`<strong>Protocol:</strong> ${window.location.protocol}`);
+            info.push(`<strong>Host:</strong> ${window.location.host}`);
+            info.push(`<strong>localStorage available:</strong> ${typeof localStorage !== 'undefined'}`);
+            info.push(`<strong>Console available:</strong> ${typeof console !== 'undefined'}`);
+            info.push(`<strong>setTimeout available:</strong> ${typeof setTimeout !== 'undefined'}`);
+            
+            // Test for popup blocker or iframe context
+            info.push(`<strong>Top window:</strong> ${window === window.top}`);
+            info.push(`<strong>Opener:</strong> ${!!window.opener}`);
+            
+            envInfo.innerHTML = info.join('<br>');
+            log('Environment detected successfully', 'success');
+        }
+
+        // Test redirect methods
+        function testWindowLocationReplace() {
+            const testUrl = 'https://easyflip.ai/app?test=location-replace&timestamp=' + Date.now();
+            log(`Testing window.location.replace() with URL: ${testUrl}`);
+            
+            try {
+                // In a real test, this would redirect. Here we just log it.
+                log('window.location.replace() call would redirect to: ' + testUrl, 'success');
+                log('NOTE: Actual redirect prevented for testing purposes', 'info');
+                // window.location.replace(testUrl);
+            } catch (error) {
+                log(`ERROR in window.location.replace(): ${error.message}`, 'error');
+            }
+        }
+
+        function testWindowLocationHref() {
+            const testUrl = 'https://easyflip.ai/app?test=location-href&timestamp=' + Date.now();
+            log(`Testing window.location.href assignment with URL: ${testUrl}`);
+            
+            try {
+                log('window.location.href assignment would redirect to: ' + testUrl, 'success');
+                log('NOTE: Actual redirect prevented for testing purposes', 'info');
+                // window.location.href = testUrl;
+            } catch (error) {
+                log(`ERROR in window.location.href: ${error.message}`, 'error');
+            }
+        }
+
+        function testMetaRefresh() {
+            log('Testing meta refresh fallback mechanism');
+            
+            try {
+                const meta = document.createElement('meta');
+                meta.httpEquiv = 'refresh';
+                meta.content = '2;url=https://easyflip.ai/app?test=meta-refresh&timestamp=' + Date.now();
+                
+                // Test if we can create the meta tag
+                document.head.appendChild(meta);
+                log('Meta refresh tag created successfully', 'success');
+                
+                // Remove it after test
+                setTimeout(() => {
+                    document.head.removeChild(meta);
+                    log('Meta refresh tag removed', 'info');
+                }, 1000);
+                
+            } catch (error) {
+                log(`ERROR in meta refresh: ${error.message}`, 'error');
+            }
+        }
+
+        function testWithDelay() {
+            log('Testing redirect with 300ms delay (callback simulation)');
+            
+            setTimeout(() => {
+                log('300ms delay completed', 'success');
+                const testUrl = 'https://easyflip.ai/app?test=delayed-redirect&timestamp=' + Date.now();
+                log(`Would redirect to: ${testUrl}`, 'info');
+            }, 300);
+        }
+
+        // Storage operations test
+        function testStorageOperations() {
+            log('Testing localStorage operations...');
+            
+            try {
+                // Test token data structure similar to callback
+                const tokenData = {
+                    access_token: 'test_token_' + Date.now(),
+                    refresh_token: 'test_refresh_' + Date.now(),
+                    expires_in: 7200,
+                    token_type: 'User Access Token',
+                    expires_at: Date.now() + (7200 * 1000)
+                };
+
+                // Store tokens
+                localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                localStorage.setItem('ebay_manual_token', tokenData.access_token);
+                localStorage.setItem('ebay_oauth_return_url', 'https://easyflip.ai/app');
+                
+                log('✅ All localStorage operations successful', 'success');
+                
+                // Verify storage
+                const stored = localStorage.getItem('ebay_oauth_tokens');
+                const returnUrl = localStorage.getItem('ebay_oauth_return_url');
+                
+                log(`Stored token data length: ${stored?.length || 0} characters`, 'info');
+                log(`Return URL: ${returnUrl}`, 'info');
+                
+                // Clean up return URL (simulate callback behavior)
+                localStorage.removeItem('ebay_oauth_return_url');
+                log('Return URL cleaned up', 'success');
+                
+            } catch (error) {
+                log(`❌ localStorage ERROR: ${error.message}`, 'error');
+            }
+        }
+
+        // Event dispatching test
+        function testEventDispatching() {
+            log('Testing custom event dispatching...');
+            
+            try {
+                // Listen for custom events
+                window.addEventListener('ebayAuthChanged', function(e) {
+                    log(`✅ ebayAuthChanged event received: ${JSON.stringify(e.detail)}`, 'success');
+                });
+                
+                window.addEventListener('storage', function(e) {
+                    log(`✅ storage event received for key: ${e.key}`, 'success');
+                });
+                
+                // Dispatch custom event
+                window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+                    detail: { authenticated: true, tokens: { test: true } }
+                }));
+                
+                // Dispatch storage event
+                window.dispatchEvent(new StorageEvent('storage', {
+                    key: 'ebay_oauth_tokens',
+                    newValue: JSON.stringify({ test: true }),
+                    storageArea: localStorage
+                }));
+                
+                log('Custom events dispatched successfully', 'success');
+                
+            } catch (error) {
+                log(`❌ Event dispatching ERROR: ${error.message}`, 'error');
+            }
+        }
+
+        // Complete callback flow simulation
+        function simulateCallbackFlow() {
+            log('🎯 SIMULATING COMPLETE CALLBACK FLOW...');
+            log('=====================================');
+            
+            try {
+                log('1. Simulating token storage...');
+                testStorageOperations();
+                
+                setTimeout(() => {
+                    log('2. Dispatching authentication events...');
+                    testEventDispatching();
+                    
+                    setTimeout(() => {
+                        log('3. Preparing redirect URL...');
+                        const baseUrl = 'https://easyflip.ai';
+                        const returnUrl = localStorage.getItem('ebay_oauth_return_url') || baseUrl + '/app';
+                        const separator = returnUrl.includes('?') ? '&' : '?';
+                        const finalUrl = returnUrl + separator + 'ebay_connected=true&timestamp=' + Date.now();
+                        
+                        log(`Final redirect URL: ${finalUrl}`, 'info');
+                        
+                        setTimeout(() => {
+                            log('4. Executing redirect (SIMULATED)...');
+                            log(`🚀 REDIRECT: window.location.replace('${finalUrl}')`, 'success');
+                            log('=====================================');
+                            log('✅ CALLBACK FLOW SIMULATION COMPLETE', 'success');
+                        }, 100);
+                        
+                    }, 100);
+                    
+                }, 100);
+                
+            } catch (error) {
+                log(`❌ CALLBACK FLOW ERROR: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            detectEnvironment();
+            log('Callback Debug Test initialized', 'success');
+            log('Click buttons above to run different tests', 'info');
+        };
+    </script>
+</body>
+</html>
