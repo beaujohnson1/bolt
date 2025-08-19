@@ -23,7 +23,7 @@ class EbayOAuthService {
   constructor() {
     // Use Netlify functions in production, localhost in development
     this.baseUrl = import.meta.env.DEV 
-      ? 'http://localhost:8888/.netlify/functions'
+      ? '/.netlify/functions'  // Netlify dev handles this properly
       : '/.netlify/functions';
     
     console.log('🔐 [EBAY-OAUTH] Service initialized with base URL:', this.baseUrl);
@@ -163,28 +163,53 @@ class EbayOAuthService {
   async getValidAccessToken(): Promise<string | null> {
     try {
       const tokens = this.getStoredTokens();
+      const manualToken = localStorage.getItem('ebay_manual_token');
       
-      if (!tokens) {
-        console.log('ℹ️ [EBAY-OAUTH] No stored tokens found');
-        return null;
-      }
+      // First, try OAuth tokens
+      if (tokens?.access_token) {
+        // Check if token is expired (with 5 minute buffer)
+        const isExpired = tokens.expires_at && (Date.now() + 300000) > tokens.expires_at;
+        
+        if (isExpired && tokens.refresh_token) {
+          console.log('🔄 [EBAY-OAUTH] Token expired, refreshing...');
+          try {
+            const newTokens = await this.refreshAccessToken(tokens.refresh_token);
+            return newTokens.access_token;
+          } catch (refreshError) {
+            console.error('❌ [EBAY-OAUTH] Token refresh failed:', refreshError);
+            // Fall back to manual token if refresh fails
+            if (manualToken && manualToken !== 'dev_mode_bypass_token') {
+              console.log('🔄 [EBAY-OAUTH] Falling back to manual token after refresh failure');
+              return manualToken;
+            }
+            this.clearStoredTokens();
+            return null;
+          }
+        }
+        
+        if (isExpired && !tokens.refresh_token) {
+          console.log('⚠️ [EBAY-OAUTH] Token expired and no refresh token available');
+          // Fall back to manual token
+          if (manualToken && manualToken !== 'dev_mode_bypass_token') {
+            console.log('🔄 [EBAY-OAUTH] Falling back to manual token');
+            return manualToken;
+          }
+          this.clearStoredTokens();
+          return null;
+        }
 
-      // Check if token is expired (with 5 minute buffer)
-      const isExpired = tokens.expires_at && (Date.now() + 300000) > tokens.expires_at;
-      
-      if (isExpired && tokens.refresh_token) {
-        console.log('🔄 [EBAY-OAUTH] Token expired, refreshing...');
-        const newTokens = await this.refreshAccessToken(tokens.refresh_token);
-        return newTokens.access_token;
+        console.log('✅ [EBAY-OAUTH] Using valid OAuth token');
+        return tokens.access_token;
       }
       
-      if (isExpired && !tokens.refresh_token) {
-        console.log('⚠️ [EBAY-OAUTH] Token expired and no refresh token available');
-        this.clearStoredTokens();
-        return null;
+      // Fall back to manual token
+      if (manualToken && manualToken !== 'dev_mode_bypass_token') {
+        console.log('✅ [EBAY-OAUTH] Using manual token');
+        return manualToken;
       }
-
-      return tokens.access_token;
+      
+      console.log('ℹ️ [EBAY-OAUTH] No valid tokens found');
+      return null;
     } catch (error) {
       console.error('❌ [EBAY-OAUTH] Error getting valid access token:', error);
       return null;
@@ -195,8 +220,77 @@ class EbayOAuthService {
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
+    try {
+      // Enhanced debug logging FIRST
+      console.log('🔍 [EBAY-OAUTH] Checking authentication status...');
+      
+      const rawTokens = localStorage.getItem('ebay_oauth_tokens');
+      const manualToken = localStorage.getItem('ebay_manual_token');
+      
+      console.log('📋 [EBAY-OAUTH] Raw localStorage data:', {
+        oauth_tokens_raw: rawTokens,
+        manual_token_raw: manualToken,
+        oauth_state_raw: localStorage.getItem('ebay_oauth_state')
+      });
+      
+      // Parse tokens
+      const tokens = this.getStoredTokens();
+      
+      console.log('🔍 [EBAY-OAUTH] Parsed token data:', {
+        hasOAuthTokens: !!tokens?.access_token,
+        hasManualToken: !!manualToken,
+        oauthTokensData: tokens ? { 
+          hasAccess: !!tokens.access_token, 
+          hasRefresh: !!tokens.refresh_token,
+          accessTokenLength: tokens.access_token?.length || 0,
+          refreshTokenLength: tokens.refresh_token?.length || 0,
+          expiresAt: tokens.expires_at,
+          expiresAtFormatted: tokens.expires_at ? new Date(tokens.expires_at).toISOString() : 'N/A',
+          isExpired: tokens.expires_at ? Date.now() >= tokens.expires_at : false,
+          timeUntilExpiry: tokens.expires_at ? Math.round((tokens.expires_at - Date.now()) / 1000 / 60) + ' minutes' : 'N/A'
+        } : null,
+        manualTokenValue: manualToken,
+        manualTokenLength: manualToken?.length || 0
+      });
+      
+      // Check if we have valid OAuth tokens
+      if (tokens?.access_token) {
+        // Even if expired, consider authenticated - refresh will be handled elsewhere
+        console.log('✅ [EBAY-OAUTH] User authenticated with OAuth tokens');
+        return true;
+      }
+      
+      // Check for manual token as fallback
+      if (manualToken && manualToken !== 'dev_mode_bypass_token') {
+        console.log('✅ [EBAY-OAUTH] User authenticated with manual token');
+        return true;
+      }
+      
+      console.log('❌ [EBAY-OAUTH] User not authenticated - no valid tokens found');
+      return false;
+    } catch (error) {
+      console.error('❌ [EBAY-OAUTH] Error checking authentication:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Force refresh authentication status (useful after OAuth callback)
+   */
+  refreshAuthStatus(): boolean {
+    console.log('🔄 [EBAY-OAUTH] Force refreshing authentication status...');
+    
+    // Clear any potential cache issues
     const tokens = this.getStoredTokens();
-    return !!(tokens?.access_token);
+    const manualToken = localStorage.getItem('ebay_manual_token');
+    
+    console.log('🔍 [EBAY-OAUTH] Force refresh - current state:', {
+      hasOAuthTokens: !!tokens?.access_token,
+      hasManualToken: !!manualToken,
+      localStorageKeys: Object.keys(localStorage).filter(key => key.includes('ebay'))
+    });
+    
+    return this.isAuthenticated();
   }
 
   /**
@@ -247,13 +341,123 @@ class EbayOAuthService {
     this.clearStoredTokens();
   }
 
+
+  /**
+   * Listen for storage changes (e.g., from callback page)
+   */
+  watchForTokenChanges(callback: (authenticated: boolean) => void): () => void {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'ebay_oauth_tokens' || e.key === 'ebay_manual_token') {
+        console.log('📡 [EBAY-OAUTH] Token storage changed, checking auth status');
+        // Add a small delay to ensure localStorage is updated
+        setTimeout(() => {
+          const isAuth = this.isAuthenticated();
+          console.log('📡 [EBAY-OAUTH] Auth status after storage change:', isAuth);
+          callback(isAuth);
+        }, 50);
+      }
+    };
+
+    const handleCustomEvent = (e: CustomEvent) => {
+      console.log('📡 [EBAY-OAUTH] Custom auth event received:', e.detail);
+      // Force a fresh check when custom event is received
+      const isAuth = this.isAuthenticated();
+      console.log('📡 [EBAY-OAUTH] Auth status after custom event:', isAuth);
+      callback(isAuth);
+    };
+
+    // Also handle focus events (when user returns to tab)
+    const handleFocus = () => {
+      console.log('👁️ [EBAY-OAUTH] Window focus detected, checking auth status');
+      const isAuth = this.isAuthenticated();
+      console.log('👁️ [EBAY-OAUTH] Auth status after focus:', isAuth);
+      callback(isAuth);
+    };
+
+    // Check for URL parameters indicating successful OAuth
+    const handlePopstate = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('ebay_connected') === 'true') {
+        console.log('🔗 [EBAY-OAUTH] OAuth success detected in URL, checking auth status');
+        setTimeout(() => {
+          const isAuth = this.isAuthenticated();
+          console.log('🔗 [EBAY-OAUTH] Auth status after OAuth success URL:', isAuth);
+          callback(isAuth);
+        }, 100); // Small delay to ensure any async operations complete
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('ebayAuthChanged', handleCustomEvent);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('popstate', handlePopstate);
+
+    // Also check immediately when watcher is set up
+    setTimeout(() => {
+      const isAuth = this.isAuthenticated();
+      console.log('📡 [EBAY-OAUTH] Initial auth status when setting up watcher:', isAuth);
+      callback(isAuth);
+    }, 100);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('ebayAuthChanged', handleCustomEvent);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('popstate', handlePopstate);
+    };
+  }
+
   /**
    * Store tokens in localStorage
    */
   private storeTokens(tokens: EbayOAuthTokens): void {
     try {
-      localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokens));
-      console.log('💾 [EBAY-OAUTH] Tokens stored successfully');
+      console.log('💾 [EBAY-OAUTH] Storing tokens:', {
+        hasAccessToken: !!tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
+        accessTokenLength: tokens.access_token?.length || 0,
+        refreshTokenLength: tokens.refresh_token?.length || 0,
+        expiresIn: tokens.expires_in,
+        expiresAt: tokens.expires_at
+      });
+      
+      const tokenString = JSON.stringify(tokens);
+      localStorage.setItem('ebay_oauth_tokens', tokenString);
+      // Also store the access token separately for compatibility
+      localStorage.setItem('ebay_manual_token', tokens.access_token);
+      
+      // Verify storage worked
+      const storedTokens = localStorage.getItem('ebay_oauth_tokens');
+      const storedManualToken = localStorage.getItem('ebay_manual_token');
+      console.log('✅ [EBAY-OAUTH] Tokens stored successfully:', {
+        oauthStored: !!storedTokens,
+        manualStored: !!storedManualToken,
+        oauthLength: storedTokens?.length || 0,
+        manualLength: storedManualToken?.length || 0
+      });
+      
+      // Test authentication immediately after storing
+      const isAuthAfterStore = this.isAuthenticated();
+      console.log('🔍 [EBAY-OAUTH] Authentication status after storing tokens:', isAuthAfterStore);
+      
+      // Use setTimeout to ensure storage events fire properly
+      setTimeout(() => {
+        // Dispatch custom event to notify other components
+        window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+          detail: { authenticated: true, tokens }
+        }));
+        
+        // Also trigger storage event manually for cross-tab communication
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'ebay_oauth_tokens',
+          newValue: tokenString,
+          oldValue: null,
+          storageArea: localStorage,
+          url: window.location.href
+        }));
+        
+        console.log('📡 [EBAY-OAUTH] Storage and custom events dispatched');
+      }, 100);
     } catch (error) {
       console.error('❌ [EBAY-OAUTH] Error storing tokens:', error);
     }
@@ -265,9 +469,26 @@ class EbayOAuthService {
   private getStoredTokens(): EbayOAuthTokens | null {
     try {
       const stored = localStorage.getItem('ebay_oauth_tokens');
-      if (!stored) return null;
+      console.log('🔍 [EBAY-OAUTH] getStoredTokens called:', {
+        hasStoredData: !!stored,
+        storedLength: stored?.length || 0,
+        storedPreview: stored ? stored.substring(0, 100) + '...' : 'null'
+      });
       
-      return JSON.parse(stored) as EbayOAuthTokens;
+      if (!stored) {
+        console.log('❌ [EBAY-OAUTH] No tokens found in localStorage');
+        return null;
+      }
+      
+      const parsed = JSON.parse(stored) as EbayOAuthTokens;
+      console.log('✅ [EBAY-OAUTH] Tokens parsed successfully:', {
+        hasAccessToken: !!parsed.access_token,
+        hasRefreshToken: !!parsed.refresh_token,
+        expiresAt: parsed.expires_at,
+        isValid: !!(parsed.access_token && parsed.refresh_token)
+      });
+      
+      return parsed;
     } catch (error) {
       console.error('❌ [EBAY-OAUTH] Error getting stored tokens:', error);
       return null;
@@ -275,13 +496,54 @@ class EbayOAuthService {
   }
 
   /**
+   * Debug method to test token storage/retrieval
+   */
+  debugTokenStorage(): void {
+    console.log('🔍 [EBAY-OAUTH] === TOKEN STORAGE DEBUG ===');
+    
+    // Test storing a simple token
+    const testTokens: EbayOAuthTokens = {
+      access_token: 'test_access_token_12345',
+      refresh_token: 'test_refresh_token_67890',
+      expires_in: 7200,
+      token_type: 'Bearer',
+      expires_at: Date.now() + (7200 * 1000)
+    };
+    
+    console.log('🧪 [EBAY-OAUTH] Storing test tokens...');
+    this.storeTokens(testTokens);
+    
+    console.log('🔍 [EBAY-OAUTH] Checking if tokens were stored correctly...');
+    const retrieved = this.getStoredTokens();
+    const manualToken = localStorage.getItem('ebay_manual_token');
+    
+    console.log('📊 [EBAY-OAUTH] Storage test results:', {
+      originalTokens: testTokens,
+      retrievedTokens: retrieved,
+      manualToken: manualToken,
+      isAuthenticated: this.isAuthenticated(),
+      allStorageKeys: Object.keys(localStorage).filter(key => key.includes('ebay'))
+    });
+    
+    // Clean up test tokens
+    console.log('🧹 [EBAY-OAUTH] Cleaning up test tokens...');
+    this.clearStoredTokens();
+  }
+
+  /**
    * Clear stored tokens
    */
-  private clearStoredTokens(): void {
+  clearStoredTokens(): void {
     try {
       localStorage.removeItem('ebay_oauth_tokens');
       localStorage.removeItem('ebay_oauth_state');
-      console.log('🧹 [EBAY-OAUTH] Stored tokens cleared');
+      localStorage.removeItem('ebay_manual_token');
+      console.log('🧹 [EBAY-OAUTH] All stored tokens cleared');
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+        detail: { authenticated: false }
+      }));
     } catch (error) {
       console.error('❌ [EBAY-OAUTH] Error clearing tokens:', error);
     }

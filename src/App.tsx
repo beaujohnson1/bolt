@@ -20,8 +20,19 @@ import TermsOfService from './pages/TermsOfService';
 import SupabaseTest from './pages/SupabaseTest';
 import NetworkTest from './pages/NetworkTest';
 import AIAccuracyTest from './pages/AIAccuracyTest';
+import ManualTokenExchange from './pages/ManualTokenExchange';
+import EbayTokenTest from './pages/EbayTokenTest';
+import EbayAuthTest from './pages/EbayAuthTest';
+import { debugEbayAuth } from './utils/debugEbayAuth';
 
 function App() {
+  // Make debug function available globally
+  React.useEffect(() => {
+    (window as any).debugEbayAuth = debugEbayAuth;
+    console.log('🔧 [DEBUG] debugEbayAuth() function now available in console');
+    console.log('🔧 [DEBUG] Use debugEbayAuth() to check token storage');
+  }, []);
+
   return (
     <AuthProvider>
       <Router>
@@ -31,7 +42,10 @@ function App() {
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/auth/ebay/callback" element={<EbayAuthCallback />} />
             <Route path="/test-connection" element={<ConnectionTestPage />} />
+            <Route path="/manual-token-exchange" element={<ManualTokenExchange />} />
+            <Route path="/ebay-token-test" element={<EbayTokenTest />} />
             <Route path="/auth-test" element={<AuthConnectivityTest />} /> {/* <--- This route is now valid */}
+            <Route path="/ebay-auth-test" element={<EbayAuthTest />} />
             <Route path="/supabase-test" element={<SupabaseTest />} />
             <Route path="/network-test" element={<NetworkTest />} />
             <Route path="/ai-accuracy-test" element={<AIAccuracyTest />} />
