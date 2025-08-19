@@ -159,59 +159,125 @@ const ListingPreview = () => {
       });
 
       const urls: Record<string, string> = {};
+      const platformResults: Record<string, { success: boolean; error?: string; url?: string }> = {};
 
       // Post to each selected platform
       for (const platformId of selectedPlatforms) {
         if (platformId === 'ebay') {
           console.log('📝 [LISTING-PREVIEW] Posting to eBay...');
-          const ebayService = new EbayApiService();
-          const ebayListing = await ebayService.createListingFromItem(item);
-          urls.ebay = ebayListing.listingUrl;
-          console.log('✅ [LISTING-PREVIEW] eBay listing created:', ebayListing.listingUrl);
+          try {
+            const ebayService = new EbayApiService();
+            const ebayListing = await ebayService.createListingFromItem(item);
+            
+            // Check if this is actually a mock/demo listing
+            if (ebayListing.listingId.includes('MOCK_') || ebayListing.listingId.includes('demo_')) {
+              console.warn('⚠️ [LISTING-PREVIEW] eBay returned MOCK listing - not a real eBay listing!');
+              platformResults.ebay = { 
+                success: false, 
+                error: 'eBay authentication required - listing was not posted to real eBay' 
+              };
+            } else {
+              urls.ebay = ebayListing.listingUrl;
+              platformResults.ebay = { success: true, url: ebayListing.listingUrl };
+              console.log('✅ [LISTING-PREVIEW] Real eBay listing created:', ebayListing.listingUrl);
+            }
+          } catch (ebayError) {
+            console.error('❌ [LISTING-PREVIEW] eBay listing failed:', ebayError);
+            platformResults.ebay = { 
+              success: false, 
+              error: ebayError.message || 'eBay listing creation failed' 
+            };
+          }
         }
         // Add other platforms here as they're implemented
       }
 
+      // Check if any platforms actually succeeded
+      const successfulPlatforms = Object.entries(platformResults).filter(([_, result]) => result.success);
+      const failedPlatforms = Object.entries(platformResults).filter(([_, result]) => !result.success);
+
+      console.log('📊 [LISTING-PREVIEW] Platform results:', {
+        successful: successfulPlatforms.length,
+        failed: failedPlatforms.length,
+        details: platformResults
+      });
+
+      // If all platforms failed, throw an error instead of showing false success
+      if (successfulPlatforms.length === 0 && failedPlatforms.length > 0) {
+        const errorMessages = failedPlatforms.map(([platform, result]) => 
+          `${platform}: ${result.error}`
+        ).join(', ');
+        throw new Error(`All platform listings failed: ${errorMessages}`);
+      }
+
+      // If some platforms failed, show a warning but continue
+      if (failedPlatforms.length > 0) {
+        const failedPlatformNames = failedPlatforms.map(([platform]) => platform).join(', ');
+        console.warn(`⚠️ [LISTING-PREVIEW] Some platforms failed: ${failedPlatformNames}`);
+        alert(`Warning: Listing failed on ${failedPlatformNames}. Check your authentication and try again.`);
+      }
+
       // Update or create listing in database
+      console.log('💾 [LISTING-PREVIEW] Updating database with listing result...');
+      console.log('💾 [LISTING-PREVIEW] authUser:', { id: authUser.id, email: authUser.email });
+      console.log('💾 [LISTING-PREVIEW] item:', { id: item.id, title: item.title });
+      console.log('💾 [LISTING-PREVIEW] selectedPlatforms:', selectedPlatforms);
+      
       if (listing) {
         // Update existing listing
         const supabase = getSupabase();
         if (!supabase) {
+          console.error('❌ [LISTING-PREVIEW] Database connection not available');
           throw new Error('Database connection not available');
         }
         
-        const { error: updateError } = await supabase
+        console.log('🔄 [LISTING-PREVIEW] Updating existing listing:', listing.id);
+        const { data: updateData, error: updateError } = await supabase
           .from('listings')
           .update({
             status: 'active',
             platforms: selectedPlatforms,
             listed_at: new Date().toISOString()
           })
-          .eq('id', listing.id);
+          .eq('id', listing.id)
+          .eq('user_id', authUser.id); // Add user_id filter for RLS
 
-        if (updateError) throw updateError;
+        console.log('🔄 [LISTING-PREVIEW] Update result:', { data: updateData, error: updateError });
+        if (updateError) {
+          console.error('❌ [LISTING-PREVIEW] Database update error:', updateError);
+          throw updateError;
+        }
       } else {
         // Create new listing
         const supabase = getSupabase();
         if (!supabase) {
+          console.error('❌ [LISTING-PREVIEW] Database connection not available');
           throw new Error('Database connection not available');
         }
         
-        const { error: createError } = await supabase
+        const listingData = {
+          item_id: item.id,
+          user_id: authUser.id,
+          title: item.title,
+          description: item.description || '',
+          price: item.suggested_price,
+          images: item.images,
+          platforms: selectedPlatforms,
+          status: 'active',
+          listed_at: new Date().toISOString()
+        };
+        
+        console.log('📝 [LISTING-PREVIEW] Creating new listing with data:', listingData);
+        const { data: createData, error: createError } = await supabase
           .from('listings')
-          .insert([{
-            item_id: item.id,
-            user_id: authUser.id,
-            title: item.title,
-            description: item.description || '',
-            price: item.suggested_price,
-            images: item.images,
-            platforms: selectedPlatforms,
-            status: 'active',
-            listed_at: new Date().toISOString()
-          }]);
+          .insert([listingData])
+          .select(); // Add select to get the created record
 
-        if (createError) throw createError;
+        console.log('📝 [LISTING-PREVIEW] Create result:', { data: createData, error: createError });
+        if (createError) {
+          console.error('❌ [LISTING-PREVIEW] Database create error:', createError);
+          throw createError;
+        }
       }
 
       setListingUrls(urls);
