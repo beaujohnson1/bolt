@@ -476,6 +476,72 @@ class EbayApiService {
   }
 
   /**
+   * Get Business Policy Profile IDs for the seller
+   */
+  async getBusinessPolicies(): Promise<{shipping?: string, payment?: string, return?: string}> {
+    try {
+      console.log('🏢 [EBAY-API] Fetching business policies...');
+      
+      const accessToken = await this.getAccessToken();
+      if (accessToken === 'dev_mode_bypass_token') {
+        console.log('🏢 [EBAY-API] Dev mode - returning mock policy IDs');
+        return {
+          shipping: 'SHIPPING_POLICY_ID',
+          payment: 'PAYMENT_POLICY_ID', 
+          return: 'RETURN_POLICY_ID'
+        };
+      }
+
+      // Use eBay Account API to get seller policies
+      const response = await this._callProxy(
+        `${this.baseUrl}/sell/account/v1/fulfillment_policy`,
+        'GET',
+        {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      );
+
+      const policies = response?.fulfillmentPolicies || [];
+      const shippingPolicy = policies.find((p: any) => p.categoryTypes?.some((ct: any) => ct.name === 'ALL_EXCLUDING_MOTORS'));
+      
+      // Also get payment and return policies
+      const paymentResponse = await this._callProxy(
+        `${this.baseUrl}/sell/account/v1/payment_policy`,
+        'GET',
+        {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      );
+
+      const returnResponse = await this._callProxy(
+        `${this.baseUrl}/sell/account/v1/return_policy`,
+        'GET',
+        {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      );
+
+      const paymentPolicies = paymentResponse?.paymentPolicies || [];
+      const returnPolicies = returnResponse?.returnPolicies || [];
+
+      const result = {
+        shipping: shippingPolicy?.fulfillmentPolicyId,
+        payment: paymentPolicies[0]?.paymentPolicyId,
+        return: returnPolicies[0]?.returnPolicyId
+      };
+
+      console.log('✅ [EBAY-API] Business policies retrieved:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ [EBAY-API] Error fetching business policies:', error);
+      return {};
+    }
+  }
+
+  /**
    * Create eBay listing from item data
    */
   async createListingFromItem(item: any): Promise<EbayListing> {
@@ -523,6 +589,11 @@ class EbayApiService {
       // Build item specifics from AI analysis
       const itemSpecifics = this._buildItemSpecifics(item);
 
+      // Get Business Policy IDs
+      console.log('🏢 [EBAY-API] Fetching business policies for listing...');
+      const businessPolicies = await this.getBusinessPolicies();
+      console.log('🏢 [EBAY-API] Business policies retrieved:', businessPolicies);
+
       // Create eBay listing using Trading API
       const xmlBody = this._buildListingXML({
         title: item.title,
@@ -535,7 +606,8 @@ class EbayApiService {
         size: item.size,
         color: item.color,
         itemSpecifics,
-        keywords: item.ai_suggested_keywords || []
+        keywords: item.ai_suggested_keywords || [],
+        businessPolicies
       });
 
       console.log('📦 [EBAY-API] Sending listing XML to eBay...');
@@ -698,6 +770,13 @@ class EbayApiService {
       console.error('❌ [EBAY-API] Proxy call failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * Public method to get access token (for use by other services)
+   */
+  async getAccessToken(): Promise<string> {
+    return this._getAccessToken();
   }
 
   /**
@@ -1054,10 +1133,11 @@ class EbayApiService {
     color?: string;
     itemSpecifics: Array<{name: string, value: string}>;
     keywords: string[];
+    businessPolicies?: {shipping?: string, payment?: string, return?: string};
   }): string {
     const { 
       title, description, categoryId, price, condition, images, 
-      itemSpecifics, keywords 
+      itemSpecifics, keywords, businessPolicies 
     } = listingData;
 
     // Build pictures XML
@@ -1076,6 +1156,46 @@ class EbayApiService {
     // Enhanced description with keywords
     const enhancedDescription = this._buildEnhancedDescription(description, keywords);
 
+    // Build business policies or fallback to legacy fields
+    let businessPolicyXML = '';
+    let legacyFieldsXML = '';
+
+    if (businessPolicies && (businessPolicies.shipping || businessPolicies.payment || businessPolicies.return)) {
+      console.log('🏢 [EBAY-API] Using Business Policies in XML');
+      // Use Business Policies
+      if (businessPolicies.shipping) {
+        businessPolicyXML += `<ShippingProfileID>${businessPolicies.shipping}</ShippingProfileID>`;
+      }
+      if (businessPolicies.payment) {
+        businessPolicyXML += `<PaymentProfileID>${businessPolicies.payment}</PaymentProfileID>`;
+      }
+      if (businessPolicies.return) {
+        businessPolicyXML += `<ReturnProfileID>${businessPolicies.return}</ReturnProfileID>`;
+      }
+    } else {
+      console.log('🏢 [EBAY-API] Using legacy fields in XML (no business policies found)');
+      // Fallback to legacy fields if no business policies
+      legacyFieldsXML = `
+    <PaymentMethods>PayPal</PaymentMethods>
+    <PaymentMethods>VisaMC</PaymentMethods>
+    <PaymentMethods>AmEx</PaymentMethods>
+    <PaymentMethods>Discover</PaymentMethods>
+    <ShippingDetails>
+      <ShippingType>Flat</ShippingType>
+      <ShippingServiceOptions>
+        <ShippingServicePriority>1</ShippingServicePriority>
+        <ShippingService>USPSMedia</ShippingService>
+        <ShippingServiceCost>0.00</ShippingServiceCost>
+      </ShippingServiceOptions>
+    </ShippingDetails>
+    <ReturnPolicy>
+      <ReturnsAcceptedOption>ReturnsAccepted</ReturnsAcceptedOption>
+      <RefundOption>MoneyBack</RefundOption>
+      <ReturnsWithinOption>Days_30</ReturnsWithinOption>
+      <ShippingCostPaidByOption>Buyer</ShippingCostPaidByOption>
+    </ReturnPolicy>`;
+    }
+
     const xmlBody = `<?xml version="1.0" encoding="utf-8"?>
 <AddFixedPriceItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
   <Item>
@@ -1092,34 +1212,18 @@ class EbayApiService {
     <Quantity>1</Quantity>
     <ListingDuration>GTC</ListingDuration>
     <ListingType>FixedPriceItem</ListingType>
-    <PaymentMethods>PayPal</PaymentMethods>
-    <PaymentMethods>VisaMC</PaymentMethods>
-    <PaymentMethods>AmEx</PaymentMethods>
-    <PaymentMethods>Discover</PaymentMethods>
     <PictureDetails>
       ${picturesXML}
     </PictureDetails>
     <ItemSpecifics>
       ${itemSpecificsXML}
     </ItemSpecifics>
-    <ShippingDetails>
-      <ShippingType>Flat</ShippingType>
-      <ShippingServiceOptions>
-        <ShippingServicePriority>1</ShippingServicePriority>
-        <ShippingService>USPSMedia</ShippingService>
-        <ShippingServiceCost>0.00</ShippingServiceCost>
-      </ShippingServiceOptions>
-    </ShippingDetails>
-    <ReturnPolicy>
-      <ReturnsAcceptedOption>ReturnsAccepted</ReturnsAcceptedOption>
-      <RefundOption>MoneyBack</RefundOption>
-      <ReturnsWithinOption>Days_30</ReturnsWithinOption>
-      <ShippingCostPaidByOption>Buyer</ShippingCostPaidByOption>
-    </ReturnPolicy>
+    ${businessPolicyXML}
+    ${legacyFieldsXML}
   </Item>
 </AddFixedPriceItemRequest>`;
 
-    console.log('📦 [EBAY-API] Built listing XML with', images.length, 'images and', itemSpecifics.length, 'specifics');
+    console.log('📦 [EBAY-API] Built listing XML with', images.length, 'images,', itemSpecifics.length, 'specifics, and', businessPolicies ? 'Business Policies' : 'Legacy Fields');
     return xmlBody;
   }
 

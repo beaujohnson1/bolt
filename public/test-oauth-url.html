@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>eBay OAuth URL Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .url-box { background: #f8f8f8; padding: 15px; border-radius: 5px; margin: 10px 0; word-break: break-all; font-family: monospace; font-size: 12px; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 eBay OAuth URL Test</h1>
+    
+    <button onclick="testOAuthUrl()">Generate OAuth URL</button>
+    <button onclick="testDirectUrl()">Test Direct URL</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function testOAuthUrl() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div>🔄 Generating OAuth URL...</div>';
+            
+            try {
+                const response = await fetch('/.netlify/functions/debug-oauth');
+                const data = await response.json();
+                
+                if (data.generatedUrl) {
+                    resultDiv.innerHTML = `
+                        <h3>Generated OAuth URL:</h3>
+                        <div class="url-box">${data.generatedUrl}</div>
+                        
+                        <h3>URL Parameters:</h3>
+                        <div class="url-box">${JSON.stringify(data.urlParams, null, 2)}</div>
+                        
+                        <h3>Environment Info:</h3>
+                        <div class="url-box">${JSON.stringify({
+                            environment: data.environment,
+                            isProduction: data.isProduction,
+                            oauthBase: data.oauthBase
+                        }, null, 2)}</div>
+                        
+                        <button onclick="window.open('${data.generatedUrl}', '_blank')">Test This URL</button>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Failed to generate URL: ${JSON.stringify(data)}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        async function testDirectUrl() {
+            // Create URL with ONLY runame parameter (no redirect_uri)
+            const baseUrl = 'https://auth.ebay.com/oauth2/authorize';
+            const params = new URLSearchParams({
+                client_id: 'easyflip-easyflip-PRD-c645ded63-a17c4d94', // Your App ID
+                response_type: 'code',
+                runame: 'easyflip.ai-easyflip-easyfl-cnqajybp', // ONLY runame for production
+                scope: [
+                    'https://api.ebay.com/oauth/api_scope/sell.inventory',
+                    'https://api.ebay.com/oauth/api_scope/sell.account', 
+                    'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+                    'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
+                ].join(' '),
+                state: 'test-runame-only-' + Date.now(),
+                prompt: 'login'
+            });
+            
+            const fullUrl = baseUrl + '?' + params.toString();
+            
+            // Also create URL with both parameters for comparison
+            const paramsBoth = new URLSearchParams({
+                client_id: 'easyflip-easyflip-PRD-c645ded63-a17c4d94',
+                response_type: 'code',
+                runame: 'easyflip.ai-easyflip-easyfl-cnqajybp',
+                redirect_uri: 'https://easyflip.ai/.netlify/functions/auth-ebay-callback',
+                scope: [
+                    'https://api.ebay.com/oauth/api_scope/sell.inventory',
+                    'https://api.ebay.com/oauth/api_scope/sell.account', 
+                    'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+                    'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
+                ].join(' '),
+                state: 'test-both-params-' + Date.now(),
+                prompt: 'login'
+            });
+            
+            const fullUrlBoth = baseUrl + '?' + paramsBoth.toString();
+            
+            document.getElementById('result').innerHTML = `
+                <h3>Option 1: RuName Only (Recommended):</h3>
+                <div class="url-box">${fullUrl}</div>
+                <button onclick="window.open('${fullUrl}', '_blank')">Test RuName Only</button>
+                
+                <h3>Option 2: RuName + Redirect URI (Previous):</h3>
+                <div class="url-box">${fullUrlBoth}</div>
+                <button onclick="window.open('${fullUrlBoth}', '_blank')">Test Both Parameters</button>
+                
+                <h3>RuName Only Parameters:</h3>
+                <div class="url-box">${JSON.stringify(Object.fromEntries(params), null, 2)}</div>
+            `;
+        }
+    </script>
+</body>
+</html>

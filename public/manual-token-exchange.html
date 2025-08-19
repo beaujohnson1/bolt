@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manual eBay Token Exchange</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .section { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        .success { background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #ffe8e8; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        input, textarea { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a87; }
+        pre { background: #f8f8f8; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Manual eBay Token Exchange</h1>
+    <p>Since eBay is redirecting to their success page instead of our callback, we'll manually exchange the authorization code for tokens.</p>
+
+    <div class="section">
+        <h2>📋 Extract Authorization Code</h2>
+        <p>From your eBay success URL, extract the authorization code:</p>
+        <input type="text" id="successUrl" placeholder="Paste the full eBay success URL here" style="margin-bottom: 10px;">
+        <button onclick="extractCode()">Extract Authorization Code</button>
+        <div id="extractResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>🔄 Manual Token Exchange</h2>
+        <label>Authorization Code:</label>
+        <textarea id="authCode" rows="3" placeholder="Paste the authorization code here"></textarea>
+        <button onclick="exchangeToken()">Exchange for Access Token</button>
+        <div id="exchangeResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>📋 Current Token Status</h2>
+        <div id="tokenStatus"></div>
+        <button onclick="checkTokens()">Check Stored Tokens</button>
+    </div>
+
+    <script>
+        function extractCode() {
+            const url = document.getElementById('successUrl').value;
+            const resultDiv = document.getElementById('extractResult');
+            
+            if (!url) {
+                resultDiv.innerHTML = '<div class="error">Please paste the eBay success URL</div>';
+                return;
+            }
+            
+            try {
+                const urlObj = new URL(url);
+                const code = urlObj.searchParams.get('code');
+                const state = urlObj.searchParams.get('state');
+                const expiresIn = urlObj.searchParams.get('expires_in');
+                
+                if (code) {
+                    document.getElementById('authCode').value = decodeURIComponent(code);
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <strong>✅ Authorization Code Extracted:</strong><br>
+                            Code: ${code.substring(0, 50)}...<br>
+                            State: ${state}<br>
+                            Expires In: ${expiresIn} seconds
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = '<div class="error">❌ No authorization code found in URL</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">❌ Invalid URL: ' + error.message + '</div>';
+            }
+        }
+
+        async function exchangeToken() {
+            const code = document.getElementById('authCode').value.trim();
+            const resultDiv = document.getElementById('exchangeResult');
+            
+            if (!code) {
+                resultDiv.innerHTML = '<div class="error">❌ Please enter the authorization code</div>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<div class="success">🔄 Exchanging authorization code for tokens...</div>';
+            
+            try {
+                const response = await fetch('/.netlify/functions/ebay-oauth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'exchange-code',
+                        code: code,
+                        redirect_uri: 'easyflip.ai-easyflip-easyfl-cnqajybp', // Use RuName for production
+                        state: 'manual-exchange'
+                    })
+                });
+                
+                const responseText = await response.text();
+                
+                if (response.ok) {
+                    const tokenData = JSON.parse(responseText);
+                    
+                    // Store tokens in localStorage
+                    const tokenInfo = {
+                        access_token: tokenData.access_token,
+                        refresh_token: tokenData.refresh_token,
+                        expires_in: tokenData.expires_in,
+                        token_type: tokenData.token_type,
+                        expires_at: Date.now() + (tokenData.expires_in * 1000)
+                    };
+                    
+                    localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenInfo));
+                    localStorage.setItem('ebay_manual_token', tokenData.access_token);
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <strong>✅ Token Exchange Successful!</strong><br>
+                            Access Token: ${tokenData.access_token.substring(0, 30)}...<br>
+                            Refresh Token: ${tokenData.refresh_token ? 'Present' : 'Missing'}<br>
+                            Expires In: ${tokenData.expires_in} seconds<br>
+                            Token Type: ${tokenData.token_type}<br>
+                            <strong>Tokens have been stored in localStorage!</strong>
+                        </div>
+                    `;
+                    
+                    // Update token status
+                    setTimeout(checkTokens, 1000);
+                    
+                    // Dispatch storage event for cross-tab communication
+                    window.dispatchEvent(new StorageEvent('storage', {
+                        key: 'ebay_oauth_tokens',
+                        newValue: JSON.stringify(tokenInfo),
+                        storageArea: localStorage
+                    }));
+                    
+                } else {
+                    let errorData;
+                    try {
+                        errorData = JSON.parse(responseText);
+                    } catch (e) {
+                        errorData = { message: responseText };
+                    }
+                    
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <strong>❌ Token Exchange Failed:</strong><br>
+                            Status: ${response.status} ${response.statusText}<br>
+                            Error: ${JSON.stringify(errorData, null, 2)}
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">❌ Exchange Error: ' + error.message + '</div>';
+                console.error('Token exchange error:', error);
+            }
+        }
+
+        function checkTokens() {
+            const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+            const manualToken = localStorage.getItem('ebay_manual_token');
+            
+            let html = '';
+            
+            if (oauthTokens) {
+                try {
+                    const parsed = JSON.parse(oauthTokens);
+                    html += `
+                        <div class="success">
+                            <strong>✅ OAuth Tokens Found:</strong><br>
+                            Access Token: ${parsed.access_token.substring(0, 30)}...<br>
+                            Refresh Token: ${parsed.refresh_token ? 'Present' : 'Missing'}<br>
+                            Expires At: ${new Date(parsed.expires_at).toLocaleString()}<br>
+                            Is Expired: ${Date.now() >= parsed.expires_at ? 'YES' : 'NO'}
+                        </div>
+                    `;
+                } catch (e) {
+                    html += '<div class="error">❌ OAuth tokens invalid: ' + e.message + '</div>';
+                }
+            } else {
+                html += '<div class="error">❌ No OAuth tokens found</div>';
+            }
+            
+            if (manualToken) {
+                html += `<div class="success">✅ Manual token: ${manualToken.substring(0, 30)}...</div>`;
+            }
+            
+            document.getElementById('tokenStatus').innerHTML = html;
+        }
+
+        // Auto-populate if URL has parameters
+        window.onload = function() {
+            checkTokens();
+            
+            // Check if we have URL parameters (in case user came directly from eBay)
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            if (code) {
+                document.getElementById('authCode').value = code;
+                document.getElementById('extractResult').innerHTML = '<div class="success">✅ Authorization code detected from URL</div>';
+            }
+        };
+    </script>
+</body>
+</html>

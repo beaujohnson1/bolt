@@ -216,7 +216,7 @@ exports.handler = async (event, context) => {
           
           // Add a small delay to ensure localStorage operations complete
           setTimeout(() => {
-            // Get stored return URL or default to app
+            // Get stored return URL or default to app dashboard
             const returnUrl = localStorage.getItem('ebay_oauth_return_url') || '${baseUrl}/app';
             localStorage.removeItem('ebay_oauth_return_url'); // Clean up
             
@@ -225,13 +225,15 @@ exports.handler = async (event, context) => {
             const finalUrl = returnUrl + separator + 'ebay_connected=true&timestamp=' + Date.now();
             
             console.log('🎯 [EBAY-CALLBACK] Redirecting to:', finalUrl);
-            window.location.href = finalUrl;
-          }, 500); // 500ms delay to ensure storage operations complete
+            
+            // Force immediate redirect to prevent staying on function URL
+            window.location.replace(finalUrl);
+          }, 300); // Reduced delay for faster redirect
           
         } catch (error) {
           console.error('❌ [EBAY-CALLBACK] Error storing tokens:', error);
           alert('Failed to store authentication tokens. Please try again.');
-          window.location.href = '${baseUrl}/app?ebay_error=token_storage_failed';
+          window.location.replace('${baseUrl}/app?ebay_error=token_storage_failed');
         }
       </script>
     </head>
@@ -242,7 +244,11 @@ exports.handler = async (event, context) => {
         <p>You can now create live eBay listings!</p>
         <div class="spinner"></div>
         <p>Redirecting you back to the app...</p>
-        <p><a href="${baseUrl}/app">Click here if you're not redirected automatically</a></p>
+        <p><a href="${baseUrl}/app?ebay_connected=true">Click here if you're not redirected automatically</a></p>
+        <noscript>
+          <meta http-equiv="refresh" content="2;url=${baseUrl}/app?ebay_connected=true">
+          <p>JavaScript is disabled. You will be redirected automatically, or <a href="${baseUrl}/app?ebay_connected=true">click here</a>.</p>
+        </noscript>
       </div>
     </body>
     </html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>eBay OAuth Debug Tool</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .section { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        .token-info { background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #ffe8e8; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a87; }
+        pre { background: #f8f8f8; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+        .status { font-weight: bold; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔧 eBay OAuth Debug Tool</h1>
+    <p>Use this tool to test and debug the eBay OAuth flow.</p>
+
+    <div class="section">
+        <h2>📋 Current Token Status</h2>
+        <div id="tokenStatus"></div>
+        <button onclick="checkTokens()">Refresh Token Status</button>
+        <button onclick="clearTokens()">Clear All Tokens</button>
+    </div>
+
+    <div class="section">
+        <h2>🔐 Start OAuth Flow</h2>
+        <button onclick="startOAuth()">Connect eBay Account</button>
+        <div id="oauthStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>🔍 Debug Information</h2>
+        <button onclick="showDebugInfo()">Show Debug Info</button>
+        <div id="debugInfo"></div>
+    </div>
+
+    <script>
+        function checkTokens() {
+            const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+            const manualToken = localStorage.getItem('ebay_manual_token');
+            const oauthState = localStorage.getItem('ebay_oauth_state');
+            
+            let html = '<div class="status">';
+            
+            if (oauthTokens) {
+                try {
+                    const parsed = JSON.parse(oauthTokens);
+                    html += '<div class="token-info">';
+                    html += '<strong>✅ OAuth Tokens Found:</strong><br>';
+                    html += `Access Token: ${parsed.access_token ? parsed.access_token.substring(0, 20) + '...' : 'Missing'}<br>`;
+                    html += `Refresh Token: ${parsed.refresh_token ? 'Present' : 'Missing'}<br>`;
+                    html += `Token Type: ${parsed.token_type || 'N/A'}<br>`;
+                    html += `Expires In: ${parsed.expires_in || 'N/A'} seconds<br>`;
+                    html += `Expires At: ${parsed.expires_at ? new Date(parsed.expires_at).toLocaleString() : 'N/A'}<br>`;
+                    html += `Is Expired: ${parsed.expires_at ? (Date.now() >= parsed.expires_at ? 'YES' : 'NO') : 'Unknown'}<br>`;
+                    html += '</div>';
+                } catch (e) {
+                    html += '<div class="error"><strong>❌ OAuth Tokens Invalid JSON:</strong><br>' + e.message + '</div>';
+                }
+            } else {
+                html += '<div class="error"><strong>❌ No OAuth Tokens Found</strong></div>';
+            }
+            
+            if (manualToken) {
+                html += '<div class="token-info">';
+                html += '<strong>✅ Manual Token Found:</strong><br>';
+                html += `Token: ${manualToken.substring(0, 20)}...<br>`;
+                html += '</div>';
+            } else {
+                html += '<div class="error"><strong>❌ No Manual Token Found</strong></div>';
+            }
+            
+            if (oauthState) {
+                html += '<div class="token-info"><strong>OAuth State:</strong> ' + oauthState + '</div>';
+            }
+            
+            html += '</div>';
+            document.getElementById('tokenStatus').innerHTML = html;
+        }
+
+        function clearTokens() {
+            localStorage.removeItem('ebay_oauth_tokens');
+            localStorage.removeItem('ebay_manual_token');
+            localStorage.removeItem('ebay_oauth_state');
+            localStorage.removeItem('ebay_oauth_return_url');
+            
+            document.getElementById('tokenStatus').innerHTML = '<div class="status">🧹 All tokens cleared</div>';
+            console.log('🧹 All eBay tokens cleared from localStorage');
+        }
+
+        async function startOAuth() {
+            const statusDiv = document.getElementById('oauthStatus');
+            statusDiv.innerHTML = '<div class="status">🔄 Starting OAuth flow...</div>';
+            
+            try {
+                // Store return URL
+                localStorage.setItem('ebay_oauth_return_url', window.location.href);
+                
+                // Get auth URL from our function
+                const response = await fetch('/.netlify/functions/ebay-oauth?action=get-auth-url');
+                const data = await response.json();
+                
+                if (data.authUrl) {
+                    statusDiv.innerHTML = '<div class="status">🔄 Redirecting to eBay...</div>';
+                    console.log('🔐 Starting eBay OAuth with URL:', data.authUrl);
+                    
+                    // Redirect to eBay
+                    window.location.href = data.authUrl;
+                } else {
+                    statusDiv.innerHTML = '<div class="error">❌ Failed to get auth URL: ' + JSON.stringify(data) + '</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="error">❌ Error starting OAuth: ' + error.message + '</div>';
+                console.error('❌ OAuth start error:', error);
+            }
+        }
+
+        function showDebugInfo() {
+            const debugInfo = {
+                userAgent: navigator.userAgent,
+                url: window.location.href,
+                localStorage: {
+                    ebay_oauth_tokens: localStorage.getItem('ebay_oauth_tokens'),
+                    ebay_manual_token: localStorage.getItem('ebay_manual_token'),
+                    ebay_oauth_state: localStorage.getItem('ebay_oauth_state'),
+                    ebay_oauth_return_url: localStorage.getItem('ebay_oauth_return_url')
+                },
+                cookies: document.cookie,
+                timestamp: new Date().toISOString()
+            };
+            
+            document.getElementById('debugInfo').innerHTML = '<pre>' + JSON.stringify(debugInfo, null, 2) + '</pre>';
+            console.log('🔍 Debug info:', debugInfo);
+        }
+
+        // Check for OAuth callback parameters
+        function checkForOAuthCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const error = urlParams.get('ebay_error');
+            const connected = urlParams.get('ebay_connected');
+            
+            if (code) {
+                document.getElementById('oauthStatus').innerHTML = '<div class="token-info">✅ OAuth callback received with code: ' + code.substring(0, 20) + '...</div>';
+            }
+            
+            if (error) {
+                document.getElementById('oauthStatus').innerHTML = '<div class="error">❌ OAuth error: ' + decodeURIComponent(error) + '</div>';
+            }
+            
+            if (connected === 'true') {
+                document.getElementById('oauthStatus').innerHTML = '<div class="token-info">✅ OAuth connection successful!</div>';
+                // Auto-refresh token status
+                setTimeout(checkTokens, 1000);
+            }
+        }
+
+        // Auto-run on page load
+        window.onload = function() {
+            checkTokens();
+            checkForOAuthCallback();
+        };
+
+        // Listen for storage events (cross-tab communication)
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'ebay_oauth_tokens' || e.key === 'ebay_manual_token') {
+                console.log('🔄 Token storage changed:', e.key, e.newValue);
+                checkTokens();
+            }
+        });
+
+        // Listen for custom events
+        window.addEventListener('ebayAuthChanged', function(e) {
+            console.log('🎉 eBay auth changed:', e.detail);
+            checkTokens();
+        });
+    </script>
+</body>
+</html>

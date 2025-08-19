@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Minimal eBay OAuth Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .url-box { background: #f8f8f8; padding: 15px; border-radius: 5px; margin: 10px 0; word-break: break-all; font-family: monospace; font-size: 12px; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Minimal eBay OAuth Test</h1>
+    <p>Testing with minimal required parameters to isolate the issue.</p>
+    
+    <button onclick="testMinimal()">Test Minimal Parameters</button>
+    <button onclick="testWithoutPrompt()">Test Without Prompt</button>
+    <button onclick="testSingleScope()">Test Single Scope</button>
+    <button onclick="testNoScopes()">Test No Scopes</button>
+    
+    <div id="result"></div>
+
+    <script>
+        function testMinimal() {
+            // Absolute minimum required parameters
+            const baseUrl = 'https://auth.ebay.com/oauth2/authorize';
+            const params = new URLSearchParams({
+                client_id: 'easyflip-easyflip-PRD-c645ded63-a17c4d94',
+                response_type: 'code',
+                runame: 'easyflip.ai-easyflip-easyfl-cnqajybp',
+                state: 'minimal-test'
+            });
+            
+            const fullUrl = baseUrl + '?' + params.toString();
+            showResult('Minimal Parameters', fullUrl, params);
+        }
+        
+        function testWithoutPrompt() {
+            // Test without prompt=login parameter
+            const baseUrl = 'https://auth.ebay.com/oauth2/authorize';
+            const params = new URLSearchParams({
+                client_id: 'easyflip-easyflip-PRD-c645ded63-a17c4d94',
+                response_type: 'code',
+                runame: 'easyflip.ai-easyflip-easyfl-cnqajybp',
+                scope: 'https://api.ebay.com/oauth/api_scope/sell.inventory',
+                state: 'no-prompt-test'
+            });
+            
+            const fullUrl = baseUrl + '?' + params.toString();
+            showResult('Without Prompt Parameter', fullUrl, params);
+        }
+        
+        function testSingleScope() {
+            // Test with just one scope
+            const baseUrl = 'https://auth.ebay.com/oauth2/authorize';
+            const params = new URLSearchParams({
+                client_id: 'easyflip-easyflip-PRD-c645ded63-a17c4d94',
+                response_type: 'code',
+                runame: 'easyflip.ai-easyflip-easyfl-cnqajybp',
+                scope: 'https://api.ebay.com/oauth/api_scope/sell.inventory',
+                state: 'single-scope-test',
+                prompt: 'login'
+            });
+            
+            const fullUrl = baseUrl + '?' + params.toString();
+            showResult('Single Scope', fullUrl, params);
+        }
+        
+        function testNoScopes() {
+            // Test without any scopes
+            const baseUrl = 'https://auth.ebay.com/oauth2/authorize';
+            const params = new URLSearchParams({
+                client_id: 'easyflip-easyflip-PRD-c645ded63-a17c4d94',
+                response_type: 'code',
+                runame: 'easyflip.ai-easyflip-easyfl-cnqajybp',
+                state: 'no-scopes-test'
+            });
+            
+            const fullUrl = baseUrl + '?' + params.toString();
+            showResult('No Scopes', fullUrl, params);
+        }
+        
+        function showResult(title, url, params) {
+            document.getElementById('result').innerHTML = `
+                <h3>${title}:</h3>
+                <div class="url-box">${url}</div>
+                <h4>Parameters:</h4>
+                <div class="url-box">${JSON.stringify(Object.fromEntries(params), null, 2)}</div>
+                <button onclick="window.open('${url}', '_blank')">Test ${title}</button>
+                <hr>
+            `;
+        }
+        
+        // Auto-test different approaches
+        window.onload = function() {
+            document.getElementById('result').innerHTML = `
+                <p><strong>Try each test to isolate which parameter is causing the 400 error:</strong></p>
+                <ol>
+                    <li><strong>Test Minimal Parameters</strong> - Only required fields</li>
+                    <li><strong>Test Without Prompt</strong> - Remove prompt=login</li>
+                    <li><strong>Test Single Scope</strong> - Use only one scope instead of multiple</li>
+                    <li><strong>Test No Scopes</strong> - Remove all scopes</li>
+                </ol>
+            `;
+        };
+    </script>
+</body>
+</html>

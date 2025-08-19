@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import EbayAuthButton from '../components/EbayAuthButton';
 import ManualEbayAuth from '../components/ManualEbayAuth';
 import EbayAuthDebug from '../components/EbayAuthDebug';
+import AuthStatusDebug from '../components/AuthStatusDebug';
 import ebayOAuth from '../services/ebayOAuth';
 
 const EbayAuthTest = () => {
@@ -270,7 +271,8 @@ const EbayAuthTest = () => {
         </div>
 
         {/* Debug Information */}
-        <div className="mt-8">
+        <div className="mt-8 space-y-6">
+          <AuthStatusDebug />
           <EbayAuthDebug />
         </div>
       </main>

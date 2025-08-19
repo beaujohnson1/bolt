@@ -1,110 +1,66 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, AlertCircle, ShoppingCart } from 'lucide-react';
-import ebayOAuth from '../services/ebayOAuth';
 
+/**
+ * eBay OAuth Callback Component
+ * Handles the callback from eBay OAuth flow when users are redirected back to the app
+ * This component should rarely be used since the Netlify function handles the real callback,
+ * but it's here for edge cases or manual redirects
+ */
 const EbayAuthCallback: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
-  const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const handleEbayCallback = async () => {
-      try {
-        console.log('🔄 [EBAY-AUTH-CALLBACK] Processing eBay OAuth callback...');
-        
-        // Get parameters from URL
-        const code = searchParams.get('code');
-        const state = searchParams.get('state');
-        const error = searchParams.get('error');
-        
-        // Handle OAuth errors
-        if (error) {
-          const errorDescription = searchParams.get('error_description') || error;
-          console.error('❌ [EBAY-AUTH-CALLBACK] OAuth error:', error, errorDescription);
-          setStatus('error');
-          setMessage(`eBay authentication failed: ${errorDescription}`);
-          return;
-        }
-
-        // Check for required parameters
-        if (!code || !state) {
-          console.error('❌ [EBAY-AUTH-CALLBACK] Missing required parameters');
-          setStatus('error');
-          setMessage('Invalid callback - missing required parameters.');
-          return;
-        }
-
-        console.log('📝 [EBAY-AUTH-CALLBACK] Got authorization code, exchanging for tokens...');
-        
-        // Exchange code for tokens
-        const redirectUri = `${window.location.origin}/auth/ebay/callback`;
-        const tokens = await ebayOAuth.handleOAuthCallback(code, state, redirectUri);
-
-        console.log('✅ [EBAY-AUTH-CALLBACK] Successfully obtained eBay tokens');
-        
-        setStatus('success');
-        setMessage('eBay authentication successful! You can now use eBay features.');
-        
-        // Redirect to test connection page or dashboard after success
-        setTimeout(() => {
-          navigate('/test-connection');
-        }, 2000);
-
-      } catch (error) {
-        console.error('❌ [EBAY-AUTH-CALLBACK] Unexpected error:', error);
-        setStatus('error');
-        setMessage(`Authentication failed: ${error.message}`);
-      }
-    };
-
-    handleEbayCallback();
+    console.log('🔄 [EBAY-AUTH-CALLBACK] Component mounted');
+    
+    // Check if this is a success callback
+    const ebayConnected = searchParams.get('ebay_connected');
+    const error = searchParams.get('ebay_error');
+    
+    if (ebayConnected === 'true') {
+      console.log('✅ [EBAY-AUTH-CALLBACK] eBay connected successfully, redirecting to dashboard');
+      navigate('/app?ebay_connected=true', { replace: true });
+    } else if (error) {
+      console.error('❌ [EBAY-AUTH-CALLBACK] OAuth error:', error);
+      navigate(`/app?ebay_error=${error}`, { replace: true });
+    } else {
+      // No specific parameters, just redirect to dashboard
+      console.log('🔄 [EBAY-AUTH-CALLBACK] No specific callback params, redirecting to dashboard');
+      navigate('/app', { replace: true });
+    }
   }, [navigate, searchParams]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100 flex items-center justify-center p-6">
-      <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
-        {status === 'processing' && (
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-600 mx-auto mb-4"></div>
-            <ShoppingCart className="w-8 h-8 text-yellow-600 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Connecting to eBay...</h2>
-            <p className="text-gray-600">Please wait while we complete your eBay authentication.</p>
-          </div>
-        )}
-        
-        {status === 'success' && (
-          <div className="text-center">
-            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-            <ShoppingCart className="w-8 h-8 text-yellow-600 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">eBay Connected!</h2>
-            <p className="text-gray-600 mb-2">{message}</p>
-            <p className="text-sm text-gray-500">Redirecting to connection test...</p>
-          </div>
-        )}
-        
-        {status === 'error' && (
-          <div className="text-center">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">eBay Authentication Error</h2>
-            <p className="text-gray-600 mb-4">{message}</p>
-            <div className="space-y-2">
-              <button
-                onClick={() => navigate('/test-connection')}
-                className="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-              >
-                Try Again
-              </button>
-              <button
-                onClick={() => navigate('/')}
-                className="w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-              >
-                Return to Home
-              </button>
-            </div>
-          </div>
-        )}
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: '100vh',
+      fontFamily: 'Arial, sans-serif',
+      backgroundColor: '#f5f5f5'
+    }}>
+      <div style={{
+        textAlign: 'center',
+        backgroundColor: 'white',
+        padding: '2rem',
+        borderRadius: '10px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+      }}>
+        <h2>🔄 Processing eBay Authentication</h2>
+        <p>Please wait while we complete your eBay connection...</p>
+        <div style={{
+          border: '4px solid #f3f3f3',
+          borderTop: '4px solid #3498db',
+          borderRadius: '50%',
+          width: '30px',
+          height: '30px',
+          animation: 'spin 1s linear infinite',
+          margin: '20px auto'
+        }} />
+        <style>
+          {`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}
+        </style>
       </div>
     </div>
   );

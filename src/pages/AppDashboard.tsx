@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Package, TrendingUp, DollarSign, Upload, Zap, Bot, ShoppingCart, Trash2, X } from 'lucide-react';
+import { Camera, Package, TrendingUp, DollarSign, Upload, Zap, Bot, ShoppingCart, Trash2, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getSupabase, type Item, type Listing, type Sale } from '../lib/supabase';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import GenerateListingsTable from '../components/GenerateListingsTable';
 import SKUAssignmentPage from '../components/SKUAssignment/SKUAssignmentPage';
@@ -15,6 +15,7 @@ import InventoryDashboard from './InventoryDashboard';
 const AppDashboard = () => {
   const { user, authUser } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
   const [items, setItems] = useState<Item[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -26,6 +27,10 @@ const AppDashboard = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
   const [uploadedPhotos, setUploadedPhotos] = useState<any[]>([]);
+  const [ebayAuthNotification, setEbayAuthNotification] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   // Handle photo upload completion - switch to SKUs tab and store photos
   const handlePhotoUploadComplete = (photos?: any[]) => {
@@ -281,9 +286,48 @@ const AppDashboard = () => {
 
   useEffect(() => {
     if (authUser) {
+      // Check for eBay OAuth callback parameters
+      const ebayConnected = searchParams.get('ebay_connected');
+      const ebayError = searchParams.get('ebay_error');
+      
+      if (ebayConnected === 'true') {
+        console.log('✅ [DASHBOARD] eBay OAuth success detected');
+        setEbayAuthNotification({
+          type: 'success',
+          message: '🎉 eBay account connected successfully! You can now create live eBay listings.'
+        });
+        
+        // Clear the URL parameters after showing notification
+        setSearchParams(prevParams => {
+          const newParams = new URLSearchParams(prevParams);
+          newParams.delete('ebay_connected');
+          newParams.delete('timestamp');
+          return newParams;
+        });
+        
+        // Auto-hide notification after 10 seconds
+        setTimeout(() => setEbayAuthNotification(null), 10000);
+      } else if (ebayError) {
+        console.error('❌ [DASHBOARD] eBay OAuth error detected:', ebayError);
+        setEbayAuthNotification({
+          type: 'error',
+          message: `❌ eBay connection failed: ${decodeURIComponent(ebayError)}`
+        });
+        
+        // Clear the URL parameters after showing notification
+        setSearchParams(prevParams => {
+          const newParams = new URLSearchParams(prevParams);
+          newParams.delete('ebay_error');
+          return newParams;
+        });
+        
+        // Auto-hide notification after 15 seconds
+        setTimeout(() => setEbayAuthNotification(null), 15000);
+      }
+      
       fetchDashboardData();
     }
-  }, [authUser]);
+  }, [authUser, searchParams, setSearchParams]);
 
   // Check for dashboard refresh flag on component mount and visibility change
   useEffect(() => {
@@ -579,6 +623,40 @@ const AppDashboard = () => {
 
   return (
     <>
+      {/* eBay Auth Notification */}
+      {ebayAuthNotification && (
+        <div className={`fixed top-4 right-4 z-50 max-w-md p-4 rounded-lg shadow-lg border-l-4 ${
+          ebayAuthNotification.type === 'success' 
+            ? 'bg-green-50 border-green-500 text-green-700' 
+            : 'bg-red-50 border-red-500 text-red-700'
+        } animate-slide-in`}>
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              {ebayAuthNotification.type === 'success' ? (
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              )}
+            </div>
+            <div className="ml-3 flex-1">
+              <p className="text-sm font-medium">{ebayAuthNotification.message}</p>
+              <button
+                onClick={() => setEbayAuthNotification(null)}
+                className="mt-2 text-xs underline opacity-75 hover:opacity-100"
+              >
+                Dismiss
+              </button>
+            </div>
+            <button
+              onClick={() => setEbayAuthNotification(null)}
+              className="ml-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      
       <DashboardLayout activeTab={activeTab} onTabChange={setActiveTab}>
         {renderTabContent()}
       </DashboardLayout>

@@ -8,7 +8,12 @@
       "Bash(npm run build:*)",
       "Bash(netlify deploy:*)",
       "Bash(git add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(env)",
+      "Bash(find:*)",
+      "Bash(node:*)",
+      "Bash(grep:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }
