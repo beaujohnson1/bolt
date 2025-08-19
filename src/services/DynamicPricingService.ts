@@ -504,6 +504,10 @@ class DynamicPricingService {
       console.log('✅ [PRICING] Pricing recommendation saved to database');
     } catch (error) {
       console.error('❌ [PRICING] Error saving pricing recommendation:', error);
+      // Table doesn't exist - this is expected in development without migration
+      if (error?.message?.includes('does not exist') || error?.code === '42P01') {
+        console.warn('⚠️ [PRICING] pricing_recommendations table not found - run database migration');
+      }
     }
   }
 
@@ -526,6 +530,10 @@ class DynamicPricingService {
 
         if (error) {
           console.warn('⚠️ [PRICING] Error saving market data batch:', error);
+          // Table doesn't exist - this is expected in development without migration
+          if (error?.message?.includes('does not exist') || error?.code === '42P01') {
+            console.warn('⚠️ [PRICING] market_prices table not found - run database migration');
+          }
           continue;
         }
       }

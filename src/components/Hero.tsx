@@ -19,12 +19,14 @@ const Hero = () => {
         try {
           console.log('🔄 [HERO] Submitting authenticated user to GoHighLevel:', authUser.email);
           
-          const response = await fetch('/.netlify/functions/subscribe', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+          // Add timeout to prevent hanging
+          const response = await Promise.race([
+            fetch('/.netlify/functions/subscribe', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
               email: authUser.email,
               name: authUser.full_name || authUser.name || '',
               firstName: authUser.full_name?.split(' ')[0] || '',
@@ -35,7 +37,11 @@ const Hero = () => {
               timestamp: new Date().toISOString(),
               page_url: window.location.href
             }),
-          });
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('GHL submission timeout')), 3000)
+          )
+        ]);
 
           if (response.ok) {
             console.log('✅ [HERO] Successfully submitted to GoHighLevel');
@@ -45,9 +51,7 @@ const Hero = () => {
             
             // Redirect to dashboard after successful submission
             console.log('🎯 [HERO] Redirecting authenticated user to dashboard');
-            setTimeout(() => {
-              navigate('/app');
-            }, 1000); // 1 second delay to ensure submission completes
+            navigate('/app'); // Remove delay for faster redirect
           }
         } catch (error) {
           console.error('❌ [HERO] Failed to submit to GoHighLevel:', error);
@@ -62,9 +66,7 @@ const Hero = () => {
         setHasSubmittedToGHL(true);
         // If already submitted, redirect immediately to dashboard
         console.log('🎯 [HERO] User already submitted, redirecting to dashboard');
-        setTimeout(() => {
-          navigate('/app');
-        }, 500); // Short delay for better UX
+        navigate('/app'); // Remove delay for faster redirect
       } else {
         submitAuthenticatedUser();
       }

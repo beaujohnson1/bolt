@@ -4,6 +4,10 @@ import { ArrowLeft, Check, ExternalLink, Zap, Package, Eye, Target } from 'lucid
 import { getSupabase, type Item, type Listing } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import EbayApiService from '../services/ebayApi';
+import ebayOAuth from '../services/ebayOAuth';
+import EbayAuthButton from '../components/EbayAuthButton';
+import MockEbayAuth from '../components/MockEbayAuth';
+import ManualEbayAuth from '../components/ManualEbayAuth';
 
 
 const ListingPreview = () => {
@@ -16,8 +20,32 @@ const ListingPreview = () => {
   const [posted, setPosted] = useState(false);
   const [listingUrls, setListingUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [isEbayAuthenticated, setIsEbayAuthenticated] = useState(false);
 
   useEffect(() => {
+    // Check eBay authentication status
+    const initialAuthStatus = ebayOAuth.isAuthenticated();
+    setIsEbayAuthenticated(initialAuthStatus);
+    console.log('🔍 [LISTING-PREVIEW] Initial eBay auth status:', initialAuthStatus);
+    
+    // Check URL parameters for successful authentication
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('ebay_connected') === 'true') {
+      console.log('🎉 [LISTING-PREVIEW] Detected successful eBay connection from URL');
+      // Force refresh auth status after a brief delay
+      setTimeout(() => {
+        const newAuthStatus = ebayOAuth.refreshAuthStatus();
+        console.log('🔄 [LISTING-PREVIEW] Refreshed auth status:', newAuthStatus);
+        setIsEbayAuthenticated(newAuthStatus);
+      }, 100);
+    }
+    
+    // Watch for authentication changes
+    const unwatch = ebayOAuth.watchForTokenChanges((authenticated) => {
+      console.log('🔄 [LISTING-PREVIEW] eBay auth status changed:', authenticated);
+      setIsEbayAuthenticated(authenticated);
+    });
+    
     const fetchItemAndListing = async () => {
       if (!itemId || !authUser) return;
       
@@ -65,6 +93,13 @@ const ListingPreview = () => {
     };
 
     fetchItemAndListing();
+    
+    // Cleanup watcher
+    return () => {
+      if (typeof unwatch === 'function') {
+        unwatch();
+      }
+    };
   }, [itemId, authUser]);
 
   const platforms = [
@@ -420,6 +455,26 @@ const ListingPreview = () => {
               </h2>
               
               <div className="space-y-4">
+                {/* eBay Authentication Check */}
+                {selectedPlatforms.includes('ebay') && !isEbayAuthenticated && (
+                  <div className="space-y-4">
+                    <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
+                      <h4 className="font-semibold text-yellow-900 mb-2">🔐 eBay Account Connection Required</h4>
+                      <p className="text-sm text-yellow-800 mb-3">
+                        To post listings to eBay, you need to connect your eBay account first.
+                      </p>
+                      <EbayAuthButton 
+                        onAuthSuccess={() => setIsEbayAuthenticated(true)}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <MockEbayAuth />
+                    
+                    <ManualEbayAuth onAuthSuccess={() => setIsEbayAuthenticated(true)} />
+                  </div>
+                )}
+                
                 <div className="bg-blue-50 rounded-lg p-4">
                   <h4 className="font-semibold text-blue-900 mb-2">🚀 What happens when you post:</h4>
                   <ul className="text-sm text-blue-800 space-y-1">
@@ -433,7 +488,7 @@ const ListingPreview = () => {
                 
                 <button
                   onClick={handlePost}
-                  disabled={isPosting || selectedPlatforms.length === 0}
+                  disabled={isPosting || selectedPlatforms.length === 0 || (selectedPlatforms.includes('ebay') && !isEbayAuthenticated)}
                   className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
                 >
                   {isPosting ? (
@@ -452,6 +507,12 @@ const ListingPreview = () => {
                 {selectedPlatforms.length === 0 && (
                   <p className="text-red-600 text-sm text-center">
                     Please select at least one platform to continue
+                  </p>
+                )}
+                
+                {selectedPlatforms.includes('ebay') && !isEbayAuthenticated && (
+                  <p className="text-yellow-600 text-sm text-center">
+                    Please connect your eBay account before posting
                   </p>
                 )}
               </div>

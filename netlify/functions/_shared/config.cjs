@@ -21,7 +21,7 @@ const config = {
 
   // eBay API
   ebay: {
-    environment: process.env.VITE_EBAY_USE_PRODUCTION === 'true' ? 'production' : 'sandbox',
+    environment: (process.env.EBAY_USE_PRODUCTION === 'true' || process.env.VITE_EBAY_USE_PRODUCTION === 'true') ? 'production' : 'sandbox',
     production: {
       appId: process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID,
       devId: process.env.EBAY_PROD_DEV || process.env.VITE_EBAY_PROD_DEV_ID,

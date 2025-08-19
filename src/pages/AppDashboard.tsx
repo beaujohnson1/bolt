@@ -20,6 +20,7 @@ const AppDashboard = () => {
   const [listings, setListings] = useState<Listing[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -324,40 +325,40 @@ const AppDashboard = () => {
     try {
       setLoading(true);
 
-      // Fetch items
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('items')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .order('created_at', { ascending: false });
+      // Fetch all data in parallel for faster loading
+      const [itemsResult, listingsResult, salesResult] = await Promise.all([
+        supabase
+          .from('items')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .order('created_at', { ascending: false }),
+        
+        supabase
+          .from('listings')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .order('created_at', { ascending: false }),
+        
+        supabase
+          .from('sales')
+          .select('*')
+          .eq('user_id', authUser.id)
+          .order('sold_at', { ascending: false })
+      ]);
 
-      if (itemsError) throw itemsError;
+      // Check for errors
+      if (itemsResult.error) throw itemsResult.error;
+      if (listingsResult.error) throw listingsResult.error;
+      if (salesResult.error) throw salesResult.error;
 
-      // Fetch listings
-      const { data: listingsData, error: listingsError } = await supabase
-        .from('listings')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .order('created_at', { ascending: false });
-
-      if (listingsError) throw listingsError;
-
-      // Fetch sales
-      const { data: salesData, error: salesError } = await supabase
-        .from('sales')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .order('sold_at', { ascending: false });
-
-      if (salesError) throw salesError;
-
-      setItems(itemsData || []);
-      setListings(listingsData || []);
-      setSales(salesData || []);
+      setItems(itemsResult.data || []);
+      setListings(listingsResult.data || []);
+      setSales(salesResult.data || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
   };
 

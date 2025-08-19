@@ -14,20 +14,33 @@ const EbayEnvironmentStatus: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkEbayStatus();
+    // Delay eBay status check to not block dashboard loading
+    const timer = setTimeout(() => {
+      checkEbayStatus();
+    }, 100); // Check after dashboard loads
+    
+    return () => clearTimeout(timer);
   }, []);
 
   const checkEbayStatus = async () => {
     try {
       setLoading(true);
       const ebayService = new EnhancedEbayService();
-      const result = await ebayService.testConnection();
-      setStatus(result);
+      
+      // Add timeout to prevent hanging
+      const result = await Promise.race([
+        ebayService.testConnection(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('eBay connection test timed out')), 5000)
+        )
+      ]);
+      
+      setStatus(result as EbayStatus);
     } catch (error) {
       setStatus({
         success: false,
         environment: 'error',
-        message: error.message,
+        message: error.message || 'Connection test failed',
         hasProduction: false
       });
     } finally {

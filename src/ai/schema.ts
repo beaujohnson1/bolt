@@ -37,6 +37,13 @@ export const AiSchema = z.object({
 export function coerceAI(raw: unknown) {
   try {
     console.log('🔍 [AI-SCHEMA] Validating AI payload:', JSON.stringify(raw, null, 2).substring(0, 500));
+    
+    // Handle null/undefined case
+    if (!raw || typeof raw !== 'object') {
+      console.warn('⚠️ [AI-SCHEMA] Invalid raw data, using fallback');
+      return { title: '', brand: null, size: null, condition: 'unknown' };
+    }
+    
     const result = AiSchema.parse(raw);
     console.log('✅ [AI-SCHEMA] Validation successful');
     return result;
@@ -44,16 +51,31 @@ export function coerceAI(raw: unknown) {
     console.error('❌ [AI-SCHEMA] Validation failed for payload:', raw);
     console.error('❌ [AI-SCHEMA] Error details:', error);
     
-    if (error.errors) {
+    if (error?.errors) {
       console.error('❌ [AI-SCHEMA] Validation errors:', error.errors);
     }
     
-    // Try to return the raw data with passthrough for debugging
-    console.log('🔄 [AI-SCHEMA] Attempting passthrough validation...');
+    // Defensive fallback with safe access
+    console.log('🔄 [AI-SCHEMA] Using defensive fallback...');
     try {
-      return raw as any; // Temporary bypass for debugging
-    } catch {
-      throw new Error('AI payload validation failed');
+      const safeRaw = raw as any;
+      return {
+        title: safeRaw?.title || '',
+        brand: safeRaw?.brand || null,
+        size: safeRaw?.size || null,
+        color: safeRaw?.color || null,
+        item_type: safeRaw?.item_type || 'unknown',
+        condition: safeRaw?.condition || 'unknown',
+        description: safeRaw?.description || '',
+        suggested_price: safeRaw?.suggested_price || 0,
+        keywords: Array.isArray(safeRaw?.keywords) ? safeRaw.keywords : [],
+        key_features: Array.isArray(safeRaw?.key_features) ? safeRaw.key_features : [],
+        confidence: typeof safeRaw?.confidence === 'number' ? safeRaw.confidence : 0.5,
+        ...safeRaw
+      };
+    } catch (fallbackError) {
+      console.error('❌ [AI-SCHEMA] Fallback failed:', fallbackError);
+      return { title: 'Unknown Item', brand: null, size: null, condition: 'unknown' };
     }
   }
 }

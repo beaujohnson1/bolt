@@ -66,8 +66,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('📧 [AUTH] User email:', supabaseUser.email);
       console.log('🖼️ [AUTH] Avatar URL:', avatarUrl);
       
-      // Use RPC function to create or update user profile
-      console.log('📤 [AUTH] Calling create_user_profile RPC function...');
+      // First check if user profile already exists (faster)
+      console.log('🔍 [AUTH] Checking if user profile exists...');
+      const { data: existingUsers, error: fetchError } = await withTimeout(
+        supabase
+          .from('users')
+          .select('*')
+          .eq('id', supabaseUser.id)
+          .limit(1),
+        10000, // 10 second timeout
+        'User profile check timed out'
+      );
+      
+      if (fetchError) {
+        console.warn('⚠️ [AUTH] Error checking user profile:', fetchError);
+      }
+      
+      if (existingUsers && existingUsers.length > 0 && !fetchError) {
+        console.log('✅ [AUTH] User profile already exists, skipping RPC call');
+        return existingUsers[0];
+      }
+      
+      // Use RPC function to create user profile (only for new users)
+      console.log('📤 [AUTH] User not found, calling create_user_profile RPC function...');
+      console.log('📊 [AUTH] Query result - Users found:', existingUsers?.length || 0, 'Error:', !!fetchError);
       
       const { data, error: upsertError } = await withTimeout(
         supabase.rpc('create_user_profile', {

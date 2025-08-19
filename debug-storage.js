@@ -1,0 +1,1 @@
+console.log('🔍 Debugging localStorage state:'); console.log('OAuth tokens:', localStorage.getItem('ebay_oauth_tokens')); console.log('Manual token:', localStorage.getItem('ebay_manual_token')); console.log('OAuth state:', localStorage.getItem('ebay_oauth_state'));

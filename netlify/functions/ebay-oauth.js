@@ -9,6 +9,12 @@ const EBAY_OAUTH_BASE = {
   sandbox: 'https://auth.sandbox.ebay.com/oauth2'
 };
 
+// eBay Token endpoints (different from OAuth base)
+const EBAY_TOKEN_BASE = {
+  production: 'https://api.ebay.com/identity/v1/oauth2',
+  sandbox: 'https://api.sandbox.ebay.com/identity/v1/oauth2'
+};
+
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -39,13 +45,15 @@ exports.handler = async (event, context) => {
 
     switch (action) {
       case 'get-auth-url':
-        return await getAuthUrl(headers, credentials, oauthBase, event.queryStringParameters);
+        return await getAuthUrl(headers, credentials, oauthBase, event.queryStringParameters, ebayConfig.environment);
         
       case 'exchange-code':
-        return await exchangeCode(headers, credentials, oauthBase, event.body);
+        const tokenBase = EBAY_TOKEN_BASE[ebayConfig.environment];
+        return await exchangeCode(headers, credentials, tokenBase, event.body);
         
       case 'refresh-token':
-        return await refreshToken(headers, credentials, oauthBase, event.body);
+        const refreshTokenBase = EBAY_TOKEN_BASE[ebayConfig.environment];
+        return await refreshToken(headers, credentials, refreshTokenBase, event.body);
         
       default:
         return {
@@ -73,23 +81,55 @@ exports.handler = async (event, context) => {
 };
 
 // Generate eBay OAuth authorization URL
-async function getAuthUrl(headers, credentials, oauthBase, queryParams) {
+async function getAuthUrl(headers, credentials, oauthBase, queryParams, environment = 'production') {
   try {
     console.log('🔗 [EBAY-OAUTH] Generating authorization URL...');
     
-    const redirectUri = queryParams?.redirect_uri || 
-                       `${process.env.URL || 'http://localhost:8888'}/auth/ebay/callback`;
-    
     const state = queryParams?.state || generateRandomString(32);
     
-    // Build authorization URL - Trading API doesn't need scopes
+    // Check if production environment
+    const isProduction = environment === 'production';
+    
+    // Build authorization URL with eBay-specific parameters
+    const callbackUrl = `${process.env.URL || 'http://localhost:53778'}/.netlify/functions/auth-ebay-callback`;
+    
+    console.log('🔗 [EBAY-OAUTH] Using callback URL:', callbackUrl);
+    console.log('🔗 [EBAY-OAUTH] Environment:', environment, 'isProduction:', isProduction);
+    console.log('🔗 [EBAY-OAUTH] Using credentials:', {
+      appId: credentials.appId,
+      hasDevId: !!credentials.devId,
+      hasCertId: !!credentials.certId
+    });
+    
     const authUrl = new URL(`${oauthBase}/authorize`);
     authUrl.searchParams.append('client_id', credentials.appId);
-    authUrl.searchParams.append('redirect_uri', redirectUri);
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('state', state);
     
-    console.log('✅ [EBAY-OAUTH] Authorization URL generated successfully');
+    // Always use the callback URL for consistency
+    // eBay will validate against registered RuNames in production
+    authUrl.searchParams.append('redirect_uri', callbackUrl);
+    console.log('🔗 [EBAY-OAUTH] Using callback URL:', callbackUrl);
+    
+    // Add eBay scopes for selling
+    const scopes = [
+      'https://api.ebay.com/oauth/api_scope/sell.marketing.readonly',
+      'https://api.ebay.com/oauth/api_scope/sell.marketing',
+      'https://api.ebay.com/oauth/api_scope/sell.inventory.readonly', 
+      'https://api.ebay.com/oauth/api_scope/sell.inventory',
+      'https://api.ebay.com/oauth/api_scope/sell.account.readonly',
+      'https://api.ebay.com/oauth/api_scope/sell.account',
+      'https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly',
+      'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+      'https://api.ebay.com/oauth/api_scope/sell.analytics.readonly',
+      'https://api.ebay.com/oauth/api_scope/sell.finances',
+      'https://api.ebay.com/oauth/api_scope/sell.payment.dispute',
+      'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
+    ].join(' ');
+    
+    authUrl.searchParams.append('scope', scopes);
+    
+    console.log('✅ [EBAY-OAUTH] Authorization URL generated:', authUrl.toString());
     
     return {
       statusCode: 200,
@@ -97,8 +137,8 @@ async function getAuthUrl(headers, credentials, oauthBase, queryParams) {
       body: JSON.stringify({
         authUrl: authUrl.toString(),
         state: state,
-        redirectUri: redirectUri,
-        environment: credentials.environment || 'production'
+        callbackUrl: callbackUrl,
+        environment: environment
       })
     };
 
@@ -109,7 +149,7 @@ async function getAuthUrl(headers, credentials, oauthBase, queryParams) {
 }
 
 // Exchange authorization code for access token
-async function exchangeCode(headers, credentials, oauthBase, body) {
+async function exchangeCode(headers, credentials, tokenBase, body) {
   try {
     console.log('🔄 [EBAY-OAUTH] Exchanging authorization code for token...');
     
@@ -119,18 +159,32 @@ async function exchangeCode(headers, credentials, oauthBase, body) {
       throw new Error('Authorization code is required');
     }
 
-    // Prepare token request
-    const tokenUrl = `${oauthBase}/token`;
+    // Prepare token request with proper redirect_uri
+    const tokenUrl = `${tokenBase}/token`;
+    const callbackUrl = `${process.env.URL || 'http://localhost:53778'}/.netlify/functions/auth-ebay-callback`;
+    
+    // Get environment to determine if production
+    const ebayConfig = config.ebay;
+    const isProduction = ebayConfig.environment === 'production';
+    const isLocalDev = callbackUrl.includes('localhost');
+    
+    // Use consistent callback URL for token exchange
+    const finalRedirectUri = callbackUrl;
+    
     const tokenParams = new URLSearchParams({
       grant_type: 'authorization_code',
       code: code,
-      redirect_uri: redirect_uri
+      redirect_uri: finalRedirectUri
     });
+    
+    console.log('🔄 [EBAY-OAUTH] Token exchange using redirect_uri:', finalRedirectUri);
+    console.log('🔄 [EBAY-OAUTH] Received redirect_uri in request:', redirect_uri);
+    console.log('🔄 [EBAY-OAUTH] Code parameter:', code ? code.substring(0, 20) + '...' : 'missing');
 
     // Create basic auth header with client credentials
     const basicAuth = Buffer.from(`${credentials.appId}:${credentials.certId}`).toString('base64');
 
-    console.log('📡 [EBAY-OAUTH] Making token exchange request...');
+    console.log('📡 [EBAY-OAUTH] Making token exchange request to:', tokenUrl);
     
     const response = await fetch(tokenUrl, {
       method: 'POST',
@@ -169,7 +223,7 @@ async function exchangeCode(headers, credentials, oauthBase, body) {
 }
 
 // Refresh access token using refresh token
-async function refreshToken(headers, credentials, oauthBase, body) {
+async function refreshToken(headers, credentials, tokenBase, body) {
   try {
     console.log('🔄 [EBAY-OAUTH] Refreshing access token...');
     
@@ -179,7 +233,7 @@ async function refreshToken(headers, credentials, oauthBase, body) {
       throw new Error('Refresh token is required');
     }
 
-    const tokenUrl = `${oauthBase}/token`;
+    const tokenUrl = `${tokenBase}/token`;
     const tokenParams = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refresh_token

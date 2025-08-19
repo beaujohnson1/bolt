@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Store eBay Tokens</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        button { background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 10px; border-radius: 5px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Store eBay OAuth Tokens</h1>
+        <p>Click the button below to store your eBay OAuth tokens in localStorage:</p>
+        
+        <button onclick="storeTokens()">Store eBay Tokens</button>
+        
+        <div id="result"></div>
+        
+        <h3>Next Steps:</h3>
+        <ol>
+            <li>Click the "Store eBay Tokens" button above</li>
+            <li>Go back to your app: <a href="/app" target="_blank">http://localhost:64538/app</a></li>
+            <li>Navigate to your item and try posting to eBay</li>
+        </ol>
+    </div>
+
+    <script>
+        function storeTokens() {
+            try {
+                // Store the tokens using proper encoding
+                const tokenData = {
+                    "access_token": "v^1.1#i^1#r^0#p^3#I^3#f^0#t^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",
+                    "refresh_token": "v^1.1#i^1#p^3#I^3#f^0#r^1#t^Ul4xMF8xOkZBMTcyMTJCQjA5RTBFMzU3N0M1OUQ4ODg2RDFFN0JEXzFfMSNFXjI2MA==",
+                    "expires_in": 7200,
+                    "token_type": "User Access Token",
+                    "expires_at": Date.now() + (7200 * 1000)
+                };
+
+                localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                localStorage.setItem('ebay_manual_token', tokenData.access_token);
+                
+                document.getElementById('result').innerHTML = `
+                    <div class="success">
+                        <h3>✅ Success!</h3>
+                        <p>eBay OAuth tokens have been stored successfully!</p>
+                        <p><strong>Access Token:</strong> ${tokenData.access_token.substring(0, 50)}...</p>
+                        <p><strong>Expires in:</strong> ${tokenData.expires_in} seconds (2 hours)</p>
+                        <p><strong>Next:</strong> Go back to your app and try posting to eBay!</p>
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 10px; border-radius: 5px;">
+                        <h3>❌ Error</h3>
+                        <p>Failed to store tokens: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

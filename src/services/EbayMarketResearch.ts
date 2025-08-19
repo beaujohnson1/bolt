@@ -97,7 +97,13 @@ export class EbayMarketResearch {
       
       // Get completed items data
       const completedItems = await this.ebayApi.searchCompletedItems(searchQuery, categoryId);
-      console.log('📊 [MARKET-RESEARCH] Found completed items:', completedItems.length);
+      
+      // Handle development mode gracefully
+      if (Array.isArray(completedItems)) {
+        console.log('📊 [MARKET-RESEARCH] Found completed items:', completedItems.length);
+      } else {
+        console.log('📊 [MARKET-RESEARCH] Found completed items:', 0);
+      }
       
       // Analyze pricing data
       const priceAnalysis = this.analyzePrices(completedItems, condition);
@@ -137,10 +143,11 @@ export class EbayMarketResearch {
   /**
    * Analyze pricing data from completed listings
    */
-  private analyzePrices(completedItems: CompletedListing[], targetCondition: string): MarketResearchData {
+  private analyzePrices(completedItems: CompletedListing[] | any, targetCondition: string): MarketResearchData {
     console.log('📊 [MARKET-RESEARCH] Analyzing prices for condition:', targetCondition);
     
-    if (completedItems.length === 0) {
+    // Handle development mode or invalid data
+    if (!Array.isArray(completedItems) || completedItems.length === 0) {
       console.log('⚠️ [MARKET-RESEARCH] No completed items found, using fallback');
       return {
         averagePrice: 25,

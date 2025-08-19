@@ -1,23 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mv:*)",
-      "Bash(node:*)",
-      "Bash(git push:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
+      "mcp__ruv-swarm",
+      "mcp__claude-flow",
+      "Bash(npx:*)",
+      "Bash(netlify dev:*)",
       "Bash(npm run build:*)",
-      "Bash(rm:*)",
-      "Bash(npm run lint)",
-      "Bash(npm install:*)",
-      "Bash(supabase status:*)",
-      "Bash(npm run dev:*)",
-      "Bash(curl:*)",
-      "Bash(npx supabase:*)",
-      "Bash(netlify functions:list:*)"
+      "Bash(netlify deploy:*)",
+      "Bash(git add:*)"
     ],
-    "deny": [],
-    "ask": [],
-    "defaultMode": "acceptEdits"
+    "deny": []
   }
 }
