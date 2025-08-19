@@ -408,58 +408,129 @@ class EbayOAuthService {
   }
 
   /**
-   * Store tokens in localStorage
+   * Store tokens in localStorage with enhanced validation and reliability
    */
   private storeTokens(tokens: EbayOAuthTokens): void {
     try {
-      console.log('💾 [EBAY-OAUTH] Storing tokens:', {
+      console.log('💾 [EBAY-OAUTH] Storing tokens with validation...');
+      
+      // Validate token structure
+      if (!tokens.access_token) {
+        throw new Error('Invalid tokens: missing access_token');
+      }
+      
+      if (!tokens.token_type) {
+        throw new Error('Invalid tokens: missing token_type');
+      }
+      
+      // Calculate expiry if missing
+      if (tokens.expires_in && !tokens.expires_at) {
+        tokens.expires_at = Date.now() + (tokens.expires_in * 1000);
+      }
+      
+      console.log('🔍 [EBAY-OAUTH] Token validation passed:', {
         hasAccessToken: !!tokens.access_token,
         hasRefreshToken: !!tokens.refresh_token,
         accessTokenLength: tokens.access_token?.length || 0,
         refreshTokenLength: tokens.refresh_token?.length || 0,
         expiresIn: tokens.expires_in,
-        expiresAt: tokens.expires_at
+        expiresAt: tokens.expires_at,
+        tokenType: tokens.token_type
       });
       
       const tokenString = JSON.stringify(tokens);
-      localStorage.setItem('ebay_oauth_tokens', tokenString);
-      // Also store the access token separately for compatibility
-      localStorage.setItem('ebay_manual_token', tokens.access_token);
       
-      // Verify storage worked
-      const storedTokens = localStorage.getItem('ebay_oauth_tokens');
-      const storedManualToken = localStorage.getItem('ebay_manual_token');
-      console.log('✅ [EBAY-OAUTH] Tokens stored successfully:', {
-        oauthStored: !!storedTokens,
-        manualStored: !!storedManualToken,
-        oauthLength: storedTokens?.length || 0,
-        manualLength: storedManualToken?.length || 0
-      });
+      // Atomic storage with rollback capability
+      const originalOAuth = localStorage.getItem('ebay_oauth_tokens');
+      const originalManual = localStorage.getItem('ebay_manual_token');
       
-      // Test authentication immediately after storing
-      const isAuthAfterStore = this.isAuthenticated();
-      console.log('🔍 [EBAY-OAUTH] Authentication status after storing tokens:', isAuthAfterStore);
-      
-      // Use setTimeout to ensure storage events fire properly
-      setTimeout(() => {
-        // Dispatch custom event to notify other components
-        window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
-          detail: { authenticated: true, tokens }
-        }));
+      try {
+        localStorage.setItem('ebay_oauth_tokens', tokenString);
+        localStorage.setItem('ebay_manual_token', tokens.access_token);
         
-        // Also trigger storage event manually for cross-tab communication
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: 'ebay_oauth_tokens',
-          newValue: tokenString,
-          oldValue: null,
-          storageArea: localStorage,
-          url: window.location.href
-        }));
+        // Verify storage immediately
+        const stored = localStorage.getItem('ebay_oauth_tokens');
+        const storedManual = localStorage.getItem('ebay_manual_token');
         
-        console.log('📡 [EBAY-OAUTH] Storage and custom events dispatched');
-      }, 100);
+        if (!stored || !storedManual) {
+          throw new Error('Token storage verification failed - data not found');
+        }
+        
+        const parsed = JSON.parse(stored);
+        if (parsed.access_token !== tokens.access_token) {
+          throw new Error('Token storage verification failed - data mismatch');
+        }
+        
+        console.log('✅ [EBAY-OAUTH] Tokens stored and verified successfully');
+        
+        // Test authentication immediately after storing
+        const isAuthAfterStore = this.isAuthenticated();
+        console.log('🔍 [EBAY-OAUTH] Authentication status after storing tokens:', isAuthAfterStore);
+        
+        // Use BroadcastChannel for reliable cross-component communication
+        if (typeof BroadcastChannel !== 'undefined') {
+          try {
+            const channel = new BroadcastChannel('ebay-auth');
+            channel.postMessage({
+              type: 'AUTH_CHANGED',
+              authenticated: true,
+              tokens,
+              source: 'oauth_service',
+              timestamp: Date.now()
+            });
+            channel.close();
+            console.log('📡 [EBAY-OAUTH] BroadcastChannel message sent');
+          } catch (bcError) {
+            console.warn('⚠️ [EBAY-OAUTH] BroadcastChannel failed, using fallback events:', bcError);
+          }
+        }
+        
+        // Legacy event support with delay to ensure reliable delivery
+        setTimeout(() => {
+          // Dispatch custom event to notify other components
+          window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+            detail: { 
+              authenticated: true, 
+              tokens,
+              source: 'oauth_service',
+              timestamp: Date.now()
+            }
+          }));
+          
+          // Also trigger storage event manually for cross-tab communication
+          window.dispatchEvent(new StorageEvent('storage', {
+            key: 'ebay_oauth_tokens',
+            newValue: tokenString,
+            oldValue: originalOAuth,
+            storageArea: localStorage,
+            url: window.location.href
+          }));
+          
+          console.log('📡 [EBAY-OAUTH] Legacy events dispatched');
+        }, 50);
+        
+      } catch (storageError) {
+        // Rollback on failure
+        console.error('❌ [EBAY-OAUTH] Storage failed, rolling back:', storageError);
+        
+        if (originalOAuth) {
+          localStorage.setItem('ebay_oauth_tokens', originalOAuth);
+        } else {
+          localStorage.removeItem('ebay_oauth_tokens');
+        }
+        
+        if (originalManual) {
+          localStorage.setItem('ebay_manual_token', originalManual);
+        } else {
+          localStorage.removeItem('ebay_manual_token');
+        }
+        
+        throw storageError;
+      }
+      
     } catch (error) {
       console.error('❌ [EBAY-OAUTH] Error storing tokens:', error);
+      throw error;
     }
   }
 
