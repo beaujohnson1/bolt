@@ -158,6 +158,9 @@ const ListingPreview = () => {
         title: item.title
       });
 
+      // FORCE IMMEDIATE ALERT FOR DEBUGGING
+      alert(`🔧 DEBUG: Starting to post to ${selectedPlatforms.length} platforms: ${selectedPlatforms.join(', ')}`);
+
       const urls: Record<string, string> = {};
       const platformResults: Record<string, { success: boolean; error?: string; url?: string }> = {};
 
@@ -169,9 +172,13 @@ const ListingPreview = () => {
             const ebayService = new EbayApiService();
             const ebayListing = await ebayService.createListingFromItem(item);
             
+            // FORCE IMMEDIATE ALERT FOR DEBUGGING
+            alert(`🔧 DEBUG: eBay service returned listingId: ${ebayListing.listingId}`);
+            
             // Check if this is actually a mock/demo listing
             if (ebayListing.listingId.includes('MOCK_') || ebayListing.listingId.includes('demo_')) {
               console.warn('⚠️ [LISTING-PREVIEW] eBay returned MOCK listing - not a real eBay listing!');
+              alert(`❌ MOCK LISTING DETECTED: ${ebayListing.listingId} - This is NOT a real eBay listing!`);
               platformResults.ebay = { 
                 success: false, 
                 error: 'eBay authentication required - listing was not posted to real eBay' 
@@ -180,6 +187,7 @@ const ListingPreview = () => {
               urls.ebay = ebayListing.listingUrl;
               platformResults.ebay = { success: true, url: ebayListing.listingUrl };
               console.log('✅ [LISTING-PREVIEW] Real eBay listing created:', ebayListing.listingUrl);
+              alert(`✅ REAL EBAY LISTING CREATED: ${ebayListing.listingUrl}`);
             }
           } catch (ebayError) {
             console.error('❌ [LISTING-PREVIEW] eBay listing failed:', ebayError);
@@ -202,11 +210,15 @@ const ListingPreview = () => {
         details: platformResults
       });
 
+      // FORCE IMMEDIATE ALERT FOR DEBUGGING  
+      alert(`🔧 DEBUG: Platform results - Success: ${successfulPlatforms.length}, Failed: ${failedPlatforms.length}`);
+
       // If all platforms failed, throw an error instead of showing false success
       if (successfulPlatforms.length === 0 && failedPlatforms.length > 0) {
         const errorMessages = failedPlatforms.map(([platform, result]) => 
           `${platform}: ${result.error}`
         ).join(', ');
+        alert(`❌ ALL PLATFORMS FAILED: ${errorMessages}`);
         throw new Error(`All platform listings failed: ${errorMessages}`);
       }
 
@@ -214,7 +226,7 @@ const ListingPreview = () => {
       if (failedPlatforms.length > 0) {
         const failedPlatformNames = failedPlatforms.map(([platform]) => platform).join(', ');
         console.warn(`⚠️ [LISTING-PREVIEW] Some platforms failed: ${failedPlatformNames}`);
-        alert(`Warning: Listing failed on ${failedPlatformNames}. Check your authentication and try again.`);
+        alert(`⚠️ WARNING: Listing failed on ${failedPlatformNames}. Check your authentication and try again.`);
       }
 
       // Update or create listing in database
