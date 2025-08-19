@@ -468,8 +468,40 @@ class EbayOAuthService {
    */
   private getStoredTokens(): EbayOAuthTokens | null {
     try {
-      const stored = localStorage.getItem('ebay_oauth_tokens');
+      // First try the standard OAuth storage
+      let stored = localStorage.getItem('ebay_oauth_tokens');
+      let storageType = 'oauth_tokens';
+      
+      // If not found, check for app token storage (from OAuth callback)
+      if (!stored) {
+        const appToken = localStorage.getItem('ebay_app_token');
+        const appTokenExpiry = localStorage.getItem('ebay_app_token_expiry');
+        
+        if (appToken && appTokenExpiry) {
+          // Convert app token storage to OAuth token format
+          const expiryTime = parseInt(appTokenExpiry);
+          const expiresIn = Math.max(0, Math.floor((expiryTime - Date.now()) / 1000));
+          
+          const convertedTokens = {
+            access_token: appToken,
+            expires_in: expiresIn,
+            expires_at: expiryTime,
+            token_type: 'Bearer',
+            refresh_token: null // App tokens don't have refresh tokens
+          };
+          
+          console.log('🔄 [EBAY-OAUTH] Found app token, converting to OAuth format:', {
+            hasAppToken: !!appToken,
+            expiryTime: new Date(expiryTime).toISOString(),
+            expiresIn: expiresIn + ' seconds'
+          });
+          
+          return convertedTokens;
+        }
+      }
+      
       console.log('🔍 [EBAY-OAUTH] getStoredTokens called:', {
+        storageType,
         hasStoredData: !!stored,
         storedLength: stored?.length || 0,
         storedPreview: stored ? stored.substring(0, 100) + '...' : 'null'
