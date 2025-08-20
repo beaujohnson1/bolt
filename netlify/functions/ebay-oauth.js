@@ -34,10 +34,30 @@ exports.handler = async (event, context) => {
       hasBody: !!event.body
     });
 
+    // ENVIRONMENT DEBUGGING: Log all environment variables affecting detection
+    console.log('🌍 [ENV-DEBUG] Environment Detection Variables:', {
+      'NODE_ENV': process.env.NODE_ENV,
+      'VITE_EBAY_USE_PRODUCTION': process.env.VITE_EBAY_USE_PRODUCTION,
+      'CONTEXT': process.env.CONTEXT,
+      'URL': process.env.URL
+    });
+
     const ebayConfig = config.ebay;
     const isProduction = ebayConfig.environment === 'production';
     const oauthBase = EBAY_OAUTH_BASE[ebayConfig.environment];
     const credentials = isProduction ? ebayConfig.production : ebayConfig.sandbox;
+
+    // CRITICAL ENVIRONMENT LOGGING: Show which environment and credentials are being used
+    console.log('🌍 [ENV-DEBUG] Environment Configuration:', {
+      detectedEnvironment: ebayConfig.environment,
+      isProduction: isProduction,
+      oauthBase: oauthBase,
+      credentialsSource: isProduction ? 'production' : 'sandbox',
+      hasAppId: !!credentials.appId,
+      hasDevId: !!credentials.devId,
+      hasCertId: !!credentials.certId,
+      appIdPrefix: credentials.appId ? credentials.appId.substring(0, 8) + '...' : 'missing'
+    });
 
     // Parse the action from query params or body
     const action = event.queryStringParameters?.action || 
@@ -109,9 +129,36 @@ async function getAuthUrl(headers, credentials, oauthBase, queryParams, environm
       console.error('❌ [EBAY-OAUTH] Missing required credentials:', {
         hasAppId: !!credentials.appId,
         hasDevId: !!credentials.devId,
-        hasCertId: !!credentials.certId
+        hasCertId: !!credentials.certId,
+        environment: environment,
+        isProduction: isProduction
       });
-      throw new Error('Missing required eBay credentials for production environment');
+      throw new Error(`Missing required eBay credentials for ${environment} environment`);
+    }
+
+    // ENVIRONMENT VALIDATION WARNING: Check for potential environment/credential mismatch
+    if (isProduction) {
+      // In production, ensure we have production credentials
+      const hasProdAppId = credentials.appId && !credentials.appId.includes('sandbox');
+      console.log('🔍 [ENV-VALIDATION] Production credential check:', {
+        hasProductionLikeAppId: hasProdAppId,
+        appIdSample: credentials.appId ? credentials.appId.substring(0, 8) + '...' : 'missing'
+      });
+      
+      if (!hasProdAppId) {
+        console.warn('⚠️ [ENV-VALIDATION] WARNING: Running in production mode but credentials may be sandbox-like');
+      }
+    } else {
+      // In sandbox, warn if using production-like credentials
+      const hasSandboxAppId = credentials.appId && credentials.appId.includes('sandbox');
+      console.log('🔍 [ENV-VALIDATION] Sandbox credential check:', {
+        hasSandboxLikeAppId: hasSandboxAppId,
+        appIdSample: credentials.appId ? credentials.appId.substring(0, 8) + '...' : 'missing'
+      });
+      
+      if (!hasSandboxAppId) {
+        console.warn('⚠️ [ENV-VALIDATION] WARNING: Running in sandbox mode but credentials may be production-like');
+      }
     }
     
     const authUrl = new URL(`${oauthBase}/authorize`);
@@ -250,17 +297,38 @@ async function exchangeCode(headers, credentials, tokenBase, body) {
     const responseData = await response.json();
     
     if (!response.ok) {
-      console.error('❌ [EBAY-OAUTH] Token exchange failed:', {
+      // ENHANCED ERROR LOGGING: Include environment context in token exchange failures
+      const errorContext = {
         status: response.status,
         statusText: response.statusText,
         error: responseData,
+        environment: ebayConfig.environment,
+        isProduction: isProduction,
         requestParams: {
           grant_type: 'authorization_code',
           redirect_uri: tokenParams.get('redirect_uri'),
-          codeLength: code?.length || 0
+          codeLength: code?.length || 0,
+          tokenEndpoint: tokenUrl
+        },
+        credentialContext: {
+          hasAppId: !!credentials.appId,
+          hasDevId: !!credentials.devId,
+          hasCertId: !!credentials.certId,
+          appIdPrefix: credentials.appId ? credentials.appId.substring(0, 8) + '...' : 'missing'
         }
-      });
-      throw new Error(responseData.error_description || responseData.error || 'Token exchange failed');
+      };
+      
+      console.error('❌ [EBAY-OAUTH] Token exchange failed:', errorContext);
+      
+      // Add specific error messaging for common environment issues
+      let errorMessage = responseData.error_description || responseData.error || 'Token exchange failed';
+      if (responseData.error === 'invalid_request' && responseData.error_description?.includes('redirect_uri')) {
+        errorMessage += ` (Environment: ${ebayConfig.environment}, Check RuName configuration)`;
+      } else if (responseData.error === 'invalid_client') {
+        errorMessage += ` (Environment: ${ebayConfig.environment}, Check credentials)`;
+      }
+      
+      throw new Error(errorMessage);
     }
 
     console.log('✅ [EBAY-OAUTH] Token exchange successful');

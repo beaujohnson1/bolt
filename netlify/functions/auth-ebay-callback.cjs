@@ -21,6 +21,24 @@ exports.handler = async (event, context) => {
       path: event.path
     });
 
+    // ENVIRONMENT DEBUGGING: Log all environment variables affecting detection
+    console.log('🌍 [ENV-DEBUG] Environment Detection Variables:', {
+      'NODE_ENV': process.env.NODE_ENV,
+      'VITE_EBAY_USE_PRODUCTION': process.env.VITE_EBAY_USE_PRODUCTION,
+      'CONTEXT': process.env.CONTEXT,
+      'URL': process.env.URL
+    });
+
+    const ebayConfig = config.ebay;
+    const isProduction = ebayConfig.environment === 'production';
+
+    // CRITICAL ENVIRONMENT LOGGING: Show which environment we're operating in
+    console.log('🌍 [ENV-DEBUG] Callback Environment Configuration:', {
+      detectedEnvironment: ebayConfig.environment,
+      isProduction: isProduction,
+      configuredCredentialsSource: isProduction ? 'production' : 'sandbox'
+    });
+
     const { code, state, error, error_description } = event.queryStringParameters || {};
 
     // Check for OAuth errors from eBay
@@ -66,8 +84,15 @@ exports.handler = async (event, context) => {
     // Exchange code for access token using the existing OAuth function
     const baseUrl = process.env.URL || 'https://easyflip.ai';
     
-    // Use the SAME redirect_uri value that was used in authorization (RuName)
-    const redirectUri = 'easyflip.ai-easyflip-easyfl-cnqajybp';
+    // CRITICAL: Use environment-specific redirect_uri logic
+    let redirectUri;
+    if (isProduction) {
+      redirectUri = 'easyflip.ai-easyflip-easyfl-cnqajybp';
+      console.log('🌍 [ENV-DEBUG] Using production RuName for token exchange:', redirectUri);
+    } else {
+      redirectUri = process.env.EBAY_SANDBOX_RUNAME || `${baseUrl}/.netlify/functions/auth-ebay-callback`;
+      console.log('🌍 [ENV-DEBUG] Using sandbox redirect_uri for token exchange:', redirectUri);
+    }
     
     const tokenResponse = await fetch(`${baseUrl}/.netlify/functions/ebay-oauth`, {
       method: 'POST',
