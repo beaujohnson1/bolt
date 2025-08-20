@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 const Hero = () => {
   const heroRef = useScrollTracking('hero_section');
   const navigate = useNavigate();
-  const { authUser } = useAuth();
+  const { authUser, onboarding } = useAuth();
   const [hasSubmittedToGHL, setHasSubmittedToGHL] = useState(false);
 
   // Automatically submit authenticated user data to GoHighLevel
@@ -51,7 +51,12 @@ const Hero = () => {
             
             // Redirect to dashboard after successful submission
             console.log('🎯 [HERO] Redirecting authenticated user to dashboard');
-            navigate('/app'); // Remove delay for faster redirect
+            // Check if onboarding is complete to determine redirect
+            if (onboarding.isOnboardingComplete) {
+              navigate('/app'); // Go to dashboard if onboarding complete
+            } else {
+              navigate('/app'); // Go to dashboard which will show onboarding
+            }
           }
         } catch (error) {
           console.error('❌ [HERO] Failed to submit to GoHighLevel:', error);
@@ -66,7 +71,7 @@ const Hero = () => {
         setHasSubmittedToGHL(true);
         // If already submitted, redirect immediately to dashboard
         console.log('🎯 [HERO] User already submitted, redirecting to dashboard');
-        navigate('/app'); // Remove delay for faster redirect
+        navigate('/app'); // Always go to dashboard which handles onboarding state
       } else {
         submitAuthenticatedUser();
       }

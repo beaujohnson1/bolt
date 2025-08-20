@@ -8,12 +8,24 @@ const PROFILE_FETCH_TIMEOUT = 120000; // 120 seconds
 const PROFILE_CREATE_TIMEOUT = 15000; // 15 seconds
 const SESSION_TIMEOUT = 30000; // 30 seconds
 
+interface OnboardingState {
+  isOnboardingComplete: boolean;
+  currentStep: string;
+  hasCompletedEbayConnection: boolean;
+  hasUploadedFirstPhoto: boolean;
+  hasCreatedFirstListing: boolean;
+}
+
 interface AuthContextType {
   user: AppUser | null;
   authUser: User | null;
   loading: boolean;
   redirectPath: string | null;
+  onboarding: OnboardingState;
   setRedirectPath: (path: string | null) => void;
+  updateOnboardingStep: (step: string) => void;
+  markOnboardingComplete: () => void;
+  checkOnboardingStatus: () => void;
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
@@ -36,6 +48,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
+  const [onboarding, setOnboarding] = useState<OnboardingState>({
+    isOnboardingComplete: false,
+    currentStep: 'connect_ebay',
+    hasCompletedEbayConnection: false,
+    hasUploadedFirstPhoto: false,
+    hasCreatedFirstListing: false
+  });
   const authEffectInitialized = React.useRef(false);
 
   const fetchUserProfile = async (supabaseUser: User): Promise<AppUser | null> => {
@@ -197,6 +216,106 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw error;
     }
   };
+
+  // Onboarding management functions
+  const checkOnboardingStatus = React.useCallback(() => {
+    if (!authUser) {
+      console.log('🎯 [ONBOARDING] No authenticated user, resetting onboarding state');
+      setOnboarding({
+        isOnboardingComplete: false,
+        currentStep: 'connect_ebay',
+        hasCompletedEbayConnection: false,
+        hasUploadedFirstPhoto: false,
+        hasCreatedFirstListing: false
+      });
+      return;
+    }
+
+    const userId = authUser.id;
+    console.log('🔍 [ONBOARDING] Checking onboarding status for user:', userId);
+
+    // Check localStorage for onboarding progress
+    const onboardingData = localStorage.getItem(`onboarding_${userId}`);
+    const ebayConnected = localStorage.getItem('ebay_oauth_tokens') || localStorage.getItem('ebay_manual_token');
+    const firstPhoto = localStorage.getItem(`first_photo_uploaded_${userId}`);
+    const firstListing = localStorage.getItem(`first_listing_created_${userId}`);
+
+    let parsedOnboarding = {
+      isOnboardingComplete: false,
+      currentStep: 'connect_ebay',
+      hasCompletedEbayConnection: false,
+      hasUploadedFirstPhoto: false,
+      hasCreatedFirstListing: false
+    };
+
+    if (onboardingData) {
+      try {
+        parsedOnboarding = { ...parsedOnboarding, ...JSON.parse(onboardingData) };
+      } catch (error) {
+        console.error('❌ [ONBOARDING] Error parsing onboarding data:', error);
+      }
+    }
+
+    // Update based on actual status
+    parsedOnboarding.hasCompletedEbayConnection = !!ebayConnected;
+    parsedOnboarding.hasUploadedFirstPhoto = !!firstPhoto;
+    parsedOnboarding.hasCreatedFirstListing = !!firstListing;
+
+    // Determine if onboarding is complete
+    parsedOnboarding.isOnboardingComplete = 
+      parsedOnboarding.hasCompletedEbayConnection && 
+      parsedOnboarding.hasUploadedFirstPhoto;
+
+    // Determine current step
+    if (!parsedOnboarding.hasCompletedEbayConnection) {
+      parsedOnboarding.currentStep = 'connect_ebay';
+    } else if (!parsedOnboarding.hasUploadedFirstPhoto) {
+      parsedOnboarding.currentStep = 'upload_photos';
+    } else if (!parsedOnboarding.hasCreatedFirstListing) {
+      parsedOnboarding.currentStep = 'generate_listing';
+    } else {
+      parsedOnboarding.currentStep = 'complete';
+    }
+
+    console.log('📊 [ONBOARDING] Status updated:', parsedOnboarding);
+    setOnboarding(parsedOnboarding);
+
+    // Save updated state
+    localStorage.setItem(`onboarding_${userId}`, JSON.stringify(parsedOnboarding));
+  }, [authUser]);
+
+  const updateOnboardingStep = React.useCallback((step: string) => {
+    if (!authUser) return;
+
+    console.log('🎯 [ONBOARDING] Updating current step to:', step);
+    
+    setOnboarding(prev => {
+      const updated = { ...prev, currentStep: step };
+      localStorage.setItem(`onboarding_${authUser.id}`, JSON.stringify(updated));
+      return updated;
+    });
+  }, [authUser]);
+
+  const markOnboardingComplete = React.useCallback(() => {
+    if (!authUser) return;
+
+    console.log('✅ [ONBOARDING] Marking onboarding as complete');
+    
+    setOnboarding(prev => {
+      const updated = { 
+        ...prev, 
+        isOnboardingComplete: true,
+        currentStep: 'complete'
+      };
+      localStorage.setItem(`onboarding_${authUser.id}`, JSON.stringify(updated));
+      return updated;
+    });
+  }, [authUser]);
+
+  // Check onboarding status when user changes
+  React.useEffect(() => {
+    checkOnboardingStatus();
+  }, [authUser, checkOnboardingStatus]);
 
   // Debounced auth state change handler to prevent rapid successive updates
   const handleAuthStateChange = React.useCallback(
@@ -405,7 +524,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authUser,
     loading,
     redirectPath,
+    onboarding,
     setRedirectPath,
+    updateOnboardingStep,
+    markOnboardingComplete,
+    checkOnboardingStatus,
     signUp,
     signIn,
     signInWithGoogle,

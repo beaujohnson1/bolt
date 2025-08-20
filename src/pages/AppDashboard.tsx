@@ -11,9 +11,12 @@ import { formatPrice } from '../utils/itemUtils';
 import GenerateListingsPage from './GenerateListingsPage';
 import EbayEnvironmentStatus from '../components/EbayEnvironmentStatus';
 import InventoryDashboard from './InventoryDashboard';
+import OnboardingFlow from '../components/OnboardingFlow';
+import { useOnboardingTracker, MILESTONES } from '../utils/onboardingTracker';
 
 const AppDashboard = () => {
-  const { user, authUser } = useAuth();
+  const { user, authUser, onboarding, updateOnboardingStep, markOnboardingComplete } = useAuth();
+  const { markMilestone } = authUser ? useOnboardingTracker() : { markMilestone: () => {} };
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
@@ -31,6 +34,7 @@ const AppDashboard = () => {
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Handle photo upload completion - switch to SKUs tab and store photos
   const handlePhotoUploadComplete = (photos?: any[]) => {
@@ -38,10 +42,66 @@ const AppDashboard = () => {
     if (photos) {
       console.log('📸 [APP-DASHBOARD] Storing uploaded photos for SKU assignment:', photos.length);
       setUploadedPhotos(photos);
+      
+      // Mark first photo uploaded for onboarding
+      if (authUser && !onboarding.hasUploadedFirstPhoto) {
+        localStorage.setItem(`first_photo_uploaded_${authUser.id}`, 'true');
+        markMilestone(MILESTONES.FIRST_PHOTO_UPLOADED, { photoCount: photos.length });
+        console.log('🎯 [ONBOARDING] First photo uploaded milestone reached');
+      }
     }
     setActiveTab('skus');
     setRefreshTrigger(prev => prev + 1); // Trigger refresh of SKU table
   };
+
+  // Handle onboarding step changes
+  const handleOnboardingStepChange = (stepId: string) => {
+    console.log('🎯 [ONBOARDING] Step change requested:', stepId);
+    updateOnboardingStep(stepId);
+    
+    // Map onboarding steps to dashboard tabs
+    switch (stepId) {
+      case 'upload_photos':
+        setActiveTab('upload');
+        break;
+      case 'generate_listing':
+        setActiveTab('generate');
+        break;
+      case 'launch_listing':
+        setActiveTab('publish');
+        break;
+      default:
+        setActiveTab('overview');
+    }
+  };
+
+  // Handle onboarding completion
+  const handleOnboardingComplete = () => {
+    console.log('✅ [ONBOARDING] Onboarding completed');
+    setShowOnboarding(false);
+    markOnboardingComplete();
+    setActiveTab('overview');
+  };
+
+  // Check if we should show onboarding
+  useEffect(() => {
+    if (authUser && !loading) {
+      console.log('🔍 [ONBOARDING] Checking if onboarding should be shown:', {
+        hasUser: !!authUser,
+        isOnboardingComplete: onboarding.isOnboardingComplete,
+        hasEbayConnection: onboarding.hasCompletedEbayConnection,
+        hasUploadedPhoto: onboarding.hasUploadedFirstPhoto
+      });
+      
+      // Show onboarding if not complete and user is authenticated
+      const shouldShow = !onboarding.isOnboardingComplete;
+      setShowOnboarding(shouldShow);
+      
+      if (shouldShow) {
+        console.log('🎯 [ONBOARDING] Showing onboarding flow');
+      }
+    }
+  }, [authUser, loading, onboarding]);
 
   // Delete a single item with comprehensive cleanup
   const deleteItem = async (itemId: string, e: React.MouseEvent) => {
@@ -292,6 +352,13 @@ const AppDashboard = () => {
       
       if (ebayConnected === 'true') {
         console.log('✅ [DASHBOARD] eBay OAuth success detected');
+        
+        // Mark eBay connection milestone
+        markMilestone(MILESTONES.EBAY_CONNECTED, { 
+          connectedAt: new Date().toISOString(),
+          method: 'oauth'
+        });
+        
         setEbayAuthNotification({
           type: 'success',
           message: '🎉 eBay account connected successfully! You can now create live eBay listings.'
@@ -395,9 +462,40 @@ const AppDashboard = () => {
       if (listingsResult.error) throw listingsResult.error;
       if (salesResult.error) throw salesResult.error;
 
-      setItems(itemsResult.data || []);
-      setListings(listingsResult.data || []);
-      setSales(salesResult.data || []);
+      const fetchedItems = itemsResult.data || [];
+      const fetchedListings = listingsResult.data || [];
+      const fetchedSales = salesResult.data || [];
+      
+      setItems(fetchedItems);
+      setListings(fetchedListings);
+      setSales(fetchedSales);
+      
+      // Check for first item created milestone
+      if (fetchedItems.length > 0 && authUser) {
+        const hasFirstItemMilestone = localStorage.getItem(`first_item_created_${authUser.id}`);
+        if (!hasFirstItemMilestone) {
+          localStorage.setItem(`first_item_created_${authUser.id}`, 'true');
+          markMilestone(MILESTONES.FIRST_ITEM_CREATED, { 
+            itemCount: fetchedItems.length,
+            firstItemId: fetchedItems[0].id,
+            firstItemTitle: fetchedItems[0].title
+          });
+          console.log('🎯 [ONBOARDING] First item created milestone reached');
+        }
+      }
+      
+      // Check for first listing generated milestone
+      if (fetchedListings.length > 0 && authUser) {
+        const hasFirstListingMilestone = localStorage.getItem(`first_listing_generated_${authUser.id}`);
+        if (!hasFirstListingMilestone) {
+          localStorage.setItem(`first_listing_generated_${authUser.id}`, 'true');
+          markMilestone(MILESTONES.FIRST_LISTING_GENERATED, { 
+            listingCount: fetchedListings.length,
+            firstListingId: fetchedListings[0].id
+          });
+          console.log('🎯 [ONBOARDING] First listing generated milestone reached');
+        }
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -617,6 +715,21 @@ const AppDashboard = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show onboarding flow if needed
+  if (showOnboarding && authUser && !loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="container mx-auto px-4 py-8">
+          <OnboardingFlow
+            onComplete={handleOnboardingComplete}
+            onStepChange={handleOnboardingStepChange}
+            currentStep={onboarding.currentStep}
+          />
+        </div>
       </div>
     );
   }
