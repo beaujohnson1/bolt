@@ -33,22 +33,23 @@ export const EbayAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     lastChecked: 0
   });
 
-  // Debounced refresh to prevent rapid-fire auth updates
-  const debouncedRefreshAuth = oauthPerformanceOptimizer.debounce(() => {
-    refreshAuth();
-  }, 500, 'context_refresh_auth');
+  // Simple debounced refresh to prevent rapid-fire auth updates
+  let refreshTimeout: NodeJS.Timeout | null = null;
+  const debouncedRefreshAuth = useCallback(() => {
+    if (refreshTimeout) clearTimeout(refreshTimeout);
+    refreshTimeout = setTimeout(() => {
+      refreshAuth();
+    }, 500);
+  }, [refreshAuth]);
 
   const refreshAuth = useCallback(async () => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      // Use optimized operations with performance tracking
-      const tokens = await oauthPerformanceOptimizer.exponentialBackoff(
-        () => ebayOAuth.getValidAccessToken(),
-        'get_valid_access_token'
-      );
+      // Get tokens directly
+      const tokens = await ebayOAuth.getValidAccessToken();
       
-      const isAuth = ebayOAuth.isAuthenticated(); // This is now debounced
+      const isAuth = ebayOAuth.isAuthenticated();
       
       setAuthState({
         isAuthenticated: isAuth,
@@ -58,7 +59,7 @@ export const EbayAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         lastChecked: Date.now()
       });
       
-      console.log('🔄 [EBAY-AUTH] Auth state refreshed with performance optimization:', { isAuth, hasTokens: !!tokens });
+      console.log('🔄 [EBAY-AUTH] Auth state refreshed:', { isAuth, hasTokens: !!tokens });
     } catch (error) {
       console.error('❌ [EBAY-AUTH] Auth refresh failed:', error);
       setAuthState(prev => ({
@@ -127,13 +128,13 @@ export const EbayAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }, 500);
     });
 
-    // Set up optimized event listeners for performance
-    const handleOptimizedBatchEvent = (event: CustomEvent) => {
+    // Set up event listeners
+    const handleBatchEvent = (event: CustomEvent) => {
       if (!mounted) return;
       
       const { detail } = event;
       if (detail.type === 'ebayAuthChanged') {
-        console.log('📡 [EBAY-AUTH] Optimized batch auth event received:', detail);
+        console.log('📡 [EBAY-AUTH] Batch auth event received:', detail);
         // Use debounced refresh to prevent rapid-fire updates
         debouncedRefreshAuth();
       }
@@ -153,8 +154,8 @@ export const EbayAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
     }
 
-    // Listen for optimized batch events
-    window.addEventListener('oauthBatchEvent', handleOptimizedBatchEvent);
+    // Listen for batch events
+    window.addEventListener('oauthBatchEvent', handleBatchEvent);
 
     return () => {
       mounted = false;
@@ -162,7 +163,7 @@ export const EbayAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (channel) {
         channel.close();
       }
-      window.removeEventListener('oauthBatchEvent', handleOptimizedBatchEvent);
+      window.removeEventListener('oauthBatchEvent', handleBatchEvent);
     };
   }, [refreshAuth]);
 
