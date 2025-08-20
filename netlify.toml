@@ -12,7 +12,7 @@
   force = false
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "20"
 
 # Removed function-specific environment variables to avoid 4KB limit
 # All environment variables are now handled at the site level in Netlify dashboard
