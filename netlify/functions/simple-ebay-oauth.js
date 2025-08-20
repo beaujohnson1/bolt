@@ -22,6 +22,12 @@ exports.handler = async (event, context) => {
         console.log('🚀 Simple eBay OAuth Handler');
         
         // Initialize eBay API
+        console.log('🔧 Initializing eBay API with config:', {
+            appId: (process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID) ? 'SET' : 'MISSING',
+            certId: (process.env.EBAY_PROD_CERT || process.env.VITE_EBAY_PROD_CERT_ID) ? 'SET' : 'MISSING',
+            ruName: 'easyflip.ai-easyflip-easyfl-cnqajybp'
+        });
+        
         const ebay = new eBayApi({
             appId: process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID,
             certId: process.env.EBAY_PROD_CERT || process.env.VITE_EBAY_PROD_CERT_ID,
@@ -79,6 +85,14 @@ exports.handler = async (event, context) => {
                 const decodedCode = decodeURIComponent(code);
                 console.log(`🔄 Exchanging code: ${code.substring(0, 50)}...`);
                 console.log(`🔧 Decoded code: ${decodedCode.substring(0, 50)}...`);
+                
+                // Set required scopes before token exchange
+                ebay.OAuth2.setScope([
+                    'https://api.ebay.com/oauth/api_scope/sell.inventory',
+                    'https://api.ebay.com/oauth/api_scope/sell.account',
+                    'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+                    'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
+                ]);
                 
                 // Exchange code for token
                 try {
