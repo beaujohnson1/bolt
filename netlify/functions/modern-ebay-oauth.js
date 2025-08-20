@@ -18,7 +18,7 @@ exports.handler = async (event, context) => {
         // Initialize eBay OAuth client with production credentials
         const clientId = process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID;
         const clientSecret = process.env.EBAY_PROD_CERT || process.env.VITE_EBAY_PROD_CERT_ID;
-        const redirectUri = 'easyflip.ai-easyflip-easyfl-cnqajybp'; // RuName
+        const redirectUri = 'https://easyflip.ai/.netlify/functions/modern-ebay-callback';
         
         console.log('🔧 OAuth Config:', { 
             clientId: clientId ? `${clientId.substring(0, 20)}...` : 'MISSING',
