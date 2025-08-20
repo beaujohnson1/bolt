@@ -85,6 +85,11 @@
         <button class="btn" onclick="startOAuth()">1. 🚀 Start OAuth Flow</button>
         <button class="btn btn-success" onclick="testAPI()">2. 🧪 Test eBay API</button>
         <button class="btn btn-danger" onclick="clearTokens()">3. 🗑️ Clear Tokens</button>
+        
+        <h3>🛠️ Manual Token Exchange (Temporary Workaround)</h3>
+        <p>If the popup redirects to eBay's success page, copy the authorization code from the URL and paste it here:</p>
+        <input type="text" id="manual-code" placeholder="Paste authorization code here..." style="width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px;">
+        <button class="btn" onclick="manualExchange()">🔄 Exchange Code for Tokens</button>
 
         <div id="test-log" class="code-block" style="margin-top: 20px;">
             Ready to test simple OAuth flow...
@@ -277,6 +282,67 @@
             
             log('🗑️ All tokens cleared', 'success');
             updateTokenStatus();
+        }
+
+        async function manualExchange() {
+            const codeInput = document.getElementById('manual-code');
+            const code = codeInput.value.trim();
+            
+            if (!code) {
+                log('❌ Please paste the authorization code first', 'error');
+                return;
+            }
+            
+            // Extract code from full URL if user pasted the entire URL
+            let extractedCode = code;
+            if (code.includes('code=')) {
+                const urlParams = new URLSearchParams(code.split('?')[1]);
+                extractedCode = urlParams.get('code');
+            }
+            
+            if (!extractedCode) {
+                log('❌ Could not extract authorization code', 'error');
+                return;
+            }
+            
+            log(`🔄 Manual token exchange with code: ${extractedCode.substring(0, 50)}...`, 'info');
+            
+            try {
+                const response = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'exchange-code',
+                        code: extractedCode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.access_token) {
+                    // Store tokens
+                    localStorage.setItem('simple_ebay_access_token', data.access_token);
+                    localStorage.setItem('simple_ebay_refresh_token', data.refresh_token);
+                    localStorage.setItem('simple_ebay_token_expiry', String(Date.now() + (data.expires_in * 1000)));
+                    
+                    log('✅ Manual token exchange successful! Tokens stored.', 'success');
+                    log(`Token expires in: ${data.expires_in} seconds`, 'info');
+                    updateTokenStatus();
+                    
+                    // Clear the input
+                    codeInput.value = '';
+                } else {
+                    log(`❌ Manual token exchange failed: ${data.error}`, 'error');
+                    if (data.details) {
+                        log(`Details: ${JSON.stringify(data.details)}`, 'error');
+                    }
+                }
+                
+            } catch (error) {
+                log(`❌ Manual token exchange error: ${error.message}`, 'error');
+            }
         }
 
         // Initialize
