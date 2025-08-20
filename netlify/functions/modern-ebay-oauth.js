@@ -16,11 +16,20 @@ exports.handler = async (event, context) => {
 
     try {
         // Initialize eBay OAuth client with production credentials
+        const clientId = process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID;
+        const clientSecret = process.env.EBAY_PROD_CERT || process.env.VITE_EBAY_PROD_CERT_ID;
+        const redirectUri = 'easyflip.ai-easyflip-easyfl-cnqajybp'; // RuName
+        
+        console.log('🔧 OAuth Config:', { 
+            clientId: clientId ? `${clientId.substring(0, 20)}...` : 'MISSING',
+            clientSecret: clientSecret ? `${clientSecret.substring(0, 10)}...` : 'MISSING',
+            redirectUri 
+        });
+        
         const ebayAuthToken = new EbayAuthToken({
-            clientId: process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID,
-            clientSecret: process.env.EBAY_PROD_CERT || process.env.VITE_EBAY_PROD_CERT_ID,
-            redirectUri: 'easyflip.ai-easyflip-easyfl-cnqajybp', // RuName
-            baseUrl: 'api.ebay.com' // Production environment
+            clientId: clientId,
+            clientSecret: clientSecret,
+            redirectUri: redirectUri
         });
 
         const body = event.body ? JSON.parse(event.body) : {};
@@ -29,14 +38,35 @@ exports.handler = async (event, context) => {
         console.log(`🚀 Modern OAuth Handler - Action: ${action}`);
 
         switch (action) {
+            case 'test-env':
+                // Test environment configuration
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        success: true,
+                        environment: {
+                            hasClientId: !!(process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID),
+                            hasClientSecret: !!(process.env.EBAY_PROD_CERT || process.env.VITE_EBAY_PROD_CERT_ID),
+                            clientIdLength: (process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID || '').length,
+                            clientSecretLength: (process.env.EBAY_PROD_CERT || process.env.VITE_EBAY_PROD_CERT_ID || '').length,
+                            nodeVersion: process.version,
+                            platform: process.platform
+                        }
+                    })
+                };
+
             case 'generate-auth-url':
                 // Generate user authorization URL using official library
-                const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', [
+                const scopes = [
                     'https://api.ebay.com/oauth/api_scope/sell.inventory',
                     'https://api.ebay.com/oauth/api_scope/sell.account', 
                     'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
                     'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
-                ], body.state);
+                ];
+                
+                console.log('🔧 Generating auth URL with state:', body.state);
+                const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', scopes, body.state);
                 
                 console.log('✅ Generated auth URL:', authUrl);
                 return {

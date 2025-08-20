@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Netlify Function</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Netlify Function</h1>
+    
+    <button onclick="testFunction()">Test OAuth Function</button>
+    <button onclick="testEnvironment()">Test Environment Variables</button>
+    
+    <div id="results"></div>
+    
+    <script>
+        function log(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            resultsDiv.appendChild(div);
+        }
+        
+        async function testFunction() {
+            try {
+                log('🔄 Testing OAuth function...', 'info');
+                
+                const response = await fetch('/.netlify/functions/modern-ebay-oauth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'generate-auth-url',
+                        state: 'test123'
+                    })
+                });
+                
+                const data = await response.json();
+                log(`Response Status: ${response.status}`, response.ok ? 'success' : 'error');
+                log(`Response Data: <pre>${JSON.stringify(data, null, 2)}</pre>`, response.ok ? 'success' : 'error');
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testEnvironment() {
+            try {
+                log('🔄 Testing environment variables...', 'info');
+                
+                const response = await fetch('/.netlify/functions/modern-ebay-oauth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'test-env'
+                    })
+                });
+                
+                const data = await response.json();
+                log(`Environment Test: <pre>${JSON.stringify(data, null, 2)}</pre>`, 'info');
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
