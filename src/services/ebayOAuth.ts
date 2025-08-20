@@ -292,19 +292,55 @@ class EbayOAuthService {
   }
 
   /**
-   * Initiate OAuth flow using popup window with enhanced reliability
+   * Initiate OAuth flow using popup window with enhanced reliability and comprehensive error handling
    */
   async initiateOAuthFlow(redirectUri?: string): Promise<void> {
+    console.log('🔗 [EBAY-OAUTH] Starting OAuth flow initiation...');
+    console.log('📋 [EBAY-OAUTH] Parameters:', {
+      redirectUri,
+      currentUrl: window.location.href,
+      userAgent: navigator.userAgent.substring(0, 50) + '...'
+    });
+
     try {
+      // CRITICAL: Comprehensive error handling for authorization URL request
+      console.log('🌐 [EBAY-OAUTH] Requesting authorization URL from server...');
+      
       const authData = await this.getAuthorizationUrl(redirectUri);
+      
+      console.log('✅ [EBAY-OAUTH] Authorization URL received successfully:', {
+        hasAuthUrl: !!authData.authUrl,
+        hasState: !!authData.state,
+        environment: authData.environment,
+        authUrlLength: authData.authUrl?.length || 0,
+        authUrlDomain: authData.authUrl ? new URL(authData.authUrl).hostname : 'unknown'
+      });
+      
+      // Validate authorization data
+      if (!authData.authUrl || !authData.state) {
+        throw new Error('Invalid authorization data received from server');
+      }
       
       // Store state for validation
       localStorage.setItem('ebay_oauth_state', authData.state);
       localStorage.setItem('ebay_oauth_return_url', window.location.href);
+      console.log('💾 [EBAY-OAUTH] OAuth state and return URL stored in localStorage');
       
-      console.log('🚀 [EBAY-OAUTH] Opening eBay OAuth in popup window...');
+      // Enhanced popup creation with comprehensive validation
+      console.log('🚀 [EBAY-OAUTH] Attempting to open eBay OAuth in popup window...');
+      console.log('🔗 [EBAY-OAUTH] Auth URL preview:', authData.authUrl.substring(0, 100) + '...');
       
-      // Open eBay OAuth in popup window
+      // Check if popups are likely blocked
+      const testPopup = window.open('', 'test', 'width=1,height=1');
+      if (!testPopup) {
+        console.error('❌ [EBAY-OAUTH] Popup blocker detected - test popup failed');
+        throw new Error('Popup blocked by browser. Please allow popups for this site and try again.');
+      } else {
+        testPopup.close();
+        console.log('✅ [EBAY-OAUTH] Popup blocker check passed');
+      }
+      
+      // Open eBay OAuth in popup window with enhanced validation
       const popup = window.open(
         authData.authUrl,
         'ebay-oauth',
@@ -312,11 +348,24 @@ class EbayOAuthService {
       );
       
       if (!popup) {
-        // Fallback to same-window redirect if popup blocked
-        console.warn('⚠️ [EBAY-OAUTH] Popup blocked, falling back to same-window redirect');
-        window.location.href = authData.authUrl;
-        return;
+        console.error('❌ [EBAY-OAUTH] CRITICAL: Popup creation failed despite blocker check');
+        throw new Error('Failed to open authentication window. Please check your browser settings and allow popups for this site.');
       }
+      
+      // Validate popup opened successfully
+      setTimeout(() => {
+        if (popup.closed) {
+          console.warn('⚠️ [EBAY-OAUTH] Popup closed immediately - likely blocked');
+          throw new Error('Authentication window was blocked or closed. Please allow popups and try again.');
+        }
+      }, 100);
+      
+      console.log('✅ [EBAY-OAUTH] Popup window opened successfully');
+      console.log('📊 [EBAY-OAUTH] Popup details:', {
+        name: popup.name,
+        closed: popup.closed,
+        location: popup.location ? 'accessible' : 'cross-origin'
+      });
       
       // Optimized popup monitoring with performance-aware polling
       console.log('🔍 [EBAY-OAUTH] Starting optimized popup monitoring...');
@@ -491,9 +540,61 @@ class EbayOAuthService {
         channel?.close();
       }, 600000); // 10 minutes
       
-    } catch (error) {
-      console.error('❌ [EBAY-OAUTH] Error initiating OAuth flow:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('❌ [EBAY-OAUTH] CRITICAL ERROR in OAuth flow initiation:', {
+        errorMessage: error.message,
+        errorName: error.name,
+        errorStack: error.stack?.substring(0, 200),
+        errorType: typeof error,
+        isNetworkError: error.name === 'TypeError' || error.message?.includes('fetch'),
+        isPopupError: error.message?.includes('popup') || error.message?.includes('blocked'),
+        timestamp: new Date().toISOString()
+      });
+
+      // Enhanced error categorization and user-friendly messages
+      let userFriendlyMessage = '';
+      let errorCategory = 'unknown';
+
+      if (error.message?.includes('popup') || error.message?.includes('blocked')) {
+        errorCategory = 'popup_blocked';
+        userFriendlyMessage = 'Authentication window was blocked by your browser. Please allow popups for this site and try again.';
+      } else if (error.name === 'TypeError' || error.message?.includes('fetch') || error.message?.includes('network')) {
+        errorCategory = 'network_error';
+        userFriendlyMessage = 'Network error occurred while connecting to eBay. Please check your internet connection and try again.';
+      } else if (error.message?.includes('authorization') || error.message?.includes('Invalid authorization')) {
+        errorCategory = 'auth_config_error';
+        userFriendlyMessage = 'eBay authentication configuration error. Please contact support if this persists.';
+      } else if (error.message?.includes('timeout')) {
+        errorCategory = 'timeout_error';
+        userFriendlyMessage = 'Authentication request timed out. Please try again.';
+      } else {
+        errorCategory = 'general_error';
+        userFriendlyMessage = `Authentication failed: ${error.message}`;
+      }
+
+      console.error('🔍 [EBAY-OAUTH] Error Analysis:', {
+        category: errorCategory,
+        userMessage: userFriendlyMessage,
+        originalError: error.message,
+        canRetry: ['network_error', 'timeout_error', 'popup_blocked'].includes(errorCategory)
+      });
+
+      // Clean up any stored state on error
+      try {
+        localStorage.removeItem('ebay_oauth_state');
+        localStorage.removeItem('ebay_oauth_return_url');
+        console.log('🧹 [EBAY-OAUTH] Cleaned up OAuth state after error');
+      } catch (cleanupError) {
+        console.warn('⚠️ [EBAY-OAUTH] Could not clean up OAuth state:', cleanupError);
+      }
+
+      // Create enhanced error with category and user message
+      const enhancedError = new Error(userFriendlyMessage);
+      (enhancedError as any).category = errorCategory;
+      (enhancedError as any).originalError = error;
+      (enhancedError as any).canRetry = ['network_error', 'timeout_error', 'popup_blocked'].includes(errorCategory);
+      
+      throw enhancedError;
     }
   }
 

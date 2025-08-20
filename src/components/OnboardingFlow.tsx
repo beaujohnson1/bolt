@@ -452,19 +452,34 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   }, [user?.id]);
 
   const handleConnectEbay = async () => {
+    console.log('🔗 [ONBOARDING] Starting eBay connection process...');
+    
+    // Reset any previous error states
+    setIsConnecting(true);
+    
     try {
-      setIsConnecting(true);
-      console.log('🔗 [ONBOARDING] Initiating eBay OAuth flow...');
+      console.log('🌐 [ONBOARDING] Calling OAuth service to initiate flow...');
       
       // Use the current dashboard URL as redirect
       const redirectUri = `${window.location.origin}/app`;
+      
+      // CRITICAL: Only proceed if OAuth initiation succeeds
       await ebayOAuthService.initiateOAuthFlow(redirectUri);
       
-      // Enhanced multi-stage token polling for bulletproof detection
+      console.log('✅ [ONBOARDING] OAuth flow initiated successfully - popup should be open');
+      console.log('⏳ [ONBOARDING] Starting token polling for popup completion...');
+      
+      // Enhanced multi-stage token polling - ONLY starts if OAuth initiation succeeded
       let checkCount = 0;
       const maxChecks = 240; // 2 minutes with varied intervals
+      let pollingActive = true;
       
       const performTokenPolling = () => {
+        if (!pollingActive) {
+          console.log('🛑 [ONBOARDING] Polling stopped by external signal');
+          return;
+        }
+        
         checkCount++;
         
         const connected = ebayOAuthService.isAuthenticated();
@@ -472,6 +487,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         
         if (connected) {
           console.log('🎉 [ONBOARDING] Authentication detected during polling!');
+          pollingActive = false;
           setIsEbayConnected(true);
           setIsConnecting(false);
           
@@ -482,8 +498,12 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         }
         
         if (checkCount >= maxChecks) {
-          console.log('⏱️ [ONBOARDING] Token polling timeout reached');
+          console.log('⏱️ [ONBOARDING] Token polling timeout reached - stopping polling');
+          pollingActive = false;
           setIsConnecting(false);
+          
+          // Show timeout message to user
+          alert('Authentication timed out. The popup may have been closed or blocked. Please try again.');
           return;
         }
         
@@ -504,24 +524,86 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         setTimeout(performTokenPolling, nextInterval);
       };
       
-      // Start aggressive polling immediately
+      // Start polling only after successful OAuth initiation
       setTimeout(performTokenPolling, 100);
       
-    } catch (error) {
-      console.error('❌ [ONBOARDING] Error connecting to eBay:', error);
+      // Store polling control for cleanup
+      (window as any).ebayPollingActive = pollingActive;
       
-      // Enhanced error handling with user-friendly messaging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('❌ [ONBOARDING] Detailed error:', errorMessage);
+    } catch (error: any) {
+      console.error('❌ [ONBOARDING] CRITICAL ERROR in eBay connection:', {
+        error: error.message,
+        category: error.category,
+        canRetry: error.canRetry,
+        originalError: error.originalError?.message,
+        timestamp: new Date().toISOString()
+      });
       
-      // Check if it's a popup blocker issue
-      if (errorMessage.includes('popup') || errorMessage.includes('blocked')) {
-        alert('Popup was blocked. Please allow popups for this site and try again.');
-      } else {
-        alert(`Failed to connect to eBay: ${errorMessage}. Please try again.`);
+      // Stop connecting state immediately on error
+      setIsConnecting(false);
+      
+      // Enhanced error handling with categorized responses
+      const errorCategory = error.category || 'unknown';
+      const canRetry = error.canRetry !== false; // Default to true unless explicitly false
+      
+      let alertMessage = '';
+      let retryGuidance = '';
+      
+      switch (errorCategory) {
+        case 'popup_blocked':
+          alertMessage = '🚫 Authentication Window Blocked\n\n' +
+                        'Your browser blocked the eBay login window. To fix this:\n\n' +
+                        '1. Look for a popup blocker icon in your address bar\n' +
+                        '2. Click it and select "Always allow popups from this site"\n' +
+                        '3. Or check your browser settings to allow popups\n' +
+                        '4. Then try connecting again';
+          retryGuidance = 'After allowing popups, click "Connect to eBay" again.';
+          break;
+          
+        case 'network_error':
+          alertMessage = '🌐 Network Connection Error\n\n' +
+                        'Could not connect to eBay servers. Please:\n\n' +
+                        '1. Check your internet connection\n' +
+                        '2. Try refreshing the page\n' +
+                        '3. If the problem persists, eBay services may be temporarily unavailable';
+          retryGuidance = 'Try again in a few moments.';
+          break;
+          
+        case 'auth_config_error':
+          alertMessage = '⚙️ Configuration Error\n\n' +
+                        'There\'s an issue with the eBay authentication setup.\n' +
+                        'Please contact support if this error persists.';
+          retryGuidance = 'You can try again, but if it keeps failing, please contact support.';
+          break;
+          
+        case 'timeout_error':
+          alertMessage = '⏱️ Request Timeout\n\n' +
+                        'The connection to eBay timed out.\n' +
+                        'This might be due to slow internet or server issues.';
+          retryGuidance = 'Please try connecting again.';
+          break;
+          
+        default:
+          alertMessage = '❌ Connection Failed\n\n' +
+                        `Error: ${error.message}\n\n` +
+                        'Please try connecting again.';
+          retryGuidance = 'If the problem persists, please contact support.';
+          break;
       }
       
-      setIsConnecting(false);
+      // Show categorized error message to user
+      const fullMessage = canRetry 
+        ? `${alertMessage}\n\n${retryGuidance}`
+        : `${alertMessage}\n\nPlease contact support for assistance.`;
+        
+      alert(fullMessage);
+      
+      // Log retry guidance for debugging
+      console.log('🔄 [ONBOARDING] Error Recovery:', {
+        category: errorCategory,
+        canRetry,
+        retryGuidance
+      });
     }
   };
 
