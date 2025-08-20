@@ -18,7 +18,7 @@ exports.handler = async (event, context) => {
         // Initialize eBay OAuth client with production credentials
         const clientId = process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID;
         const clientSecret = process.env.EBAY_PROD_CERT || process.env.VITE_EBAY_PROD_CERT_ID;
-        const redirectUri = 'https://easyflip.ai/.netlify/functions/modern-ebay-callback';
+        const redirectUri = 'easyflip.ai-easyflip-easyfl-cnqajybp'; // RuName from eBay Developer Account
         
         console.log('🔧 OAuth Config:', { 
             clientId: clientId ? `${clientId.substring(0, 20)}...` : 'MISSING',
@@ -66,19 +66,48 @@ exports.handler = async (event, context) => {
                 ];
                 
                 console.log('🔧 Generating auth URL with state:', body.state);
-                const options = body.state ? { state: body.state } : {};
-                const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', scopes, options);
+                console.log('🔧 Scopes:', scopes);
+                console.log('🔧 Environment: PRODUCTION');
+                console.log('🔧 RedirectUri (RuName):', redirectUri);
                 
-                console.log('✅ Generated auth URL:', authUrl);
-                return {
-                    statusCode: 200,
-                    headers,
-                    body: JSON.stringify({
-                        success: true,
-                        authUrl: authUrl,
-                        message: 'Authorization URL generated successfully'
-                    })
-                };
+                const options = body.state ? { state: body.state } : {};
+                console.log('🔧 Options:', options);
+                
+                try {
+                    const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', scopes, options);
+                    console.log('✅ Generated auth URL:', authUrl);
+                    
+                    // Validate the generated URL
+                    if (!authUrl || !authUrl.includes('auth.ebay.com')) {
+                        throw new Error('Invalid authorization URL generated');
+                    }
+                    
+                    return {
+                        statusCode: 200,
+                        headers,
+                        body: JSON.stringify({
+                            success: true,
+                            authUrl: authUrl,
+                            message: 'Authorization URL generated successfully'
+                        })
+                    };
+                } catch (urlError) {
+                    console.error('❌ URL Generation Error:', urlError);
+                    return {
+                        statusCode: 400,
+                        headers,
+                        body: JSON.stringify({
+                            success: false,
+                            error: `URL generation failed: ${urlError.message}`,
+                            details: {
+                                environment: 'PRODUCTION',
+                                redirectUri: redirectUri,
+                                scopes: scopes,
+                                options: options
+                            }
+                        })
+                    };
+                }
 
             case 'exchange-code':
                 // Exchange authorization code for access token using official library
