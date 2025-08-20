@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import ebayOAuth from '../services/ebayOAuth';
-import { oauthPerformanceOptimizer } from '../utils/oauthPerformanceOptimizer';
 
 interface EbayAuthState {
   isAuthenticated: boolean;

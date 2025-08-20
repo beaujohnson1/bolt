@@ -1,8 +1,6 @@
 // eBay OAuth Service
 // Handles OAuth flow for eBay user authentication
 
-import { oauthPerformanceOptimizer } from '../utils/oauthPerformanceOptimizer';
-
 export interface EbayOAuthTokens {
   access_token: string;
   refresh_token: string;

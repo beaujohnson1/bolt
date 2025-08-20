@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { Activity, Clock, Zap, CheckCircle, AlertTriangle, TrendingUp, Database, Wifi } from 'lucide-react';
-import { oauthPerformanceOptimizer } from '../utils/oauthPerformanceOptimizer';
 
 interface PerformanceDashboardProps {
   className?: string;
