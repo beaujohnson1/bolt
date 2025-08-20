@@ -150,29 +150,181 @@ exports.handler = async (event, context) => {
       scope: tokenData.scope
     });
 
-    // Encode token data for URL transmission
-    const tokenDataEncoded = encodeURIComponent(JSON.stringify({
+    // Create HTML page that handles popup communication and token storage
+    const tokenDataJson = JSON.stringify({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
       token_type: tokenData.token_type,
       expires_in: tokenData.expires_in,
       expires_at: Date.now() + (tokenData.expires_in * 1000),
       scope: tokenData.scope
-    }));
-
-    // Use proper HTTP 302 redirect with token data in URL
-    const redirectUrl = `https://easyflip.ai/app?ebay_connected=true&tokens=${tokenDataEncoded}&timestamp=${Date.now()}`;
+    }).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
     
-    console.log('🔄 [EBAY-CALLBACK] Redirecting with HTTP 302 to:', redirectUrl.substring(0, 100) + '...');
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>eBay Authentication Success</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          text-align: center; 
+          padding: 50px; 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          margin: 0;
+        }
+        .success-box {
+          background: rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(10px);
+          border-radius: 15px;
+          padding: 40px;
+          max-width: 400px;
+          margin: 0 auto;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .spinner {
+          width: 40px;
+          height: 40px;
+          border: 4px solid rgba(255, 255, 255, 0.3);
+          border-top: 4px solid white;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin: 20px auto;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="success-box">
+        <h2>🎉 eBay Connected Successfully!</h2>
+        <div class="spinner"></div>
+        <p>Completing setup...</p>
+        <p id="status">Storing authentication tokens...</p>
+      </div>
+      
+      <script>
+        (function() {
+          console.log('🎉 [EBAY-CALLBACK] eBay OAuth success page loaded');
+          
+          const statusEl = document.getElementById('status');
+          
+          try {
+            const tokenData = ${tokenDataJson};
+            
+            console.log('💾 [EBAY-CALLBACK] Storing tokens in localStorage...');
+            statusEl.textContent = 'Storing authentication tokens...';
+            
+            // Store tokens with enhanced validation
+            localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+            localStorage.setItem('ebay_manual_token', tokenData.access_token);
+            
+            // Verify storage
+            const stored = localStorage.getItem('ebay_oauth_tokens');
+            if (!stored) {
+              throw new Error('Failed to store tokens in localStorage');
+            }
+            
+            console.log('✅ [EBAY-CALLBACK] Tokens stored successfully');
+            statusEl.textContent = 'Authentication complete!';
+            
+            // Check if we're in a popup
+            const isPopup = window.opener && window.opener !== window;
+            
+            if (isPopup) {
+              console.log('📡 [EBAY-CALLBACK] Running in popup, notifying parent window...');
+              statusEl.textContent = 'Notifying main application...';
+              
+              // Send success message to parent window
+              window.opener.postMessage({
+                type: 'EBAY_OAUTH_SUCCESS',
+                tokens: tokenData,
+                timestamp: Date.now()
+              }, window.location.origin);
+              
+              // Also trigger storage event for parent window
+              try {
+                // Dispatch custom event on parent window
+                window.opener.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+                  detail: { 
+                    authenticated: true, 
+                    tokens: tokenData,
+                    source: 'popup_callback',
+                    timestamp: Date.now()
+                  }
+                }));
+              } catch (e) {
+                console.warn('⚠️ [EBAY-CALLBACK] Could not dispatch event to parent:', e);
+              }
+              
+              statusEl.textContent = 'Success! Closing window...';
+              
+              // Close popup after short delay
+              setTimeout(() => {
+                console.log('🔚 [EBAY-CALLBACK] Closing popup window');
+                window.close();
+              }, 1000);
+              
+            } else {
+              console.log('🔄 [EBAY-CALLBACK] Running in main window, redirecting...');
+              statusEl.textContent = 'Redirecting to application...';
+              
+              // Dispatch event for same-window scenario
+              window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+                detail: { 
+                  authenticated: true, 
+                  tokens: tokenData,
+                  source: 'same_window_callback',
+                  timestamp: Date.now()
+                }
+              }));
+              
+              // Redirect to dashboard with success flag
+              setTimeout(() => {
+                const returnUrl = localStorage.getItem('ebay_oauth_return_url') || '${baseUrl}/app';
+                localStorage.removeItem('ebay_oauth_return_url');
+                const separator = returnUrl.includes('?') ? '&' : '?';
+                window.location.href = returnUrl + separator + 'ebay_connected=true&timestamp=' + Date.now();
+              }, 1000);
+            }
+            
+          } catch (error) {
+            console.error('❌ [EBAY-CALLBACK] Error in success page:', error);
+            statusEl.textContent = 'Error: ' + error.message;
+            
+            if (window.opener) {
+              // Send error message to parent
+              window.opener.postMessage({
+                type: 'EBAY_OAUTH_ERROR',
+                error: error.message,
+                timestamp: Date.now()
+              }, window.location.origin);
+              
+              setTimeout(() => window.close(), 3000);
+            } else {
+              // Redirect to app with error
+              setTimeout(() => {
+                window.location.href = '${baseUrl}/app?ebay_error=' + encodeURIComponent(error.message);
+              }, 3000);
+            }
+          }
+        })();
+      </script>
+    </body>
+    </html>
+    `;
 
     return {
-      statusCode: 302,
+      statusCode: 200,
       headers: {
         ...headers,
-        'Location': redirectUrl,
+        'Content-Type': 'text/html',
         'Cache-Control': 'no-cache, no-store, must-revalidate'
       },
-      body: ''
+      body: html
     };
 
   } catch (error) {

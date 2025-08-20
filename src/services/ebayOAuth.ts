@@ -294,7 +294,7 @@ class EbayOAuthService {
   }
 
   /**
-   * Initiate OAuth flow by redirecting to eBay
+   * Initiate OAuth flow using popup window
    */
   async initiateOAuthFlow(redirectUri?: string): Promise<void> {
     try {
@@ -302,9 +302,79 @@ class EbayOAuthService {
       
       // Store state for validation
       localStorage.setItem('ebay_oauth_state', authData.state);
+      localStorage.setItem('ebay_oauth_return_url', window.location.href);
       
-      // Redirect to eBay
-      window.location.href = authData.authUrl;
+      console.log('🚀 [EBAY-OAUTH] Opening eBay OAuth in popup window...');
+      
+      // Open eBay OAuth in popup window
+      const popup = window.open(
+        authData.authUrl,
+        'ebay-oauth',
+        'width=600,height=700,scrollbars=yes,resizable=yes,status=yes,location=yes,toolbar=no,menubar=no'
+      );
+      
+      if (!popup) {
+        // Fallback to same-window redirect if popup blocked
+        console.warn('⚠️ [EBAY-OAUTH] Popup blocked, falling back to same-window redirect');
+        window.location.href = authData.authUrl;
+        return;
+      }
+      
+      // Monitor popup for completion
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed);
+          console.log('🔍 [EBAY-OAUTH] Popup closed, checking for tokens...');
+          
+          // Check if tokens were received after a short delay
+          setTimeout(() => {
+            const isAuth = this.isAuthenticated();
+            console.log('📡 [EBAY-OAUTH] Post-popup auth status:', isAuth);
+            
+            if (isAuth) {
+              // Dispatch success event
+              window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+                detail: { authenticated: true, source: 'popup_completion' }
+              }));
+            }
+          }, 500);
+        }
+      }, 1000);
+      
+      // Also listen for messages from popup
+      const messageHandler = (event: MessageEvent) => {
+        if (event.origin === window.location.origin) {
+          if (event.data.type === 'EBAY_OAUTH_SUCCESS') {
+            console.log('✅ [EBAY-OAUTH] Received success message from popup');
+            clearInterval(checkClosed);
+            popup.close();
+            window.removeEventListener('message', messageHandler);
+            
+            // Dispatch success event
+            window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+              detail: { authenticated: true, source: 'popup_message' }
+            }));
+          } else if (event.data.type === 'EBAY_OAUTH_ERROR') {
+            console.error('❌ [EBAY-OAUTH] Received error message from popup:', event.data.error);
+            clearInterval(checkClosed);
+            popup.close();
+            window.removeEventListener('message', messageHandler);
+            throw new Error(event.data.error);
+          }
+        }
+      };
+      
+      window.addEventListener('message', messageHandler);
+      
+      // Cleanup after 10 minutes
+      setTimeout(() => {
+        if (!popup.closed) {
+          popup.close();
+        }
+        clearInterval(checkClosed);
+        window.removeEventListener('message', messageHandler);
+      }, 600000); // 10 minutes
+      
     } catch (error) {
       console.error('❌ [EBAY-OAUTH] Error initiating OAuth flow:', error);
       throw error;
@@ -343,9 +413,64 @@ class EbayOAuthService {
 
 
   /**
+   * Check and process URL parameters for OAuth tokens
+   */
+  processUrlTokens(): boolean {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tokensParam = urlParams.get('tokens');
+      
+      if (tokensParam) {
+        console.log('🔍 [EBAY-OAUTH] Found tokens in URL parameters');
+        
+        try {
+          const tokenData = JSON.parse(decodeURIComponent(tokensParam)) as EbayOAuthTokens;
+          
+          console.log('📦 [EBAY-OAUTH] Processing URL tokens:', {
+            hasAccessToken: !!tokenData.access_token,
+            hasRefreshToken: !!tokenData.refresh_token,
+            tokenType: tokenData.token_type
+          });
+          
+          // Store the tokens
+          this.storeTokens(tokenData);
+          
+          // Clean up URL parameters
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('tokens');
+          newUrl.searchParams.delete('ebay_connected');
+          newUrl.searchParams.delete('timestamp');
+          
+          // Update URL without page reload
+          window.history.replaceState({}, '', newUrl.toString());
+          
+          console.log('✅ [EBAY-OAUTH] URL tokens processed successfully');
+          return true;
+          
+        } catch (parseError) {
+          console.error('❌ [EBAY-OAUTH] Error parsing URL tokens:', parseError);
+          return false;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('❌ [EBAY-OAUTH] Error processing URL tokens:', error);
+      return false;
+    }
+  }
+
+  /**
    * Listen for storage changes (e.g., from callback page)
    */
   watchForTokenChanges(callback: (authenticated: boolean) => void): () => void {
+    // Check for URL tokens immediately
+    const hasUrlTokens = this.processUrlTokens();
+    if (hasUrlTokens) {
+      console.log('🎉 [EBAY-OAUTH] URL tokens found and processed');
+      setTimeout(() => callback(true), 100);
+    }
+    
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'ebay_oauth_tokens' || e.key === 'ebay_manual_token') {
         console.log('📡 [EBAY-OAUTH] Token storage changed, checking auth status');
@@ -378,7 +503,11 @@ class EbayOAuthService {
     const handlePopstate = () => {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('ebay_connected') === 'true') {
-        console.log('🔗 [EBAY-OAUTH] OAuth success detected in URL, checking auth status');
+        console.log('🔗 [EBAY-OAUTH] OAuth success detected in URL, processing tokens...');
+        
+        // Process any URL tokens
+        const hasTokens = this.processUrlTokens();
+        
         setTimeout(() => {
           const isAuth = this.isAuthenticated();
           console.log('🔗 [EBAY-OAUTH] Auth status after OAuth success URL:', isAuth);
