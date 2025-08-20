@@ -359,9 +359,22 @@ class EbayOAuthService {
                              event.origin.includes('easyflip') ||
                              event.origin.includes('netlify');
         
-        if ((isValidOrigin || event.origin === window.location.origin) && event.source === popup) {
+        // Enhanced validation: Use origin + message structure instead of strict source checking
+        // This fixes the issue where eBay redirects break the popup window reference
+        const isValidMessage = isValidOrigin && event.data && 
+          (event.data.type === 'EBAY_OAUTH_SUCCESS' || event.data.type === 'EBAY_OAUTH_ERROR');
+        
+        // Additional security: Validate message structure and timing
+        const hasValidTokenStructure = event.data.tokens && 
+          event.data.tokens.access_token && 
+          event.data.tokens.token_type;
+        
+        const isRecentMessage = event.data.timestamp && 
+          (Date.now() - event.data.timestamp) < 300000; // 5 minutes max
+        
+        if (isValidMessage && (event.data.type === 'EBAY_OAUTH_SUCCESS' ? hasValidTokenStructure : true) && isRecentMessage) {
           if (event.data.type === 'EBAY_OAUTH_SUCCESS') {
-            console.log('✅ [EBAY-OAUTH] Processing success message from popup');
+            console.log('✅ [EBAY-OAUTH] Processing success message from popup (enhanced validation)');
             clearInterval(checkClosed);
             
             // Store tokens if provided
@@ -384,10 +397,13 @@ class EbayOAuthService {
             throw new Error(event.data.error);
           }
         } else {
-          console.warn('⚠️ [EBAY-OAUTH] Ignoring message from unexpected source:', {
+          console.warn('⚠️ [EBAY-OAUTH] Ignoring invalid message:', {
             origin: event.origin,
-            expectedOrigin: window.location.origin,
-            isCorrectPopup: event.source === popup,
+            isValidOrigin,
+            messageType: event.data?.type,
+            hasValidTokens: hasValidTokenStructure,
+            isRecent: isRecentMessage,
+            messageAge: event.data?.timestamp ? Date.now() - event.data.timestamp : 'no-timestamp',
             trustedOrigins
           });
         }
@@ -395,13 +411,84 @@ class EbayOAuthService {
       
       window.addEventListener('message', messageHandler);
       
+      // Add BroadcastChannel as backup communication method
+      let channel: BroadcastChannel | null = null;
+      if (typeof BroadcastChannel !== 'undefined') {
+        try {
+          channel = new BroadcastChannel('ebay-oauth-popup');
+          channel.addEventListener('message', async (event) => {
+            console.log('📡 [EBAY-OAUTH] Received BroadcastChannel message:', event.data);
+            
+            if (event.data.type === 'EBAY_OAUTH_SUCCESS' && event.data.tokens) {
+              console.log('✅ [EBAY-OAUTH] Processing success via BroadcastChannel');
+              clearInterval(checkClosed);
+              
+              await this.storeTokens(event.data.tokens);
+              popup.close();
+              window.removeEventListener('message', messageHandler);
+              channel?.close();
+              
+              this.performAggressiveTokenCheck('broadcast_channel');
+            }
+          });
+          console.log('📡 [EBAY-OAUTH] BroadcastChannel listener set up');
+        } catch (error) {
+          console.warn('⚠️ [EBAY-OAUTH] BroadcastChannel not available:', error);
+        }
+      }
+      
+      // Enhanced popup monitoring with token detection
+      let tokenCheckAttempts = 0;
+      const maxTokenChecks = 300; // 30 seconds of checking
+      
+      const enhancedPopupMonitor = setInterval(() => {
+        tokenCheckAttempts++;
+        
+        // Check if popup is closed
+        if (popup.closed) {
+          console.log('🔍 [EBAY-OAUTH] Popup closed, performing final token check...');
+          clearInterval(enhancedPopupMonitor);
+          clearInterval(checkClosed);
+          window.removeEventListener('message', messageHandler);
+          channel?.close();
+          
+          // Immediate aggressive token detection after popup closes
+          this.performAggressiveTokenCheck('popup_closed_enhanced');
+          return;
+        }
+        
+        // Periodic token check while popup is open (every 100ms)
+        if (tokenCheckAttempts % 10 === 0) { // Every 1 second
+          const hasTokens = this.isAuthenticated();
+          if (hasTokens) {
+            console.log('✅ [EBAY-OAUTH] Tokens detected via polling while popup open!');
+            clearInterval(enhancedPopupMonitor);
+            clearInterval(checkClosed);
+            popup.close();
+            window.removeEventListener('message', messageHandler);
+            channel?.close();
+            
+            this.performAggressiveTokenCheck('polling_detection');
+            return;
+          }
+        }
+        
+        // Timeout after 30 seconds
+        if (tokenCheckAttempts >= maxTokenChecks) {
+          console.warn('⏰ [EBAY-OAUTH] Enhanced monitoring timeout');
+          clearInterval(enhancedPopupMonitor);
+        }
+      }, 100);
+      
       // Cleanup after 10 minutes
       setTimeout(() => {
         if (!popup.closed) {
           popup.close();
         }
         clearInterval(checkClosed);
+        clearInterval(enhancedPopupMonitor);
         window.removeEventListener('message', messageHandler);
+        channel?.close();
       }, 600000); // 10 minutes
       
     } catch (error) {

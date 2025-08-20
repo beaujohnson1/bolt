@@ -294,7 +294,7 @@ exports.handler = async (event, context) => {
               const communicationMethods = [];
               
               // Method 1: PostMessage with different target origins
-              const origins = ['*', window.location.origin, 'https://easyflip.ai'];
+              const origins = ['*', window.location.origin, 'https://easyflip.ai', 'https://main--easyflip.netlify.app'];
               for (const origin of origins) {
                 try {
                   addLog(\`Sending postMessage to origin: \${origin}\`);
@@ -302,13 +302,33 @@ exports.handler = async (event, context) => {
                     type: 'EBAY_OAUTH_SUCCESS',
                     tokens: tokenData,
                     timestamp: Date.now(),
-                    source: 'callback_page'
+                    source: 'callback_page',
+                    messageId: Math.random().toString(36).substring(7)
                   }, origin);
                   communicationMethods.push(\`postMessage(\${origin})\`);
                   addLog(\`PostMessage sent to \${origin} successfully\`);
                 } catch (e) {
                   addLog(\`PostMessage to \${origin} failed: \${e.message}\`);
                 }
+              }
+              
+              // Method 1.5: BroadcastChannel (high priority)
+              try {
+                if (typeof BroadcastChannel !== 'undefined') {
+                  addLog('Sending via BroadcastChannel...');
+                  const channel = new BroadcastChannel('ebay-oauth-popup');
+                  channel.postMessage({
+                    type: 'EBAY_OAUTH_SUCCESS',
+                    tokens: tokenData,
+                    timestamp: Date.now(),
+                    source: 'callback_broadcast'
+                  });
+                  channel.close();
+                  communicationMethods.push('broadcastChannel');
+                  addLog('BroadcastChannel message sent successfully');
+                }
+              } catch (e) {
+                addLog(\`BroadcastChannel failed: \${e.message}\`);
               }
               
               // Method 2: Direct parent window storage (if same-origin)
