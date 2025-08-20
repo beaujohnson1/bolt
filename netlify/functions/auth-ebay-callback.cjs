@@ -66,8 +66,8 @@ exports.handler = async (event, context) => {
     // Exchange code for access token using the existing OAuth function
     const baseUrl = process.env.URL || 'https://easyflip.ai';
     
-    // Use the SAME redirect_uri value that was used in authorization (RuName)
-    const redirectUri = 'easyflip.ai-easyflip-easyfl-cnqajybp';
+    // Use the SAME redirect_uri value that was used in authorization (callback URL)
+    const redirectUri = `${baseUrl}/.netlify/functions/auth-ebay-callback`;
     
     const tokenResponse = await fetch(`${baseUrl}/.netlify/functions/ebay-oauth`, {
       method: 'POST',
