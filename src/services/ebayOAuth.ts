@@ -320,40 +320,76 @@ class EbayOAuthService {
         return;
       }
       
-      // Monitor popup for completion
+      // Monitor popup for completion with enhanced checking
       const checkClosed = setInterval(() => {
         if (popup.closed) {
           clearInterval(checkClosed);
+          window.removeEventListener('message', messageHandler);
           console.log('🔍 [EBAY-OAUTH] Popup closed, checking for tokens...');
           
-          // Check if tokens were received after a short delay
-          setTimeout(() => {
-            const isAuth = this.isAuthenticated();
-            console.log('📡 [EBAY-OAUTH] Post-popup auth status:', isAuth);
-            
-            if (isAuth) {
-              // Dispatch success event
-              window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
-                detail: { authenticated: true, source: 'popup_completion' }
-              }));
-            }
-          }, 500);
+          // Check multiple times with increasing delays to catch async token storage
+          const checkAttempts = [100, 500, 1000, 2000];
+          
+          checkAttempts.forEach((delay, index) => {
+            setTimeout(() => {
+              const isAuth = this.isAuthenticated();
+              console.log(`🔍 [EBAY-OAUTH] Auth check ${index + 1}/4 (${delay}ms):`, isAuth);
+              
+              if (isAuth) {
+                console.log('🎉 [EBAY-OAUTH] Authentication detected after popup close!');
+                
+                // Dispatch success event
+                window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+                  detail: { 
+                    authenticated: true, 
+                    source: 'popup_completion',
+                    attempt: index + 1,
+                    timestamp: Date.now()
+                  }
+                }));
+              }
+            }, delay);
+          });
         }
-      }, 1000);
+      }, 500); // Check more frequently
       
-      // Also listen for messages from popup
+      // Also listen for messages from popup with enhanced debugging
       const messageHandler = (event: MessageEvent) => {
-        if (event.origin === window.location.origin) {
+        console.log('📨 [EBAY-OAUTH] Received message from popup:', {
+          origin: event.origin,
+          expectedOrigin: window.location.origin,
+          data: event.data,
+          source: event.source === popup ? 'correct_popup' : 'unknown_source'
+        });
+        
+        if (event.origin === window.location.origin && event.source === popup) {
           if (event.data.type === 'EBAY_OAUTH_SUCCESS') {
-            console.log('✅ [EBAY-OAUTH] Received success message from popup');
+            console.log('✅ [EBAY-OAUTH] Processing success message from popup');
             clearInterval(checkClosed);
+            
+            // Store tokens if provided
+            if (event.data.tokens) {
+              console.log('💾 [EBAY-OAUTH] Storing tokens from popup message');
+              this.storeTokens(event.data.tokens);
+            }
+            
             popup.close();
             window.removeEventListener('message', messageHandler);
             
-            // Dispatch success event
-            window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
-              detail: { authenticated: true, source: 'popup_message' }
-            }));
+            // Force a fresh auth check and dispatch event
+            setTimeout(() => {
+              const isAuth = this.isAuthenticated();
+              console.log('🔍 [EBAY-OAUTH] Auth status after popup success:', isAuth);
+              
+              window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+                detail: { 
+                  authenticated: isAuth, 
+                  source: 'popup_message',
+                  timestamp: Date.now()
+                }
+              }));
+            }, 100);
+            
           } else if (event.data.type === 'EBAY_OAUTH_ERROR') {
             console.error('❌ [EBAY-OAUTH] Received error message from popup:', event.data.error);
             clearInterval(checkClosed);
@@ -361,6 +397,12 @@ class EbayOAuthService {
             window.removeEventListener('message', messageHandler);
             throw new Error(event.data.error);
           }
+        } else {
+          console.warn('⚠️ [EBAY-OAUTH] Ignoring message from unexpected source:', {
+            origin: event.origin,
+            expectedOrigin: window.location.origin,
+            isCorrectPopup: event.source === popup
+          });
         }
       };
       

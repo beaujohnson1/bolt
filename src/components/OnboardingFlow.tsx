@@ -49,7 +49,32 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       }
     });
 
-    return cleanup;
+    // Also listen for postMessage events directly
+    const handleMessage = (event: MessageEvent) => {
+      console.log('📨 [ONBOARDING] Received postMessage:', event.data);
+      
+      if (event.origin === window.location.origin && event.data.type === 'EBAY_OAUTH_SUCCESS') {
+        console.log('🎉 [ONBOARDING] Direct OAuth success message received!');
+        
+        // Force immediate recheck
+        setTimeout(() => {
+          const connected = ebayOAuthService.isAuthenticated();
+          console.log('🔍 [ONBOARDING] Forced recheck after message:', connected);
+          setIsEbayConnected(connected);
+          
+          if (connected && currentStep === 'connect_ebay') {
+            setTimeout(() => onStepChange('upload_photos'), 300);
+          }
+        }, 100);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      cleanup();
+      window.removeEventListener('message', handleMessage);
+    };
   }, [currentStep, onStepChange]);
 
   // Check if user has created their first item
@@ -80,10 +105,33 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       // Use the current dashboard URL as redirect
       const redirectUri = `${window.location.origin}/app`;
       await ebayOAuthService.initiateOAuthFlow(redirectUri);
+      
+      // Set up a periodic check for authentication while popup is open
+      const checkInterval = setInterval(() => {
+        const connected = ebayOAuthService.isAuthenticated();
+        console.log('⏱️ [ONBOARDING] Periodic auth check during OAuth:', connected);
+        
+        if (connected) {
+          console.log('🎉 [ONBOARDING] Authentication detected during periodic check!');
+          clearInterval(checkInterval);
+          setIsEbayConnected(true);
+          setIsConnecting(false);
+          
+          if (currentStep === 'connect_ebay') {
+            setTimeout(() => onStepChange('upload_photos'), 500);
+          }
+        }
+      }, 1000);
+      
+      // Clear interval after 2 minutes
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        setIsConnecting(false);
+      }, 120000);
+      
     } catch (error) {
       console.error('❌ [ONBOARDING] Error connecting to eBay:', error);
       alert('Failed to connect to eBay. Please try again.');
-    } finally {
       setIsConnecting(false);
     }
   };
