@@ -396,7 +396,13 @@ class EbayOAuthService {
         if (popup.closed) {
           clearInterval(checkClosed);
           window.removeEventListener('message', messageHandler);
-          console.log('🔍 [EBAY-OAUTH] Popup closed, initiating token detection...');
+          console.log('🔍 [EBAY-OAUTH] Popup closed, initiating comprehensive token detection...');
+          this.debugConsole?.log('🔍 Popup closed - checking for tokens...', 'info', 'popup-monitor');
+          
+          // Immediate beacon check
+          this.checkForSuccessBeacon();
+          
+          // Then perform aggressive token check
           this.performAggressiveTokenCheck('popup_closed');
         }
       }, 100);
@@ -533,8 +539,11 @@ class EbayOAuthService {
         
         // Periodic token check while popup is open (every 100ms)
         if (tokenCheckAttempts % 10 === 0) { // Every 1 second
+          // Check for beacon first
+          const beaconFound = this.checkForSuccessBeacon();
           const hasTokens = this.isAuthenticated();
-          if (hasTokens) {
+          
+          if (beaconFound || hasTokens) {
             console.log('✅ [EBAY-OAUTH] Tokens detected via polling while popup open!');
             this.debugConsole?.log('🎉 Tokens detected via polling while popup open!', 'success', 'polling-success');
             this.debugConsole?.updateStatus('Authentication detected!');
@@ -1269,6 +1278,67 @@ class EbayOAuthService {
     // Clean up test tokens
     console.log('🧹 [EBAY-OAUTH] Cleaning up test tokens...');
     this.clearStoredTokens();
+  }
+
+  /**
+   * Check for success beacon from callback page
+   */
+  private checkForSuccessBeacon(): boolean {
+    try {
+      console.log('🎯 [EBAY-OAUTH] Checking for success beacon...');
+      this.debugConsole?.log('🎯 Checking for success beacon...', 'info', 'beacon-check');
+      
+      const beacon = localStorage.getItem('ebay_oauth_beacon');
+      if (beacon) {
+        const beaconData = JSON.parse(beacon);
+        
+        // Check if beacon is fresh (within last 5 minutes)
+        if (beaconData.timestamp && (Date.now() - beaconData.timestamp) < 300000) {
+          console.log('🎯 [EBAY-OAUTH] Success beacon found!', beaconData);
+          this.debugConsole?.log('🎯 Success beacon detected! Processing...', 'success', 'beacon-found');
+          
+          // Clean up beacon
+          localStorage.removeItem('ebay_oauth_beacon');
+          
+          // Store tokens if they're in the beacon
+          if (beaconData.tokens) {
+            console.log('💾 [EBAY-OAUTH] Extracting tokens from beacon...');
+            this.debugConsole?.log('💾 Extracting tokens from beacon...', 'info', 'beacon-extract');
+            
+            // Store tokens using the service's method
+            this.storeTokens(beaconData.tokens).then(() => {
+              console.log('✅ [EBAY-OAUTH] Tokens from beacon stored successfully');
+              this.debugConsole?.log('✅ Tokens from beacon stored!', 'success', 'beacon-store');
+              
+              // Dispatch auth event
+              this.dispatchAuthEvent('beacon_detection', 1);
+            }).catch(error => {
+              console.error('❌ [EBAY-OAUTH] Failed to store beacon tokens:', error);
+              this.debugConsole?.log('❌ Failed to store beacon tokens', 'error', 'beacon-error');
+            });
+          }
+          
+          return true;
+        } else {
+          console.log('⏰ [EBAY-OAUTH] Beacon found but expired');
+          this.debugConsole?.log('⏰ Beacon expired', 'warning', 'beacon-expired');
+          localStorage.removeItem('ebay_oauth_beacon');
+        }
+      }
+      
+      // Also check sessionStorage
+      const sessionBeacon = sessionStorage.getItem('ebay_oauth_beacon');
+      if (sessionBeacon) {
+        console.log('🎯 [EBAY-OAUTH] Beacon found in sessionStorage');
+        // Process similarly...
+        sessionStorage.removeItem('ebay_oauth_beacon');
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('❌ [EBAY-OAUTH] Error checking beacon:', error);
+      return false;
+    }
   }
 
   /**

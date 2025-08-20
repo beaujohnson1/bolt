@@ -310,11 +310,37 @@ exports.handler = async (event, context) => {
             updateStatus('Tokens stored successfully!');
             successCheckEl.style.display = 'block';
 
-            // Check if we're in a popup window
-            const isPopup = window.opener && window.opener !== window;
+            // Enhanced popup detection with multiple fallback methods
+            const hasOpener = window.opener && window.opener !== window;
+            const hasPopupName = window.name === 'ebay-oauth';
+            const isSmallWindow = window.outerWidth < 800 && window.outerHeight < 800;
+            const hasPopupParam = new URLSearchParams(window.location.search).get('popup') === 'true';
+            
+            // Consider it a popup if ANY of these conditions are true
+            const isPopup = hasOpener || hasPopupName || isSmallWindow || hasPopupParam;
             const isIframe = window.parent && window.parent !== window;
             
+            addLog('Popup detection: opener=' + hasOpener + ', name=' + hasPopupName + ', small=' + isSmallWindow + ', param=' + hasPopupParam);
             addLog('Window context: popup=' + isPopup + ', iframe=' + isIframe);
+            
+            // CRITICAL: Write success beacon for parent polling
+            try {
+              const beacon = {
+                success: true,
+                tokens: tokenData,
+                timestamp: Date.now(),
+                windowName: window.name,
+                hasOpener: hasOpener
+              };
+              localStorage.setItem('ebay_oauth_beacon', JSON.stringify(beacon));
+              addLog('✅ Success beacon written to localStorage');
+              
+              // Also write to sessionStorage as backup
+              sessionStorage.setItem('ebay_oauth_beacon', JSON.stringify(beacon));
+              addLog('✅ Success beacon written to sessionStorage');
+            } catch (e) {
+              addLog('❌ Failed to write success beacon: ' + e.message);
+            }
 
             if (isPopup) {
               updateStatus('Notifying main application...');

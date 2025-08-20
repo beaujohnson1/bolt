@@ -29,6 +29,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   const [isEbayConnected, setIsEbayConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasCreatedFirstItem, setHasCreatedFirstItem] = useState(false);
+  const [showManualCheck, setShowManualCheck] = useState(false);
   
   // Initialize debug console and get reference
   const debugConsole = initializeOAuthDebugConsole();
@@ -458,6 +459,87 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [user?.id]);
 
+  const handleManualAuthCheck = () => {
+    console.log('🔍 [ONBOARDING] Manual authentication check initiated');
+    debugConsole.log('🔍 Manual authentication check initiated', 'info', 'manual-check');
+    debugConsole.updateStatus('Checking for authentication...');
+    
+    // Check all possible token locations
+    let tokensFound = false;
+    
+    // 1. Check for beacon
+    try {
+      const beacon = localStorage.getItem('ebay_oauth_beacon');
+      if (beacon) {
+        const beaconData = JSON.parse(beacon);
+        if (beaconData.tokens) {
+          console.log('✅ [ONBOARDING] Found tokens in beacon during manual check');
+          debugConsole.log('✅ Found tokens in beacon!', 'success', 'manual-beacon');
+          
+          // Store the tokens
+          localStorage.setItem('ebay_oauth_tokens', JSON.stringify(beaconData.tokens));
+          localStorage.setItem('ebay_manual_token', beaconData.tokens.access_token);
+          localStorage.removeItem('ebay_oauth_beacon');
+          tokensFound = true;
+        }
+      }
+    } catch (e) {
+      console.error('❌ [ONBOARDING] Error checking beacon:', e);
+    }
+    
+    // 2. Check if tokens are already stored
+    if (!tokensFound) {
+      tokensFound = ebayOAuthService.isAuthenticated();
+      if (tokensFound) {
+        console.log('✅ [ONBOARDING] Tokens found in storage during manual check');
+        debugConsole.log('✅ Tokens found in storage!', 'success', 'manual-storage');
+      }
+    }
+    
+    // 3. Check URL parameters
+    if (!tokensFound) {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('ebay_connected') === 'true') {
+        console.log('✅ [ONBOARDING] Success parameter found during manual check');
+        debugConsole.log('✅ Success parameter found!', 'success', 'manual-url');
+        
+        // Clean URL
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('ebay_connected');
+        newUrl.searchParams.delete('timestamp');
+        window.history.replaceState({}, '', newUrl.toString());
+        
+        // Check tokens again after a short delay
+        setTimeout(() => {
+          tokensFound = ebayOAuthService.isAuthenticated();
+          if (tokensFound) {
+            setIsEbayConnected(true);
+            setShowManualCheck(false);
+            debugConsole.log('✅ Authentication confirmed!', 'success', 'manual-confirmed');
+            debugConsole.updateStatus('Authentication successful!');
+          }
+        }, 500);
+        return;
+      }
+    }
+    
+    if (tokensFound) {
+      setIsEbayConnected(true);
+      setShowManualCheck(false);
+      debugConsole.log('✅ Authentication confirmed!', 'success', 'manual-confirmed');
+      debugConsole.updateStatus('Authentication successful!');
+      
+      if (currentStep === 'connect_ebay') {
+        setTimeout(() => onStepChange('upload_photos'), 500);
+      }
+    } else {
+      debugConsole.log('❌ No authentication found', 'error', 'manual-notfound');
+      debugConsole.updateStatus('No authentication found - please try connecting again');
+      alert('No authentication found. Please try connecting to eBay again.');
+      setShowManualCheck(false);
+    }
+  };
+
   const handleConnectEbay = async () => {
     console.log('🔗 [ONBOARDING] Starting eBay connection process...');
     debugConsole.log('Starting eBay OAuth connection process...', 'info', 'oauth-start');
@@ -465,6 +547,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     
     // Reset any previous error states
     setIsConnecting(true);
+    setShowManualCheck(false);
     
     try {
       console.log('🌐 [ONBOARDING] Calling OAuth service to initiate flow...');
@@ -494,17 +577,76 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         
         checkCount++;
         
+        // Check multiple sources for authentication success
         const connected = ebayOAuthService.isAuthenticated();
-        console.log(`⏱️ [ONBOARDING] Token poll ${checkCount}/${maxChecks}:`, connected);
-        debugConsole.log(`Token poll ${checkCount}/${maxChecks}: ${connected ? 'Found tokens!' : 'No tokens yet'}`, connected ? 'success' : 'info', 'polling');
         
-        if (connected) {
+        // Check for success beacon from callback page
+        let beaconFound = false;
+        try {
+          const beacon = localStorage.getItem('ebay_oauth_beacon');
+          if (beacon) {
+            const beaconData = JSON.parse(beacon);
+            // Check if beacon is fresh (within last 5 minutes)
+            if (beaconData.timestamp && (Date.now() - beaconData.timestamp) < 300000) {
+              beaconFound = true;
+              console.log('🎯 [ONBOARDING] Success beacon detected!', beaconData);
+              debugConsole.log('🎯 Success beacon found! Processing tokens...', 'success', 'beacon');
+              
+              // Clean up beacon
+              localStorage.removeItem('ebay_oauth_beacon');
+              
+              // If beacon has tokens but they're not in regular storage, store them
+              if (beaconData.tokens && !connected) {
+                try {
+                  localStorage.setItem('ebay_oauth_tokens', JSON.stringify(beaconData.tokens));
+                  localStorage.setItem('ebay_manual_token', beaconData.tokens.access_token);
+                  console.log('✅ [ONBOARDING] Tokens extracted from beacon and stored');
+                  debugConsole.log('✅ Tokens extracted from beacon and stored', 'success', 'beacon-store');
+                } catch (e) {
+                  console.error('❌ [ONBOARDING] Failed to store beacon tokens:', e);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Beacon check failed, continue with normal polling
+        }
+        
+        // Check for URL parameter indicating success
+        const urlParams = new URLSearchParams(window.location.search);
+        const hasSuccessParam = urlParams.get('ebay_connected') === 'true';
+        if (hasSuccessParam) {
+          console.log('🔗 [ONBOARDING] Success URL parameter detected during polling');
+          debugConsole.log('🔗 Success URL parameter detected!', 'success', 'url-param');
+          
+          // Clean URL
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('ebay_connected');
+          newUrl.searchParams.delete('timestamp');
+          window.history.replaceState({}, '', newUrl.toString());
+        }
+        
+        // Consider authentication successful if ANY method detects it
+        const authDetected = connected || beaconFound || hasSuccessParam;
+        
+        console.log(`⏱️ [ONBOARDING] Token poll ${checkCount}/${maxChecks}: connected=${connected}, beacon=${beaconFound}, url=${hasSuccessParam}`);
+        debugConsole.log(`Token poll ${checkCount}/${maxChecks}: ${authDetected ? 'FOUND!' : 'No tokens yet'} (auth=${connected}, beacon=${beaconFound}, url=${hasSuccessParam})`, authDetected ? 'success' : 'info', 'polling');
+        
+        if (authDetected) {
           console.log('🎉 [ONBOARDING] Authentication detected during polling!');
-          debugConsole.log('🎉 AUTHENTICATION SUCCESSFUL! Tokens detected via polling', 'success', 'auth-success');
+          debugConsole.log('🎉 AUTHENTICATION SUCCESSFUL! Tokens detected', 'success', 'auth-success');
           debugConsole.updateStatus('Authentication completed successfully!');
           pollingActive = false;
           setIsEbayConnected(true);
           setIsConnecting(false);
+          
+          // Force one more auth check to ensure state is updated
+          setTimeout(() => {
+            const finalCheck = ebayOAuthService.isAuthenticated();
+            if (finalCheck) {
+              setIsEbayConnected(true);
+            }
+          }, 100);
           
           if (currentStep === 'connect_ebay') {
             setTimeout(() => onStepChange('upload_photos'), 500);
@@ -514,13 +656,13 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         
         if (checkCount >= maxChecks) {
           console.log('⏱️ [ONBOARDING] Token polling timeout reached - stopping polling');
-          debugConsole.log('❌ Authentication timeout - popup may have been closed or blocked', 'error', 'timeout');
-          debugConsole.updateStatus('Authentication timed out');
+          debugConsole.log('❌ Authentication timeout - showing manual check option', 'error', 'timeout');
+          debugConsole.updateStatus('Authentication timed out - manual check available');
           pollingActive = false;
           setIsConnecting(false);
           
-          // Show timeout message to user
-          alert('Authentication timed out. The popup may have been closed or blocked. Please try again.');
+          // Show manual check button instead of alert
+          setShowManualCheck(true);
           return;
         }
         
@@ -814,6 +956,33 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Manual Authentication Check Button */}
+      {showManualCheck && !isEbayConnected && (
+        <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-yellow-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-yellow-800">
+                Authentication May Have Completed
+              </h3>
+              <p className="mt-1 text-sm text-yellow-700">
+                The authentication window may have closed. Click below to check if your eBay account was successfully connected.
+              </p>
+              <button
+                onClick={handleManualAuthCheck}
+                className="mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-yellow-700 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+              >
+                Check Authentication Status
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Special eBay Connection CTA */}
       {!isEbayConnected && currentStep === 'connect_ebay' && (
