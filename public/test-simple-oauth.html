@@ -167,29 +167,27 @@
                     
                     log('🔄 OAuth popup opened, waiting for completion...', 'info');
                     
-                    // Monitor popup for URL changes
+                    // Listen for auth success event from callback
+                    window.addEventListener('simpleEbayAuthSuccess', (event) => {
+                        log('✅ Received auth success event from callback!', 'success');
+                        log(`Tokens: ${JSON.stringify(event.detail, null, 2)}`, 'info');
+                        updateTokenStatus();
+                    });
+                    
+                    // Monitor popup for closure
                     const checkPopup = setInterval(() => {
-                        try {
-                            if (popup.closed) {
-                                clearInterval(checkPopup);
-                                log('🔄 Popup closed, checking for tokens...', 'info');
+                        if (popup.closed) {
+                            clearInterval(checkPopup);
+                            log('🔄 Popup closed, checking for tokens...', 'info');
+                            setTimeout(() => {
                                 updateTokenStatus();
-                                return;
-                            }
-                            
-                            // Check if popup URL contains authorization code
-                            const popupUrl = popup.location.href;
-                            const urlParams = new URLSearchParams(new URL(popupUrl).search);
-                            const code = urlParams.get('code');
-                            
-                            if (code) {
-                                clearInterval(checkPopup);
-                                popup.close();
-                                log(`✅ Authorization code received: ${code.substring(0, 50)}...`, 'success');
-                                exchangeCode(code);
-                            }
-                        } catch (error) {
-                            // Cross-origin error is expected until redirect
+                                const accessToken = localStorage.getItem('simple_ebay_access_token');
+                                if (accessToken) {
+                                    log('✅ Simple OAuth flow completed successfully!', 'success');
+                                } else {
+                                    log('❌ OAuth completed but no tokens found', 'warning');
+                                }
+                            }, 1000);
                         }
                     }, 1000);
                     
