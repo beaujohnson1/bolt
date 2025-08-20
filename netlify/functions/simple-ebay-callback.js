@@ -115,11 +115,16 @@ exports.handler = async (event, context) => {
                                 const data = await response.json();
                                 
                                 if (data.success && data.access_token) {
-                                    // Store tokens in parent window (if popup)
+                                    // Store tokens in parent window (if popup) using EasyFlip format
                                     if (window.opener && window.opener.localStorage) {
-                                        window.opener.localStorage.setItem('simple_ebay_access_token', data.access_token);
-                                        window.opener.localStorage.setItem('simple_ebay_refresh_token', data.refresh_token);
-                                        window.opener.localStorage.setItem('simple_ebay_token_expiry', String(Date.now() + (data.expires_in * 1000)));
+                                        window.opener.localStorage.setItem('ebay_manual_token', data.access_token);
+                                        window.opener.localStorage.setItem('ebay_oauth_tokens', JSON.stringify({
+                                            access_token: data.access_token,
+                                            refresh_token: data.refresh_token,
+                                            expires_in: data.expires_in,
+                                            expires_at: Date.now() + (data.expires_in * 1000),
+                                            token_type: data.token_type || 'Bearer'
+                                        }));
                                         
                                         console.log('✅ Tokens stored successfully in parent window');
                                         
@@ -135,10 +140,15 @@ exports.handler = async (event, context) => {
                                             }));
                                         }
                                     } else {
-                                        // Fallback: store in current window
-                                        localStorage.setItem('simple_ebay_access_token', data.access_token);
-                                        localStorage.setItem('simple_ebay_refresh_token', data.refresh_token);
-                                        localStorage.setItem('simple_ebay_token_expiry', String(Date.now() + (data.expires_in * 1000)));
+                                        // Fallback: store in current window using EasyFlip format
+                                        localStorage.setItem('ebay_manual_token', data.access_token);
+                                        localStorage.setItem('ebay_oauth_tokens', JSON.stringify({
+                                            access_token: data.access_token,
+                                            refresh_token: data.refresh_token,
+                                            expires_in: data.expires_in,
+                                            expires_at: Date.now() + (data.expires_in * 1000),
+                                            token_type: data.token_type || 'Bearer'
+                                        }));
                                     }
                                     
                                     document.getElementById('status').innerHTML = 
