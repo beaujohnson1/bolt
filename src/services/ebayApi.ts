@@ -1,4 +1,11 @@
 import { withTimeout } from '../utils/promiseUtils';
+import { 
+  EbayBusinessPolicies, 
+  EbayBusinessPolicyIds, 
+  EbayFulfillmentPolicy, 
+  EbayPaymentPolicy, 
+  EbayReturnPolicy 
+} from '../types/index';
 
 interface EbayCategory {
   categoryId: string;
@@ -476,23 +483,142 @@ class EbayApiService {
   }
 
   /**
-   * Get Business Policy Profile IDs for the seller
+   * Get all business policies for the seller
+   */
+  async getAllBusinessPolicies(): Promise<EbayBusinessPolicies> {
+    try {
+      console.log('🏢 [EBAY-API] Fetching all business policies...');
+      
+      const accessToken = await this.getAccessToken();
+      if (accessToken === 'dev_mode_bypass_token') {
+        console.log('🏢 [EBAY-API] Dev mode - returning mock policies');
+        return this._getMockBusinessPolicies();
+      }
+
+      // Fetch all policy types in parallel
+      const [fulfillmentResponse, paymentResponse, returnResponse] = await Promise.all([
+        this._callProxy(
+          `${this.baseUrl}/sell/account/v1/fulfillment_policy`,
+          'GET',
+          {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        ),
+        this._callProxy(
+          `${this.baseUrl}/sell/account/v1/payment_policy`,
+          'GET',
+          {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        ),
+        this._callProxy(
+          `${this.baseUrl}/sell/account/v1/return_policy`,
+          'GET',
+          {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        )
+      ]);
+
+      const fulfillmentPolicies = this._parseFulfillmentPolicies(fulfillmentResponse?.fulfillmentPolicies || []);
+      const paymentPolicies = this._parsePaymentPolicies(paymentResponse?.paymentPolicies || []);
+      const returnPolicies = this._parseReturnPolicies(returnResponse?.returnPolicies || []);
+
+      const result: EbayBusinessPolicies = {
+        fulfillmentPolicies,
+        paymentPolicies,
+        returnPolicies
+      };
+
+      console.log('✅ [EBAY-API] Business policies retrieved:', {
+        fulfillment: fulfillmentPolicies.length,
+        payment: paymentPolicies.length,
+        return: returnPolicies.length
+      });
+
+      // Cache policies for quick access
+      this._cacheBusinessPolicies(result);
+
+      return result;
+    } catch (error) {
+      console.error('❌ [EBAY-API] Error fetching business policies:', error);
+      
+      // Return mock policies in case of error for development
+      if (import.meta.env.DEV) {
+        console.log('🔧 [EBAY-API] Returning mock policies for development');
+        return this._getMockBusinessPolicies();
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Get business policy IDs for listing creation (backwards compatibility)
    */
   async getBusinessPolicies(): Promise<{shipping?: string, payment?: string, return?: string}> {
     try {
-      console.log('🏢 [EBAY-API] Fetching business policies...');
+      const policyIds = await this.getBusinessPolicyIds();
+      return {
+        shipping: policyIds.fulfillmentPolicyId,
+        payment: policyIds.paymentPolicyId,
+        return: policyIds.returnPolicyId
+      };
+    } catch (error) {
+      console.error('❌ [EBAY-API] Error in getBusinessPolicies:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Get default business policy IDs for listing creation
+   */
+  async getBusinessPolicyIds(): Promise<EbayBusinessPolicyIds> {
+    try {
+      console.log('🏢 [EBAY-API] Getting business policy IDs...');
       
       const accessToken = await this.getAccessToken();
       if (accessToken === 'dev_mode_bypass_token') {
         console.log('🏢 [EBAY-API] Dev mode - returning mock policy IDs');
         return {
-          shipping: 'SHIPPING_POLICY_ID',
-          payment: 'PAYMENT_POLICY_ID', 
-          return: 'RETURN_POLICY_ID'
+          fulfillmentPolicyId: 'MOCK_FULFILLMENT_POLICY_ID',
+          paymentPolicyId: 'MOCK_PAYMENT_POLICY_ID',
+          returnPolicyId: 'MOCK_RETURN_POLICY_ID'
         };
       }
 
-      // Use eBay Account API to get seller policies
+      // Check if we have cached policies
+      const cachedPolicies = this._getCachedBusinessPolicies();
+      if (cachedPolicies) {
+        return this._extractDefaultPolicyIds(cachedPolicies);
+      }
+
+      // Fetch policies if not cached
+      const policies = await this.getAllBusinessPolicies();
+      return this._extractDefaultPolicyIds(policies);
+    } catch (error) {
+      console.error('❌ [EBAY-API] Error getting business policy IDs:', error);
+      
+      // Return empty object in case of error
+      return {};
+    }
+  }
+
+  /**
+   * Get fulfillment policies
+   */
+  async getFulfillmentPolicies(): Promise<EbayFulfillmentPolicy[]> {
+    try {
+      console.log('📦 [EBAY-API] Fetching fulfillment policies...');
+      
+      const accessToken = await this.getAccessToken();
+      if (accessToken === 'dev_mode_bypass_token') {
+        return this._getMockBusinessPolicies().fulfillmentPolicies;
+      }
+
       const response = await this._callProxy(
         `${this.baseUrl}/sell/account/v1/fulfillment_policy`,
         'GET',
@@ -502,11 +628,26 @@ class EbayApiService {
         }
       );
 
-      const policies = response?.fulfillmentPolicies || [];
-      const shippingPolicy = policies.find((p: any) => p.categoryTypes?.some((ct: any) => ct.name === 'ALL_EXCLUDING_MOTORS'));
+      return this._parseFulfillmentPolicies(response?.fulfillmentPolicies || []);
+    } catch (error) {
+      console.error('❌ [EBAY-API] Error fetching fulfillment policies:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get payment policies
+   */
+  async getPaymentPolicies(): Promise<EbayPaymentPolicy[]> {
+    try {
+      console.log('💳 [EBAY-API] Fetching payment policies...');
       
-      // Also get payment and return policies
-      const paymentResponse = await this._callProxy(
+      const accessToken = await this.getAccessToken();
+      if (accessToken === 'dev_mode_bypass_token') {
+        return this._getMockBusinessPolicies().paymentPolicies;
+      }
+
+      const response = await this._callProxy(
         `${this.baseUrl}/sell/account/v1/payment_policy`,
         'GET',
         {
@@ -515,7 +656,26 @@ class EbayApiService {
         }
       );
 
-      const returnResponse = await this._callProxy(
+      return this._parsePaymentPolicies(response?.paymentPolicies || []);
+    } catch (error) {
+      console.error('❌ [EBAY-API] Error fetching payment policies:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get return policies
+   */
+  async getReturnPolicies(): Promise<EbayReturnPolicy[]> {
+    try {
+      console.log('🔄 [EBAY-API] Fetching return policies...');
+      
+      const accessToken = await this.getAccessToken();
+      if (accessToken === 'dev_mode_bypass_token') {
+        return this._getMockBusinessPolicies().returnPolicies;
+      }
+
+      const response = await this._callProxy(
         `${this.baseUrl}/sell/account/v1/return_policy`,
         'GET',
         {
@@ -524,20 +684,10 @@ class EbayApiService {
         }
       );
 
-      const paymentPolicies = paymentResponse?.paymentPolicies || [];
-      const returnPolicies = returnResponse?.returnPolicies || [];
-
-      const result = {
-        shipping: shippingPolicy?.fulfillmentPolicyId,
-        payment: paymentPolicies[0]?.paymentPolicyId,
-        return: returnPolicies[0]?.returnPolicyId
-      };
-
-      console.log('✅ [EBAY-API] Business policies retrieved:', result);
-      return result;
+      return this._parseReturnPolicies(response?.returnPolicies || []);
     } catch (error) {
-      console.error('❌ [EBAY-API] Error fetching business policies:', error);
-      return {};
+      console.error('❌ [EBAY-API] Error fetching return policies:', error);
+      return [];
     }
   }
 
@@ -589,10 +739,28 @@ class EbayApiService {
       // Build item specifics from AI analysis
       const itemSpecifics = this._buildItemSpecifics(item);
 
-      // Get Business Policy IDs
-      console.log('🏢 [EBAY-API] Fetching business policies for listing...');
-      const businessPolicies = await this.getBusinessPolicies();
-      console.log('🏢 [EBAY-API] Business policies retrieved:', businessPolicies);
+      // Get Business Policy IDs - use provided policies or fetch default ones
+      let businessPolicies;
+      if (item.businessPolicies && 
+          (item.businessPolicies.fulfillment || item.businessPolicies.payment || item.businessPolicies.return)) {
+        console.log('🏢 [EBAY-API] Using provided business policies:', item.businessPolicies);
+        businessPolicies = {
+          shipping: item.businessPolicies.fulfillment,
+          payment: item.businessPolicies.payment,
+          return: item.businessPolicies.return
+        };
+      } else {
+        console.log('🏢 [EBAY-API] Fetching default business policy IDs for listing...');
+        const businessPolicyIds = await this.getBusinessPolicyIds();
+        console.log('🏢 [EBAY-API] Default business policy IDs retrieved:', businessPolicyIds);
+        
+        // Convert to legacy format for XML building
+        businessPolicies = {
+          shipping: businessPolicyIds.fulfillmentPolicyId,
+          payment: businessPolicyIds.paymentPolicyId,
+          return: businessPolicyIds.returnPolicyId
+        };
+      }
 
       // Create eBay listing using Trading API
       const xmlBody = this._buildListingXML({
@@ -666,6 +834,208 @@ class EbayApiService {
       }
       
       throw error;
+    }
+  }
+
+  /**
+   * Parse fulfillment policies from eBay API response
+   */
+  private _parseFulfillmentPolicies(policies: any[]): EbayFulfillmentPolicy[] {
+    try {
+      return policies.map(policy => ({
+        policyId: policy.fulfillmentPolicyId,
+        policyName: policy.name || 'Unnamed Fulfillment Policy',
+        policyType: 'FULFILLMENT' as const,
+        description: policy.description,
+        marketplaceId: policy.marketplaceId || 'EBAY_US',
+        categoryTypes: policy.categoryTypes || [],
+        freightShipping: policy.freightShipping,
+        globalShipping: policy.globalShipping,
+        handlingTime: policy.handlingTime,
+        localPickup: policy.localPickup,
+        pickupDropOff: policy.pickupDropOff,
+        shipToLocations: policy.shipToLocations,
+        shippingOptions: policy.shippingOptions
+      }));
+    } catch (error) {
+      console.error('❌ [EBAY-API] Error parsing fulfillment policies:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Parse payment policies from eBay API response
+   */
+  private _parsePaymentPolicies(policies: any[]): EbayPaymentPolicy[] {
+    try {
+      return policies.map(policy => ({
+        policyId: policy.paymentPolicyId,
+        policyName: policy.name || 'Unnamed Payment Policy',
+        policyType: 'PAYMENT' as const,
+        description: policy.description,
+        marketplaceId: policy.marketplaceId || 'EBAY_US',
+        categoryTypes: policy.categoryTypes || [],
+        immediatePayRequired: policy.immediatePayRequired,
+        paymentInstructions: policy.paymentInstructions,
+        paymentMethods: policy.paymentMethods
+      }));
+    } catch (error) {
+      console.error('❌ [EBAY-API] Error parsing payment policies:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Parse return policies from eBay API response
+   */
+  private _parseReturnPolicies(policies: any[]): EbayReturnPolicy[] {
+    try {
+      return policies.map(policy => ({
+        policyId: policy.returnPolicyId,
+        policyName: policy.name || 'Unnamed Return Policy',
+        policyType: 'RETURN' as const,
+        description: policy.description,
+        marketplaceId: policy.marketplaceId || 'EBAY_US',
+        categoryTypes: policy.categoryTypes || [],
+        extendedHolidayReturnsOffered: policy.extendedHolidayReturnsOffered,
+        refundMethod: policy.refundMethod,
+        restockingFeePercentage: policy.restockingFeePercentage,
+        returnInstructions: policy.returnInstructions,
+        returnMethod: policy.returnMethod,
+        returnPeriod: policy.returnPeriod,
+        returnShippingCostPayer: policy.returnShippingCostPayer,
+        returnsAccepted: policy.returnsAccepted
+      }));
+    } catch (error) {
+      console.error('❌ [EBAY-API] Error parsing return policies:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get mock business policies for development
+   */
+  private _getMockBusinessPolicies(): EbayBusinessPolicies {
+    return {
+      fulfillmentPolicies: [{
+        policyId: 'MOCK_FULFILLMENT_POLICY_ID',
+        policyName: 'Default Shipping Policy',
+        policyType: 'FULFILLMENT',
+        description: 'Mock fulfillment policy for development',
+        marketplaceId: 'EBAY_US',
+        categoryTypes: [{ name: 'ALL_EXCLUDING_MOTORS', default: true }],
+        freightShipping: false,
+        globalShipping: true,
+        handlingTime: { value: 1, unit: 'BUSINESS_DAY' },
+        localPickup: false,
+        pickupDropOff: false
+      }],
+      paymentPolicies: [{
+        policyId: 'MOCK_PAYMENT_POLICY_ID',
+        policyName: 'Default Payment Policy',
+        policyType: 'PAYMENT',
+        description: 'Mock payment policy for development',
+        marketplaceId: 'EBAY_US',
+        categoryTypes: [{ name: 'ALL_EXCLUDING_MOTORS', default: true }],
+        immediatePayRequired: false,
+        paymentInstructions: 'Payment through eBay checkout',
+        paymentMethods: [
+          { paymentMethodType: 'PAYPAL' },
+          { paymentMethodType: 'CREDIT_CARD' }
+        ]
+      }],
+      returnPolicies: [{
+        policyId: 'MOCK_RETURN_POLICY_ID',
+        policyName: 'Default Return Policy',
+        policyType: 'RETURN',
+        description: 'Mock return policy for development',
+        marketplaceId: 'EBAY_US',
+        categoryTypes: [{ name: 'ALL_EXCLUDING_MOTORS', default: true }],
+        extendedHolidayReturnsOffered: false,
+        refundMethod: 'MONEY_BACK',
+        returnInstructions: 'Item must be returned in original condition',
+        returnPeriod: { value: 30, unit: 'DAY' },
+        returnShippingCostPayer: 'BUYER',
+        returnsAccepted: true
+      }]
+    };
+  }
+
+  /**
+   * Cache business policies in localStorage
+   */
+  private _cacheBusinessPolicies(policies: EbayBusinessPolicies): void {
+    try {
+      const cacheData = {
+        policies,
+        timestamp: Date.now(),
+        environment: this.environment
+      };
+      localStorage.setItem('ebay_business_policies', JSON.stringify(cacheData));
+      console.log('📦 [EBAY-API] Business policies cached successfully');
+    } catch (error) {
+      console.warn('⚠️ [EBAY-API] Failed to cache business policies:', error);
+    }
+  }
+
+  /**
+   * Get cached business policies
+   */
+  private _getCachedBusinessPolicies(): EbayBusinessPolicies | null {
+    try {
+      const cached = localStorage.getItem('ebay_business_policies');
+      if (!cached) return null;
+
+      const cacheData = JSON.parse(cached);
+      
+      // Check if cache is valid (not older than 1 hour and same environment)
+      const isExpired = Date.now() - cacheData.timestamp > 3600000; // 1 hour
+      const wrongEnvironment = cacheData.environment !== this.environment;
+      
+      if (isExpired || wrongEnvironment) {
+        localStorage.removeItem('ebay_business_policies');
+        console.log('🗑️ [EBAY-API] Cleared expired/invalid business policy cache');
+        return null;
+      }
+
+      console.log('📦 [EBAY-API] Using cached business policies');
+      return cacheData.policies;
+    } catch (error) {
+      console.warn('⚠️ [EBAY-API] Failed to get cached business policies:', error);
+      localStorage.removeItem('ebay_business_policies');
+      return null;
+    }
+  }
+
+  /**
+   * Extract default policy IDs from business policies
+   */
+  private _extractDefaultPolicyIds(policies: EbayBusinessPolicies): EbayBusinessPolicyIds {
+    try {
+      // Find default policies (first one or one marked as default)
+      const fulfillmentPolicy = policies.fulfillmentPolicies.find(p => 
+        p.categoryTypes?.some(ct => ct.default)
+      ) || policies.fulfillmentPolicies[0];
+
+      const paymentPolicy = policies.paymentPolicies.find(p => 
+        p.categoryTypes?.some(ct => ct.default)
+      ) || policies.paymentPolicies[0];
+
+      const returnPolicy = policies.returnPolicies.find(p => 
+        p.categoryTypes?.some(ct => ct.default)
+      ) || policies.returnPolicies[0];
+
+      const result: EbayBusinessPolicyIds = {
+        fulfillmentPolicyId: fulfillmentPolicy?.policyId,
+        paymentPolicyId: paymentPolicy?.policyId,
+        returnPolicyId: returnPolicy?.policyId
+      };
+
+      console.log('🎯 [EBAY-API] Extracted default policy IDs:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ [EBAY-API] Error extracting policy IDs:', error);
+      return {};
     }
   }
 

@@ -282,3 +282,98 @@ export interface ShippingOption {
   cost: number;
   estimatedDays: number;
 }
+
+// eBay Business Policy Types
+export interface EbayBusinessPolicy {
+  policyId: string;
+  policyName: string;
+  policyType: 'FULFILLMENT' | 'PAYMENT' | 'RETURN';
+  description?: string;
+  marketplaceId: string;
+  categoryTypes?: Array<{
+    name: string;
+    default?: boolean;
+  }>;
+}
+
+export interface EbayFulfillmentPolicy extends EbayBusinessPolicy {
+  policyType: 'FULFILLMENT';
+  freightShipping?: boolean;
+  globalShipping?: boolean;
+  handlingTime?: {
+    value: number;
+    unit: 'DAY' | 'BUSINESS_DAY';
+  };
+  localPickup?: boolean;
+  pickupDropOff?: boolean;
+  shipToLocations?: {
+    regionIncluded?: Array<{
+      regionName: string;
+      regionType: string;
+    }>;
+    regionExcluded?: Array<{
+      regionName: string;
+      regionType: string;
+    }>;
+  };
+  shippingOptions?: Array<{
+    optionType: 'DOMESTIC' | 'INTERNATIONAL';
+    costType: 'FLAT_RATE' | 'CALCULATED';
+    shippingServices?: Array<{
+      shippingCarrierCode: string;
+      shippingServiceCode: string;
+      freeShipping?: boolean;
+      buyerResponsibleForShipping?: boolean;
+      buyerResponsibleForPickup?: boolean;
+      shippingCost?: {
+        value: string;
+        currency: string;
+      };
+      additionalShippingCost?: {
+        value: string;
+        currency: string;
+      };
+      sortOrder?: number;
+    }>;
+  }>;
+}
+
+export interface EbayPaymentPolicy extends EbayBusinessPolicy {
+  policyType: 'PAYMENT';
+  immediatePayRequired?: boolean;
+  paymentInstructions?: string;
+  paymentMethods?: Array<{
+    paymentMethodType: 'PAYPAL' | 'CREDIT_CARD' | 'APPLE_PAY' | 'GOOGLE_PAY';
+    recipientAccountReference?: {
+      referenceId: string;
+      referenceType: string;
+    };
+  }>;
+}
+
+export interface EbayReturnPolicy extends EbayBusinessPolicy {
+  policyType: 'RETURN';
+  extendedHolidayReturnsOffered?: boolean;
+  refundMethod?: 'MONEY_BACK' | 'EXCHANGE' | 'MERCHANDISE_CREDIT';
+  restockingFeePercentage?: string;
+  returnInstructions?: string;
+  returnMethod?: 'REPLACEMENT' | 'EXCHANGE';
+  returnPeriod?: {
+    value: number;
+    unit: 'DAY' | 'MONTH';
+  };
+  returnShippingCostPayer?: 'BUYER' | 'SELLER';
+  returnsAccepted?: boolean;
+}
+
+export interface EbayBusinessPolicies {
+  fulfillmentPolicies: EbayFulfillmentPolicy[];
+  paymentPolicies: EbayPaymentPolicy[];
+  returnPolicies: EbayReturnPolicy[];
+}
+
+export interface EbayBusinessPolicyIds {
+  fulfillmentPolicyId?: string;
+  paymentPolicyId?: string;
+  returnPolicyId?: string;
+}

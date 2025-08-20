@@ -8,6 +8,7 @@ import ebayOAuth from '../services/ebayOAuth';
 import EbayAuthButton from '../components/EbayAuthButton';
 import MockEbayAuth from '../components/MockEbayAuth';
 import ManualEbayAuth from '../components/ManualEbayAuth';
+import BusinessPolicySelector from '../components/BusinessPolicySelector';
 
 
 const ListingPreview = () => {
@@ -21,6 +22,11 @@ const ListingPreview = () => {
   const [listingUrls, setListingUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [isEbayAuthenticated, setIsEbayAuthenticated] = useState(false);
+  const [selectedBusinessPolicies, setSelectedBusinessPolicies] = useState<{
+    fulfillment?: string;
+    payment?: string;
+    return?: string;
+  }>({});
 
   useEffect(() => {
     // Check eBay authentication status
@@ -139,6 +145,13 @@ const ListingPreview = () => {
     );
   };
 
+  const handleBusinessPolicyChange = (type: 'fulfillment' | 'payment' | 'return', policyId: string) => {
+    setSelectedBusinessPolicies(prev => ({
+      ...prev,
+      [type]: policyId
+    }));
+  };
+
   const handlePost = async () => {
     if (selectedPlatforms.length === 0) {
       alert('Please select at least one platform to post to.');
@@ -170,7 +183,12 @@ const ListingPreview = () => {
           console.log('📝 [LISTING-PREVIEW] Posting to eBay...');
           try {
             const ebayService = new EbayApiService();
-            const ebayListing = await ebayService.createListingFromItem(item);
+            // Pass business policies to the listing creation
+            const itemWithPolicies = {
+              ...item,
+              businessPolicies: selectedBusinessPolicies
+            };
+            const ebayListing = await ebayService.createListingFromItem(itemWithPolicies);
             
             // FORCE IMMEDIATE ALERT FOR DEBUGGING
             alert(`🔧 DEBUG: eBay service returned listingId: ${ebayListing.listingId}`);
@@ -249,7 +267,8 @@ const ListingPreview = () => {
           .update({
             status: 'active',
             platforms: selectedPlatforms,
-            listed_at: new Date().toISOString()
+            listed_at: new Date().toISOString(),
+            business_policies: selectedBusinessPolicies
           })
           .eq('id', listing.id)
           .eq('user_id', authUser.id); // Add user_id filter for RLS
@@ -276,7 +295,8 @@ const ListingPreview = () => {
           images: item.images,
           platforms: selectedPlatforms,
           status: 'active',
-          listed_at: new Date().toISOString()
+          listed_at: new Date().toISOString(),
+          business_policies: selectedBusinessPolicies
         };
         
         console.log('📝 [LISTING-PREVIEW] Creating new listing with data:', listingData);
@@ -470,8 +490,17 @@ const ListingPreview = () => {
             </div>
           </div>
 
-          {/* Platform Selection */}
+          {/* Platform Selection and Business Policies */}
           <div className="space-y-6">
+            {/* Business Policy Selection for eBay */}
+            {selectedPlatforms.includes('ebay') && isEbayAuthenticated && (
+              <BusinessPolicySelector
+                selectedPolicies={selectedBusinessPolicies}
+                onPolicyChange={handleBusinessPolicyChange}
+                className="shadow-sm"
+              />
+            )}
+
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Choose Platforms
@@ -566,7 +595,13 @@ const ListingPreview = () => {
                 
                 <button
                   onClick={handlePost}
-                  disabled={isPosting || selectedPlatforms.length === 0 || (selectedPlatforms.includes('ebay') && !isEbayAuthenticated)}
+                  disabled={
+                    isPosting || 
+                    selectedPlatforms.length === 0 || 
+                    (selectedPlatforms.includes('ebay') && !isEbayAuthenticated) ||
+                    (selectedPlatforms.includes('ebay') && isEbayAuthenticated && 
+                     (!selectedBusinessPolicies.fulfillment || !selectedBusinessPolicies.payment || !selectedBusinessPolicies.return))
+                  }
                   className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center justify-center space-x-2"
                 >
                   {isPosting ? (
@@ -591,6 +626,13 @@ const ListingPreview = () => {
                 {selectedPlatforms.includes('ebay') && !isEbayAuthenticated && (
                   <p className="text-yellow-600 text-sm text-center">
                     Please connect your eBay account before posting
+                  </p>
+                )}
+                
+                {selectedPlatforms.includes('ebay') && isEbayAuthenticated && 
+                 (!selectedBusinessPolicies.fulfillment || !selectedBusinessPolicies.payment || !selectedBusinessPolicies.return) && (
+                  <p className="text-yellow-600 text-sm text-center">
+                    Please select all required business policies for eBay listing
                   </p>
                 )}
               </div>

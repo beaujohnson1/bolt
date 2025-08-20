@@ -55,6 +55,12 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // Check if state is missing (happens with eBay Developer Console "Test sign-in")
+    if (!state) {
+      console.log('⚠️ [EBAY-CALLBACK] Missing state parameter - likely from eBay Developer Console test');
+      console.log('📝 [EBAY-CALLBACK] Proceeding without state validation for test purposes');
+    }
+
     console.log('✅ [EBAY-CALLBACK] Valid authorization code received, exchanging for token...');
 
     // Exchange code for access token using the existing OAuth function
@@ -72,7 +78,7 @@ exports.handler = async (event, context) => {
         action: 'exchange-code',
         code: code,
         redirect_uri: redirectUri,
-        state: state
+        state: state || 'test-mode' // Use 'test-mode' when state is missing
       })
     });
 
