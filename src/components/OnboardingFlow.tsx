@@ -487,6 +487,28 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       console.error('❌ [ONBOARDING] Error checking beacon:', e);
     }
     
+    // 1.5. Check for main window success indicator
+    if (!tokensFound) {
+      try {
+        const mainWindowSuccess = localStorage.getItem('ebay_oauth_main_window_success');
+        if (mainWindowSuccess) {
+          const successData = JSON.parse(mainWindowSuccess);
+          if (successData.tokens) {
+            console.log('✅ [ONBOARDING] Found tokens in main window indicator during manual check');
+            debugConsole.log('✅ Found tokens in main window indicator!', 'success', 'manual-main');
+            
+            // Store the tokens
+            localStorage.setItem('ebay_oauth_tokens', JSON.stringify(successData.tokens));
+            localStorage.setItem('ebay_manual_token', successData.tokens.access_token);
+            localStorage.removeItem('ebay_oauth_main_window_success');
+            tokensFound = true;
+          }
+        }
+      } catch (e) {
+        console.error('❌ [ONBOARDING] Error checking main window indicator:', e);
+      }
+    }
+    
     // 2. Check if tokens are already stored
     if (!tokensFound) {
       tokensFound = ebayOAuthService.isAuthenticated();
@@ -553,11 +575,12 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       console.log('🌐 [ONBOARDING] Calling OAuth service to initiate flow...');
       debugConsole.log('Requesting OAuth authorization URL from server...', 'info', 'oauth-init');
       
-      // Use the current dashboard URL as redirect
-      const redirectUri = `${window.location.origin}/app`;
+      // CRITICAL FIX: Don't pass redirectUri - let backend handle callback configuration
+      // The backend is configured to use /.netlify/functions/auth-ebay-callback
+      // which will handle token exchange and communication back to the app
       
       // CRITICAL: Only proceed if OAuth initiation succeeds
-      await ebayOAuthService.initiateOAuthFlow(redirectUri);
+      await ebayOAuthService.initiateOAuthFlow();
       
       console.log('✅ [ONBOARDING] OAuth flow initiated successfully - popup should be open');
       console.log('⏳ [ONBOARDING] Starting token polling for popup completion...');
@@ -612,9 +635,61 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           // Beacon check failed, continue with normal polling
         }
         
+        // Check for main window success indicators
+        let mainWindowFound = false;
+        try {
+          const mainWindowSuccess = localStorage.getItem('ebay_oauth_main_window_success');
+          if (mainWindowSuccess) {
+            const successData = JSON.parse(mainWindowSuccess);
+            // Check if indicator is fresh (within last 5 minutes)
+            if (successData.timestamp && (Date.now() - successData.timestamp) < 300000) {
+              mainWindowFound = true;
+              console.log('🏠 [ONBOARDING] Main window success indicator detected!', successData);
+              debugConsole.log('🏠 Main window success detected! Processing tokens...', 'success', 'main-window');
+              
+              // Clean up indicator
+              localStorage.removeItem('ebay_oauth_main_window_success');
+              
+              // If has tokens but they're not in regular storage, store them
+              if (successData.tokens && !connected) {
+                try {
+                  localStorage.setItem('ebay_oauth_tokens', JSON.stringify(successData.tokens));
+                  localStorage.setItem('ebay_manual_token', successData.tokens.access_token);
+                  console.log('✅ [ONBOARDING] Tokens extracted from main window indicator and stored');
+                  debugConsole.log('✅ Tokens extracted from main window indicator', 'success', 'main-store');
+                } catch (e) {
+                  console.error('❌ [ONBOARDING] Failed to store main window tokens:', e);
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Main window check failed, continue with normal polling
+        }
+        
         // Check for URL parameter indicating success
         const urlParams = new URLSearchParams(window.location.search);
         const hasSuccessParam = urlParams.get('ebay_connected') === 'true';
+        
+        // CRITICAL: Check if main window got redirected to callback page
+        let isOnCallbackPage = false;
+        if (window.location.pathname.includes('/.netlify/functions/auth-ebay-callback')) {
+          console.log('🔗 [ONBOARDING] Main window redirected to callback page!');
+          debugConsole.log('🔗 Main window on callback page - extracting tokens...', 'info', 'callback-page');
+          isOnCallbackPage = true;
+          
+          // Try to extract tokens from callback page DOM or localStorage
+          // The callback page should have stored tokens by now
+          setTimeout(() => {
+            const extractedTokens = ebayOAuthService.isAuthenticated();
+            if (extractedTokens) {
+              console.log('✅ [ONBOARDING] Tokens extracted from callback page!');
+              debugConsole.log('✅ Tokens found on callback page!', 'success', 'callback-extract');
+              // We'll catch this in the next polling cycle
+            }
+          }, 500);
+        }
+        
         if (hasSuccessParam) {
           console.log('🔗 [ONBOARDING] Success URL parameter detected during polling');
           debugConsole.log('🔗 Success URL parameter detected!', 'success', 'url-param');
@@ -627,10 +702,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         }
         
         // Consider authentication successful if ANY method detects it
-        const authDetected = connected || beaconFound || hasSuccessParam;
+        const authDetected = connected || beaconFound || mainWindowFound || hasSuccessParam || isOnCallbackPage;
         
-        console.log(`⏱️ [ONBOARDING] Token poll ${checkCount}/${maxChecks}: connected=${connected}, beacon=${beaconFound}, url=${hasSuccessParam}`);
-        debugConsole.log(`Token poll ${checkCount}/${maxChecks}: ${authDetected ? 'FOUND!' : 'No tokens yet'} (auth=${connected}, beacon=${beaconFound}, url=${hasSuccessParam})`, authDetected ? 'success' : 'info', 'polling');
+        console.log(`⏱️ [ONBOARDING] Token poll ${checkCount}/${maxChecks}: connected=${connected}, beacon=${beaconFound}, main=${mainWindowFound}, url=${hasSuccessParam}, callback=${isOnCallbackPage}`);
+        debugConsole.log(`Token poll ${checkCount}/${maxChecks}: ${authDetected ? 'FOUND!' : 'No tokens yet'} (auth=${connected}, beacon=${beaconFound}, main=${mainWindowFound}, url=${hasSuccessParam}, callback=${isOnCallbackPage})`, authDetected ? 'success' : 'info', 'polling');
         
         if (authDetected) {
           console.log('🎉 [ONBOARDING] Authentication detected during polling!');

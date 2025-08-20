@@ -485,6 +485,27 @@ exports.handler = async (event, context) => {
               updateStatus('Redirecting to application...');
               addLog('Running in same window, redirecting...');
 
+              // ENHANCED: For same-window scenario, ensure tokens are stored and create additional indicators
+              try {
+                // Write additional success indicators for main window scenarios
+                localStorage.setItem('ebay_oauth_main_window_success', JSON.stringify({
+                  success: true,
+                  tokens: tokenData,
+                  timestamp: Date.now(),
+                  source: 'main_window_callback'
+                }));
+                addLog('✅ Main window success indicator stored');
+                
+                // Also store in sessionStorage for cross-tab detection
+                sessionStorage.setItem('ebay_oauth_main_window_success', JSON.stringify({
+                  success: true,
+                  timestamp: Date.now()
+                }));
+                addLog('✅ Session storage success indicator stored');
+              } catch (e) {
+                addLog('❌ Failed to store main window indicators: ' + e.message);
+              }
+
               // Dispatch event for same-window scenario
               window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
                 detail: { 
@@ -500,7 +521,7 @@ exports.handler = async (event, context) => {
                 const returnUrl = localStorage.getItem('ebay_oauth_return_url') || '${baseUrl}/app';
                 localStorage.removeItem('ebay_oauth_return_url');
                 const separator = returnUrl.includes('?') ? '&' : '?';
-                const redirectUrl = returnUrl + separator + 'ebay_connected=true&timestamp=' + Date.now();
+                const redirectUrl = returnUrl + separator + 'ebay_connected=true&timestamp=' + Date.now() + '&main_window=true';
                 addLog('Redirecting to: ' + redirectUrl);
                 window.location.href = redirectUrl;
               }, 1500);
