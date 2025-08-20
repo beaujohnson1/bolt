@@ -116,10 +116,18 @@ async function getAuthUrl(headers, credentials, oauthBase, queryParams, environm
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('state', state);
     
-    // CRITICAL FIX: Use actual callback URL for redirect_uri so eBay knows where to redirect
-    // The RuName should be configured in eBay Developer Console to point to this callback URL
-    authUrl.searchParams.append('redirect_uri', callbackUrl);
-    console.log('🔗 [EBAY-OAUTH] Using callback URL as redirect_uri for both production and sandbox:', callbackUrl);
+    // CRITICAL FIX: Use RuName for redirect_uri parameter (eBay requirement)
+    // The callback URL is configured in eBay Developer Console, not in OAuth parameters
+    if (isProduction) {
+      const ruName = 'easyflip.ai-easyflip-easyfl-cnqajybp';
+      authUrl.searchParams.append('redirect_uri', ruName);
+      console.log('🔗 [EBAY-OAUTH] Using production RuName for redirect_uri:', ruName);
+    } else {
+      // Sandbox RuName (if available, otherwise use callback URL for sandbox)
+      const sandboxRuName = process.env.EBAY_SANDBOX_RUNAME || callbackUrl;
+      authUrl.searchParams.append('redirect_uri', sandboxRuName);
+      console.log('🔗 [EBAY-OAUTH] Using sandbox redirect_uri:', sandboxRuName);
+    }
     console.log('🔗 [EBAY-OAUTH] Final callback URL:', callbackUrl);
     
     // Add eBay scopes for selling - simplified for production approval
@@ -198,10 +206,17 @@ async function exchangeCode(headers, credentials, tokenBase, body) {
       code: code
     });
     
-    // CRITICAL FIX: Use the same callback URL for token exchange as authorization
+    // CRITICAL FIX: Use the same RuName for token exchange as authorization
     // This must match the redirect_uri used in the authorization request
-    tokenParams.append('redirect_uri', callbackUrl);
-    console.log('🔄 [EBAY-OAUTH] Using consistent callback URL for token exchange:', callbackUrl);
+    if (isProduction) {
+      const ruName = 'easyflip.ai-easyflip-easyfl-cnqajybp';
+      tokenParams.append('redirect_uri', ruName);
+      console.log('🔄 [EBAY-OAUTH] Using production RuName for token exchange:', ruName);
+    } else {
+      const sandboxRuName = process.env.EBAY_SANDBOX_RUNAME || callbackUrl;
+      tokenParams.append('redirect_uri', sandboxRuName);
+      console.log('🔄 [EBAY-OAUTH] Using sandbox redirect_uri for token exchange:', sandboxRuName);
+    }
     
     console.log('🔄 [EBAY-OAUTH] Received redirect_uri in request:', redirect_uri);
     console.log('🔄 [EBAY-OAUTH] Code parameter:', code ? code.substring(0, 20) + '...' : 'missing');
@@ -210,6 +225,13 @@ async function exchangeCode(headers, credentials, tokenBase, body) {
     const basicAuth = Buffer.from(`${credentials.appId}:${credentials.certId}`).toString('base64');
 
     console.log('📡 [EBAY-OAUTH] Making token exchange request to:', tokenUrl);
+    console.log('📡 [EBAY-OAUTH] Request parameters:', {
+      grant_type: 'authorization_code',
+      code: code ? code.substring(0, 20) + '...' : 'missing',
+      redirect_uri: tokenParams.get('redirect_uri'),
+      contentType: 'application/x-www-form-urlencoded',
+      hasBasicAuth: !!basicAuth
+    });
     
     const response = await fetch(tokenUrl, {
       method: 'POST',
@@ -220,10 +242,21 @@ async function exchangeCode(headers, credentials, tokenBase, body) {
       body: tokenParams.toString()
     });
 
+    console.log('📡 [EBAY-OAUTH] Token exchange response status:', response.status, response.statusText);
+    
     const responseData = await response.json();
-
+    
     if (!response.ok) {
-      console.error('❌ [EBAY-OAUTH] Token exchange failed:', responseData);
+      console.error('❌ [EBAY-OAUTH] Token exchange failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: responseData,
+        requestParams: {
+          grant_type: 'authorization_code',
+          redirect_uri: tokenParams.get('redirect_uri'),
+          codeLength: code?.length || 0
+        }
+      });
       throw new Error(responseData.error_description || responseData.error || 'Token exchange failed');
     }
 

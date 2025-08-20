@@ -15,7 +15,11 @@
       "Bash(grep:*)",
       "Bash(mv:*)",
       "Bash(git commit:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "WebSearch",
+      "WebSearch",
+      "WebSearch",
+      "WebSearch"
     ],
     "deny": []
   }
