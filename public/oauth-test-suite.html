@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Testing Suite - EasyFlip</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .test-section {
+            margin-bottom: 30px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .test-section-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .test-section-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .test-section-description {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .test-section-content {
+            padding: 20px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+        }
+
+        .control-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .status-idle {
+            background: #e9ecef;
+            color: #6c757d;
+        }
+
+        .status-running {
+            background: #fff3cd;
+            color: #856404;
+            animation: pulse 1.5s ease-in-out infinite alternate;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        @keyframes pulse {
+            from { opacity: 1; }
+            to { opacity: 0.5; }
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .results-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .test-result {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .test-result:last-child {
+            border-bottom: none;
+        }
+
+        .test-result-icon {
+            font-size: 1.2em;
+        }
+
+        .test-result-name {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .test-result-status {
+            font-size: 0.9em;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .result-pass {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .result-fail {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .console-output {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85em;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .validation-checklist {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #e0e0e0;
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .checklist-item:last-child {
+            border-bottom: none;
+        }
+
+        .checklist-icon {
+            font-size: 1.1em;
+        }
+
+        .export-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .tooltip {
+            position: relative;
+            cursor: help;
+        }
+
+        .tooltip:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            white-space: nowrap;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 OAuth Testing Suite</h1>
+            <p>Comprehensive validation of OAuth fixes and functionality</p>
+        </div>
+
+        <div class="content">
+            <!-- Control Panel -->
+            <div class="control-panel">
+                <button id="runAllTests" class="btn">🚀 Run All Tests</button>
+                <button id="runQuickTests" class="btn btn-small">⚡ Quick Test</button>
+                <button id="clearResults" class="btn btn-small">🧹 Clear Results</button>
+                
+                <div class="status-indicator" id="testStatus">
+                    <span id="statusIcon">⏸️</span>
+                    <span id="statusText">Ready</span>
+                </div>
+                
+                <div style="flex: 1;"></div>
+                
+                <div class="tooltip" data-tooltip="Overall test progress">
+                    <span id="progressText">0/0 tests completed</span>
+                </div>
+            </div>
+
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+
+            <!-- Validation Checklist -->
+            <div class="validation-checklist">
+                <h3>📋 OAuth Validation Checklist</h3>
+                <div class="checklist-item">
+                    <span class="checklist-icon" id="check-popup">⏳</span>
+                    <span>Popup opens and closes correctly</span>
+                </div>
+                <div class="checklist-item">
+                    <span class="checklist-icon" id="check-postmessage">⏳</span>
+                    <span>PostMessage events are sent and received</span>
+                </div>
+                <div class="checklist-item">
+                    <span class="checklist-icon" id="check-storage">⏳</span>
+                    <span>Tokens are stored in localStorage</span>
+                </div>
+                <div class="checklist-item">
+                    <span class="checklist-icon" id="check-auth">⏳</span>
+                    <span>Parent window detects authentication</span>
+                </div>
+                <div class="checklist-item">
+                    <span class="checklist-icon" id="check-ui">⏳</span>
+                    <span>UI updates to show connected state</span>
+                </div>
+            </div>
+
+            <!-- Test Suites -->
+            <div class="test-section">
+                <div class="test-section-header">
+                    <div>
+                        <div class="test-section-title">🔗 Communication Tests</div>
+                        <div class="test-section-description">PostMessage delivery between windows</div>
+                    </div>
+                    <button class="btn btn-small" onclick="runSingleSuite('communication')">Run</button>
+                </div>
+                <div class="test-section-content" id="communication-results"></div>
+            </div>
+
+            <div class="test-section">
+                <div class="test-section-header">
+                    <div>
+                        <div class="test-section-title">💾 Token Storage Tests</div>
+                        <div class="test-section-description">localStorage persistence and validation</div>
+                    </div>
+                    <button class="btn btn-small" onclick="runSingleSuite('storage')">Run</button>
+                </div>
+                <div class="test-section-content" id="storage-results"></div>
+            </div>
+
+            <div class="test-section">
+                <div class="test-section-header">
+                    <div>
+                        <div class="test-section-title">🪟 Popup Flow Tests</div>
+                        <div class="test-section-description">End-to-end popup OAuth flow</div>
+                    </div>
+                    <button class="btn btn-small" onclick="runSingleSuite('popup')">Run</button>
+                </div>
+                <div class="test-section-content" id="popup-results"></div>
+            </div>
+
+            <div class="test-section">
+                <div class="test-section-header">
+                    <div>
+                        <div class="test-section-title">🌐 Browser Compatibility</div>
+                        <div class="test-section-description">Cross-browser API compatibility</div>
+                    </div>
+                    <button class="btn btn-small" onclick="runSingleSuite('compatibility')">Run</button>
+                </div>
+                <div class="test-section-content" id="compatibility-results"></div>
+            </div>
+
+            <div class="test-section">
+                <div class="test-section-header">
+                    <div>
+                        <div class="test-section-title">🎯 UI State Tests</div>
+                        <div class="test-section-description">Authentication state UI updates</div>
+                    </div>
+                    <button class="btn btn-small" onclick="runSingleSuite('ui')">Run</button>
+                </div>
+                <div class="test-section-content" id="ui-results"></div>
+            </div>
+
+            <div class="test-section">
+                <div class="test-section-header">
+                    <div>
+                        <div class="test-section-title">🕷️ Network Monitoring</div>
+                        <div class="test-section-description">OAuth request tracking</div>
+                    </div>
+                    <button class="btn btn-small" onclick="runSingleSuite('network')">Run</button>
+                </div>
+                <div class="test-section-content" id="network-results"></div>
+            </div>
+
+            <div class="test-section">
+                <div class="test-section-header">
+                    <div>
+                        <div class="test-section-title">❌ Error Scenarios</div>
+                        <div class="test-section-description">Failure cases and recovery paths</div>
+                    </div>
+                    <button class="btn btn-small" onclick="runSingleSuite('errors')">Run</button>
+                </div>
+                <div class="test-section-content" id="errors-results"></div>
+            </div>
+
+            <!-- Summary Results -->
+            <div class="results-container hidden" id="summaryResults">
+                <h3>📊 Test Results Summary</h3>
+                <div class="summary-stats" id="summaryStats"></div>
+                <div id="testResultsList"></div>
+            </div>
+
+            <!-- Console Output -->
+            <div class="test-section">
+                <div class="test-section-header">
+                    <div class="test-section-title">🖥️ Console Output</div>
+                    <button class="btn btn-small" onclick="clearConsole()">Clear</button>
+                </div>
+                <div class="test-section-content">
+                    <div class="console-output" id="consoleOutput">Waiting for test execution...</div>
+                </div>
+            </div>
+
+            <!-- Export Section -->
+            <div class="export-section hidden" id="exportSection">
+                <h3>📁 Export Results</h3>
+                <p>Download test results for further analysis:</p>
+                <button class="btn btn-small" onclick="exportResults('json')">📄 Export JSON</button>
+                <button class="btn btn-small" onclick="exportResults('csv')">📊 Export CSV</button>
+                <button class="btn btn-small" onclick="exportResults('html')">🌐 Export HTML Report</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load Test Scripts -->
+    <script src="/scripts/test-oauth-communication.js"></script>
+    <script src="/scripts/test-token-storage.js"></script>
+    <script src="/scripts/test-popup-flow.js"></script>
+    <script src="/scripts/test-browser-compatibility.js"></script>
+    <script src="/scripts/test-minimal-popup.js"></script>
+    <script src="/scripts/test-auth-state-ui.js"></script>
+    <script src="/scripts/test-network-monitoring.js"></script>
+    <script src="/scripts/test-error-scenarios.js"></script>
+    <script src="/scripts/test-comprehensive-oauth.js"></script>
+
+    <script>
+        class OAuthTestSuiteUI {
+            constructor() {
+                this.testResults = new Map();
+                this.totalTests = 0;
+                this.completedTests = 0;
+                this.allResults = {};
+                this.setupEventListeners();
+                this.interceptConsole();
+            }
+
+            setupEventListeners() {
+                document.getElementById('runAllTests').addEventListener('click', () => this.runAllTests());
+                document.getElementById('runQuickTests').addEventListener('click', () => this.runQuickTests());
+                document.getElementById('clearResults').addEventListener('click', () => this.clearResults());
+            }
+
+            interceptConsole() {
+                const originalLog = console.log;
+                const originalError = console.error;
+                const consoleOutput = document.getElementById('consoleOutput');
+
+                console.log = (...args) => {
+                    originalLog.apply(console, args);
+                    this.appendToConsole(args.join(' '), 'log');
+                };
+
+                console.error = (...args) => {
+                    originalError.apply(console, args);
+                    this.appendToConsole(args.join(' '), 'error');
+                };
+            }
+
+            appendToConsole(message, type = 'log') {
+                const consoleOutput = document.getElementById('consoleOutput');
+                const timestamp = new Date().toLocaleTimeString();
+                const color = type === 'error' ? '#ff6b6b' : '#e2e8f0';
+                
+                consoleOutput.innerHTML += `<span style="color: ${color};">[${timestamp}] ${message}</span>\n`;
+                consoleOutput.scrollTop = consoleOutput.scrollHeight;
+            }
+
+            updateStatus(icon, text, className = 'status-idle') {
+                document.getElementById('statusIcon').textContent = icon;
+                document.getElementById('statusText').textContent = text;
+                document.getElementById('testStatus').className = `status-indicator ${className}`;
+            }
+
+            updateProgress(completed, total) {
+                this.completedTests = completed;
+                this.totalTests = total;
+                
+                const percentage = total > 0 ? (completed / total) * 100 : 0;
+                document.getElementById('progressFill').style.width = `${percentage}%`;
+                document.getElementById('progressText').textContent = `${completed}/${total} tests completed`;
+            }
+
+            updateChecklist(checkId, status) {
+                const element = document.getElementById(checkId);
+                if (element) {
+                    element.textContent = status ? '✅' : '❌';
+                }
+            }
+
+            async runAllTests() {
+                this.updateStatus('🚀', 'Running all tests...', 'status-running');
+                this.clearResults();
+
+                try {
+                    const tester = new ComprehensiveOAuthTester();
+                    const results = await tester.runCompleteValidation();
+                    
+                    this.allResults = results.results;
+                    this.displayResults(results);
+                    this.updateValidationChecklist(results);
+                    
+                    this.updateStatus('✅', 'All tests completed', 'status-success');
+                    document.getElementById('exportSection').classList.remove('hidden');
+                    
+                } catch (error) {
+                    console.error('Test execution failed:', error);
+                    this.updateStatus('❌', 'Tests failed', 'status-error');
+                }
+            }
+
+            async runQuickTests() {
+                this.updateStatus('⚡', 'Running quick tests...', 'status-running');
+                this.clearResults();
+
+                try {
+                    // Run just the essential tests
+                    const minimalTester = new MinimalPopupTester();
+                    const communicationTester = new OAuthCommunicationTester();
+                    
+                    const results = await Promise.all([
+                        minimalTester.runAllTests(),
+                        communicationTester.runAllTests()
+                    ]);
+                    
+                    this.displayQuickResults([
+                        { name: 'Minimal Popup', results: minimalTester.getResults() },
+                        { name: 'Communication', results: communicationTester.getResults() }
+                    ]);
+                    
+                    this.updateStatus('✅', 'Quick tests completed', 'status-success');
+                    
+                } catch (error) {
+                    console.error('Quick test execution failed:', error);
+                    this.updateStatus('❌', 'Quick tests failed', 'status-error');
+                }
+            }
+
+            async runSingleSuite(suiteName) {
+                this.updateStatus('🔄', `Running ${suiteName} tests...`, 'status-running');
+
+                try {
+                    let tester, results;
+                    
+                    switch (suiteName) {
+                        case 'communication':
+                            tester = new OAuthCommunicationTester();
+                            results = await tester.runAllTests();
+                            this.displaySuiteResults('communication', tester.getResults());
+                            break;
+                        case 'storage':
+                            tester = new TokenStorageTester();
+                            results = await tester.runAllTests();
+                            this.displaySuiteResults('storage', tester.getResults());
+                            break;
+                        case 'popup':
+                            tester = new PopupFlowTester();
+                            results = await tester.runAllTests();
+                            this.displaySuiteResults('popup', tester.getResults());
+                            break;
+                        case 'compatibility':
+                            tester = new BrowserCompatibilityTester();
+                            results = await tester.runAllTests();
+                            this.displaySuiteResults('compatibility', tester.getResults());
+                            break;
+                        case 'ui':
+                            tester = new AuthStateUITester();
+                            results = await tester.runAllTests();
+                            this.displaySuiteResults('ui', tester.getResults());
+                            break;
+                        case 'network':
+                            tester = new NetworkMonitoringTester();
+                            results = await tester.runAllTests();
+                            this.displaySuiteResults('network', tester.getResults());
+                            break;
+                        case 'errors':
+                            tester = new ErrorScenariosTest();
+                            results = await tester.runAllTests();
+                            this.displaySuiteResults('errors', tester.getResults());
+                            break;
+                    }
+                    
+                    this.updateStatus('✅', `${suiteName} tests completed`, 'status-success');
+                    
+                } catch (error) {
+                    console.error(`${suiteName} test execution failed:`, error);
+                    this.updateStatus('❌', `${suiteName} tests failed`, 'status-error');
+                }
+            }
+
+            displaySuiteResults(suiteName, results) {
+                const container = document.getElementById(`${suiteName}-results`);
+                
+                let html = '';
+                results.results.forEach(result => {
+                    const icon = result.status === 'PASS' ? '✅' : '❌';
+                    const statusClass = result.status === 'PASS' ? 'result-pass' : 'result-fail';
+                    
+                    html += `
+                        <div class="test-result">
+                            <span class="test-result-icon">${icon}</span>
+                            <span class="test-result-name">${result.test}</span>
+                            <span class="test-result-status ${statusClass}">${result.status}</span>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                    <div style="margin-top: 15px; font-size: 0.9em; color: #666;">
+                        ${results.summary.passed}/${results.summary.total} tests passed 
+                        (${Math.round((results.summary.passed / results.summary.total) * 100)}%)
+                    </div>
+                `;
+                
+                container.innerHTML = html;
+            }
+
+            displayResults(results) {
+                document.getElementById('summaryResults').classList.remove('hidden');
+                
+                // Display summary stats
+                const statsHtml = `
+                    <div class="stat-card">
+                        <div class="stat-number">${results.results.summary.totalTests}</div>
+                        <div class="stat-label">Total Tests</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${results.results.summary.totalPassed}</div>
+                        <div class="stat-label">Passed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${results.results.summary.totalFailed}</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${results.results.summary.overallSuccessRate}%</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                `;
+                
+                document.getElementById('summaryStats').innerHTML = statsHtml;
+                
+                // Display individual suite results
+                results.results.suites.forEach(suite => {
+                    if (suite.results) {
+                        this.displaySuiteResults(suite.name.toLowerCase(), suite.results);
+                    }
+                });
+                
+                this.updateProgress(results.results.summary.totalPassed + results.results.summary.totalFailed, results.results.summary.totalTests);
+            }
+
+            displayQuickResults(suiteResults) {
+                document.getElementById('summaryResults').classList.remove('hidden');
+                
+                let totalTests = 0;
+                let totalPassed = 0;
+                
+                suiteResults.forEach(suite => {
+                    totalTests += suite.results.summary.total;
+                    totalPassed += suite.results.summary.passed;
+                    
+                    this.displaySuiteResults(suite.name.toLowerCase().replace(' ', ''), suite.results);
+                });
+                
+                const statsHtml = `
+                    <div class="stat-card">
+                        <div class="stat-number">${totalTests}</div>
+                        <div class="stat-label">Total Tests</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${totalPassed}</div>
+                        <div class="stat-label">Passed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${totalTests - totalPassed}</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${Math.round((totalPassed / totalTests) * 100)}%</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                `;
+                
+                document.getElementById('summaryStats').innerHTML = statsHtml;
+                this.updateProgress(totalTests, totalTests);
+            }
+
+            updateValidationChecklist(results) {
+                // Update checklist based on test results
+                const communicationPassed = results.results.suites.find(s => s.name === 'Communication')?.results?.summary.passed > 0;
+                const storagePassed = results.results.suites.find(s => s.name === 'TokenStorage')?.results?.summary.passed > 0;
+                const popupPassed = results.results.suites.find(s => s.name === 'PopupFlow')?.results?.summary.passed > 0;
+                const uiPassed = results.results.suites.find(s => s.name === 'AuthStateUI')?.results?.summary.passed > 0;
+                
+                this.updateChecklist('check-popup', popupPassed);
+                this.updateChecklist('check-postmessage', communicationPassed);
+                this.updateChecklist('check-storage', storagePassed);
+                this.updateChecklist('check-auth', storagePassed && communicationPassed);
+                this.updateChecklist('check-ui', uiPassed);
+            }
+
+            clearResults() {
+                this.testResults.clear();
+                this.allResults = {};
+                
+                document.getElementById('summaryResults').classList.add('hidden');
+                document.getElementById('exportSection').classList.add('hidden');
+                
+                // Clear individual suite results
+                ['communication', 'storage', 'popup', 'compatibility', 'ui', 'network', 'errors'].forEach(suite => {
+                    const container = document.getElementById(`${suite}-results`);
+                    if (container) {
+                        container.innerHTML = '<p style="color: #666; font-style: italic;">No results yet. Click "Run" to execute tests.</p>';
+                    }
+                });
+                
+                this.updateProgress(0, 0);
+                this.updateStatus('⏸️', 'Ready', 'status-idle');
+                
+                // Reset checklist
+                ['check-popup', 'check-postmessage', 'check-storage', 'check-auth', 'check-ui'].forEach(checkId => {
+                    this.updateChecklist(checkId.replace('check-', ''), null);
+                    document.getElementById(checkId).textContent = '⏳';
+                });
+            }
+
+            clearConsole() {
+                document.getElementById('consoleOutput').innerHTML = 'Console cleared.\n';
+            }
+
+            exportResults(format) {
+                if (!this.allResults || Object.keys(this.allResults).length === 0) {
+                    alert('No test results to export. Please run tests first.');
+                    return;
+                }
+
+                let content, filename, mimeType;
+
+                switch (format) {
+                    case 'json':
+                        content = JSON.stringify(this.allResults, null, 2);
+                        filename = `oauth-test-results-${new Date().toISOString().split('T')[0]}.json`;
+                        mimeType = 'application/json';
+                        break;
+                    case 'csv':
+                        content = this.generateCSV();
+                        filename = `oauth-test-results-${new Date().toISOString().split('T')[0]}.csv`;
+                        mimeType = 'text/csv';
+                        break;
+                    case 'html':
+                        content = this.generateHTMLReport();
+                        filename = `oauth-test-results-${new Date().toISOString().split('T')[0]}.html`;
+                        mimeType = 'text/html';
+                        break;
+                }
+
+                const blob = new Blob([content], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            generateCSV() {
+                let csv = 'Suite,Test,Status,Message\n';
+                
+                if (this.allResults.suites) {
+                    this.allResults.suites.forEach(suite => {
+                        if (suite.results && suite.results.results) {
+                            suite.results.results.forEach(test => {
+                                csv += `"${suite.name}","${test.test}","${test.status}","${test.message}"\n`;
+                            });
+                        }
+                    });
+                }
+                
+                return csv;
+            }
+
+            generateHTMLReport() {
+                return `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>OAuth Test Results Report</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; margin: 20px; }
+                            .header { background: #667eea; color: white; padding: 20px; border-radius: 8px; }
+                            .summary { margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+                            .suite { margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; }
+                            .suite-header { background: #f8f9fa; padding: 10px; border-bottom: 1px solid #ddd; }
+                            .test-result { padding: 8px 15px; border-bottom: 1px solid #f0f0f0; }
+                            .pass { color: #28a745; }
+                            .fail { color: #dc3545; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h1>OAuth Test Results Report</h1>
+                            <p>Generated on ${new Date().toLocaleString()}</p>
+                        </div>
+                        
+                        <div class="summary">
+                            <h2>Summary</h2>
+                            <p>Total Tests: ${this.allResults.summary?.totalTests || 0}</p>
+                            <p>Passed: ${this.allResults.summary?.totalPassed || 0}</p>
+                            <p>Failed: ${this.allResults.summary?.totalFailed || 0}</p>
+                            <p>Success Rate: ${this.allResults.summary?.overallSuccessRate || 0}%</p>
+                        </div>
+                        
+                        ${this.allResults.suites ? this.allResults.suites.map(suite => `
+                            <div class="suite">
+                                <div class="suite-header">
+                                    <h3>${suite.name}</h3>
+                                    <p>${suite.description}</p>
+                                </div>
+                                ${suite.results && suite.results.results ? suite.results.results.map(test => `
+                                    <div class="test-result">
+                                        <span class="${test.status.toLowerCase()}">${test.status === 'PASS' ? '✅' : '❌'} ${test.test}</span>
+                                        <p>${test.message}</p>
+                                    </div>
+                                `).join('') : '<p>No test results</p>'}
+                            </div>
+                        `).join('') : '<p>No suite results available</p>'}
+                    </body>
+                    </html>
+                `;
+            }
+        }
+
+        // Global functions for button clicks
+        function runSingleSuite(suiteName) {
+            window.testSuiteUI.runSingleSuite(suiteName);
+        }
+
+        function clearConsole() {
+            window.testSuiteUI.clearConsole();
+        }
+
+        function exportResults(format) {
+            window.testSuiteUI.exportResults(format);
+        }
+
+        // Initialize the UI when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            window.testSuiteUI = new OAuthTestSuiteUI();
+            console.log('🎉 OAuth Testing Suite UI initialized and ready!');
+        });
+    </script>
+</body>
+</html>

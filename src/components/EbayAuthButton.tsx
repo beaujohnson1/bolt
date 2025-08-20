@@ -52,39 +52,19 @@ export const EbayAuthButton: React.FC<EbayAuthButtonProps> = ({ onAuthSuccess, c
     setError(null);
 
     try {
-      console.log('🔗 [EBAY-AUTH-BUTTON] Using Netlify OAuth function...');
+      console.log('🔗 [EBAY-AUTH-BUTTON] Using popup OAuth flow...');
       
       // Clear any existing tokens before starting new flow
       ebayOAuth.clearStoredTokens();
       
-      // Generate a random state for security and store return URL
-      const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      localStorage.setItem('ebay_oauth_state', state);
+      // Use the OAuth service popup flow instead of direct redirect
+      await ebayOAuth.initiateOAuthFlow();
       
-      // Store current URL for return after OAuth
-      localStorage.setItem('ebay_oauth_return_url', window.location.href);
-      
-      // Get auth URL from our Netlify function
-      const response = await fetch('/.netlify/functions/ebay-oauth?action=get-auth-url&state=' + state, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to get authorization URL');
-      }
-
-      const data = await response.json();
-      console.log('🔗 [EBAY-AUTH-BUTTON] OAuth URL received:', data.authUrl);
-      
-      // Redirect to eBay authorization page
-      window.location.href = data.authUrl;
+      console.log('✅ [EBAY-AUTH-BUTTON] OAuth flow completed');
     } catch (error) {
-      console.error('❌ [EBAY-AUTH-BUTTON] Error with OAuth function:', error);
+      console.error('❌ [EBAY-AUTH-BUTTON] Error with OAuth flow:', error);
       setError(error.message || 'Failed to connect to eBay');
+    } finally {
       setIsLoading(false);
     }
   };

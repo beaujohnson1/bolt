@@ -1094,6 +1094,87 @@ class EbayOAuthService {
   }
 
   /**
+   * Perform aggressive token detection after popup closes
+   */
+  performAggressiveTokenCheck(source: string): void {
+    console.log(`🔍 [EBAY-OAUTH] Starting aggressive token check from: ${source}`);
+    
+    // Strategy 1: Immediate check
+    setTimeout(() => {
+      const isAuth1 = this.isAuthenticated();
+      console.log(`🔍 [EBAY-OAUTH] Check 1 (immediate): ${isAuth1}`);
+      if (isAuth1) {
+        this.dispatchAuthEvent(source, 1);
+      }
+    }, 50);
+    
+    // Strategy 2: Quick check
+    setTimeout(() => {
+      const isAuth2 = this.isAuthenticated();
+      console.log(`🔍 [EBAY-OAUTH] Check 2 (100ms): ${isAuth2}`);
+      if (isAuth2) {
+        this.dispatchAuthEvent(source, 2);
+      }
+    }, 100);
+    
+    // Strategy 3: Medium check
+    setTimeout(() => {
+      const isAuth3 = this.isAuthenticated();
+      console.log(`🔍 [EBAY-OAUTH] Check 3 (500ms): ${isAuth3}`);
+      if (isAuth3) {
+        this.dispatchAuthEvent(source, 3);
+      }
+    }, 500);
+    
+    // Strategy 4: Delayed check
+    setTimeout(() => {
+      const isAuth4 = this.isAuthenticated();
+      console.log(`🔍 [EBAY-OAUTH] Check 4 (1000ms): ${isAuth4}`);
+      if (isAuth4) {
+        this.dispatchAuthEvent(source, 4);
+      }
+    }, 1000);
+    
+    // Strategy 5: Final check
+    setTimeout(() => {
+      const isAuth5 = this.isAuthenticated();
+      console.log(`🔍 [EBAY-OAUTH] Check 5 (2000ms): ${isAuth5}`);
+      if (isAuth5) {
+        this.dispatchAuthEvent(source, 5);
+      }
+    }, 2000);
+  }
+  
+  /**
+   * Dispatch authentication event
+   */
+  private dispatchAuthEvent(source: string, attempt: number): void {
+    console.log(`🎉 [EBAY-OAUTH] Authentication detected on attempt ${attempt} from ${source}!`);
+    
+    // Dispatch multiple event types for maximum compatibility
+    window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+      detail: { 
+        authenticated: true, 
+        source,
+        attempt,
+        timestamp: Date.now()
+      }
+    }));
+    
+    // Also trigger storage event
+    const tokens = this.getStoredTokens();
+    if (tokens) {
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'ebay_oauth_tokens',
+        newValue: JSON.stringify(tokens),
+        oldValue: null,
+        storageArea: localStorage,
+        url: window.location.href
+      }));
+    }
+  }
+
+  /**
    * Clear stored tokens
    */
   clearStoredTokens(): void {
