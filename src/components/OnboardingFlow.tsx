@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle, ArrowRight, Link2, Upload, Bot, Zap, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import ebayOAuthService from '../services/ebayOAuth';
+import { initializeOAuthDebugConsole } from '../utils/oauthDebugConsole';
 
 interface OnboardingStep {
   id: string;
@@ -28,12 +29,16 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   const [isEbayConnected, setIsEbayConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasCreatedFirstItem, setHasCreatedFirstItem] = useState(false);
+  
+  // Initialize debug console and get reference
+  const debugConsole = initializeOAuthDebugConsole();
 
   // Check eBay connection status with enhanced reliability
   useEffect(() => {
     const checkEbayConnection = () => {
       const connected = ebayOAuthService.isAuthenticated();
       console.log('🔍 [ONBOARDING] Checking eBay connection:', connected);
+      debugConsole.log(`eBay connection check: ${connected ? 'Connected' : 'Not connected'}`, connected ? 'success' : 'info', 'onboarding');
       setIsEbayConnected(connected);
     };
 
@@ -42,8 +47,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     // Watch for auth changes
     const cleanup = ebayOAuthService.watchForTokenChanges((authenticated) => {
       console.log('📡 [ONBOARDING] eBay auth changed:', authenticated);
+      debugConsole.log(`Auth status changed: ${authenticated ? 'Authenticated' : 'Not authenticated'}`, authenticated ? 'success' : 'warning', 'auth-change');
       setIsEbayConnected(authenticated);
       if (authenticated && currentStep === 'connect_ebay') {
+        debugConsole.log('Auto-advancing to upload photos step', 'success', 'navigation');
         // Auto-advance to next step when eBay is connected
         setTimeout(() => onStepChange('upload_photos'), 500);
       }
@@ -453,12 +460,15 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
 
   const handleConnectEbay = async () => {
     console.log('🔗 [ONBOARDING] Starting eBay connection process...');
+    debugConsole.log('Starting eBay OAuth connection process...', 'info', 'oauth-start');
+    debugConsole.updateStatus('Initiating OAuth flow...');
     
     // Reset any previous error states
     setIsConnecting(true);
     
     try {
       console.log('🌐 [ONBOARDING] Calling OAuth service to initiate flow...');
+      debugConsole.log('Requesting OAuth authorization URL from server...', 'info', 'oauth-init');
       
       // Use the current dashboard URL as redirect
       const redirectUri = `${window.location.origin}/app`;
@@ -468,6 +478,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       
       console.log('✅ [ONBOARDING] OAuth flow initiated successfully - popup should be open');
       console.log('⏳ [ONBOARDING] Starting token polling for popup completion...');
+      debugConsole.log('OAuth popup window opened successfully!', 'success', 'popup');
+      debugConsole.updateStatus('Waiting for user authentication...');
       
       // Enhanced multi-stage token polling - ONLY starts if OAuth initiation succeeded
       let checkCount = 0;
@@ -484,9 +496,12 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         
         const connected = ebayOAuthService.isAuthenticated();
         console.log(`⏱️ [ONBOARDING] Token poll ${checkCount}/${maxChecks}:`, connected);
+        debugConsole.log(`Token poll ${checkCount}/${maxChecks}: ${connected ? 'Found tokens!' : 'No tokens yet'}`, connected ? 'success' : 'info', 'polling');
         
         if (connected) {
           console.log('🎉 [ONBOARDING] Authentication detected during polling!');
+          debugConsole.log('🎉 AUTHENTICATION SUCCESSFUL! Tokens detected via polling', 'success', 'auth-success');
+          debugConsole.updateStatus('Authentication completed successfully!');
           pollingActive = false;
           setIsEbayConnected(true);
           setIsConnecting(false);
@@ -499,6 +514,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         
         if (checkCount >= maxChecks) {
           console.log('⏱️ [ONBOARDING] Token polling timeout reached - stopping polling');
+          debugConsole.log('❌ Authentication timeout - popup may have been closed or blocked', 'error', 'timeout');
+          debugConsole.updateStatus('Authentication timed out');
           pollingActive = false;
           setIsConnecting(false);
           
@@ -538,6 +555,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         originalError: error.originalError?.message,
         timestamp: new Date().toISOString()
       });
+      
+      debugConsole.log(`❌ OAuth Error: ${error.message}`, 'error', 'oauth-error');
+      debugConsole.updateStatus(`Error: ${error.category || 'Unknown error'}`);
       
       // Stop connecting state immediately on error
       setIsConnecting(false);

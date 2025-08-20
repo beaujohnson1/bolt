@@ -44,6 +44,9 @@ exports.handler = async (event, context) => {
                   (event.body ? JSON.parse(event.body).action : null);
 
     switch (action) {
+      case 'health-check':
+        return await healthCheck(headers);
+        
       case 'get-auth-url':
         return await getAuthUrl(headers, credentials, oauthBase, event.queryStringParameters, ebayConfig.environment);
         
@@ -331,6 +334,85 @@ async function refreshToken(headers, credentials, tokenBase, body) {
   } catch (error) {
     console.error('❌ [EBAY-OAUTH] Error refreshing token:', error);
     throw error;
+  }
+}
+
+// Health check endpoint for deployment verification
+async function healthCheck(headers) {
+  try {
+    console.log('🏥 [EBAY-OAUTH] Health check requested');
+    
+    const buildInfo = {
+      timestamp: new Date().toISOString(),
+      version: process.env.BUILD_VERSION || 'dev',
+      deployment: process.env.CONTEXT || 'unknown',
+      environment: process.env.NODE_ENV || 'development',
+      netlifyUrl: process.env.URL || 'unknown'
+    };
+    
+    // Check if eBay config is available
+    const ebayConfig = config.ebay;
+    const hasConfig = !!(ebayConfig && ebayConfig.sandbox && ebayConfig.production);
+    
+    // Test OAuth endpoints
+    const sandboxAvailable = await testEndpoint(EBAY_OAUTH_BASE.sandbox + '/authorize');
+    const productionAvailable = await testEndpoint(EBAY_OAUTH_BASE.production + '/authorize');
+    
+    const healthStatus = {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      build: buildInfo,
+      services: {
+        ebayConfig: hasConfig,
+        sandboxOAuth: sandboxAvailable,
+        productionOAuth: productionAvailable
+      },
+      endpoints: {
+        sandbox: EBAY_OAUTH_BASE.sandbox,
+        production: EBAY_OAUTH_BASE.production
+      }
+    };
+    
+    console.log('✅ [EBAY-OAUTH] Health check completed:', healthStatus);
+    
+    return {
+      statusCode: 200,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      body: JSON.stringify(healthStatus)
+    };
+    
+  } catch (error) {
+    console.error('❌ [EBAY-OAUTH] Health check failed:', error);
+    
+    return {
+      statusCode: 500,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        status: 'unhealthy',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      })
+    };
+  }
+}
+
+// Test if an endpoint is reachable
+async function testEndpoint(url) {
+  try {
+    const response = await fetch(url, { 
+      method: 'HEAD',
+      timeout: 5000 
+    });
+    return response.status < 500;
+  } catch (error) {
+    return false;
   }
 }
 

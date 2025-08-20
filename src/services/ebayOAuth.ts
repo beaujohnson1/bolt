@@ -1,6 +1,8 @@
 // eBay OAuth Service
 // Handles OAuth flow for eBay user authentication
 
+import { initializeOAuthDebugConsole } from '../utils/oauthDebugConsole';
+
 export interface EbayOAuthTokens {
   access_token: string;
   refresh_token: string;
@@ -19,6 +21,7 @@ export interface EbayAuthUrl {
 
 class EbayOAuthService {
   private baseUrl: string;
+  private debugConsole: any;
 
   constructor() {
     // Use Netlify functions in production, localhost in development
@@ -26,7 +29,11 @@ class EbayOAuthService {
       ? '/.netlify/functions'  // Netlify dev handles this properly
       : '/.netlify/functions';
     
+    // Initialize debug console
+    this.debugConsole = initializeOAuthDebugConsole();
+    
     console.log('🔐 [EBAY-OAUTH] Service initialized with base URL:', this.baseUrl);
+    this.debugConsole?.log('eBay OAuth Service initialized', 'info', 'service-init');
   }
 
   /**
@@ -302,9 +309,13 @@ class EbayOAuthService {
       userAgent: navigator.userAgent.substring(0, 50) + '...'
     });
 
+    this.debugConsole?.log('🚀 Initiating OAuth flow...', 'info', 'oauth-start');
+    this.debugConsole?.updateStatus('Requesting authorization URL...');
+
     try {
       // CRITICAL: Comprehensive error handling for authorization URL request
       console.log('🌐 [EBAY-OAUTH] Requesting authorization URL from server...');
+      this.debugConsole?.log('Requesting authorization URL from server...', 'info', 'auth-url');
       
       const authData = await this.getAuthorizationUrl(redirectUri);
       
@@ -331,16 +342,22 @@ class EbayOAuthService {
       console.log('🔗 [EBAY-OAUTH] Auth URL preview:', authData.authUrl.substring(0, 100) + '...');
       
       // Check if popups are likely blocked
+      this.debugConsole?.log('Testing popup capability...', 'info', 'popup-test');
       const testPopup = window.open('', 'test', 'width=1,height=1');
       if (!testPopup) {
         console.error('❌ [EBAY-OAUTH] Popup blocker detected - test popup failed');
+        this.debugConsole?.log('❌ Popup blocked by browser!', 'error', 'popup-blocked');
         throw new Error('Popup blocked by browser. Please allow popups for this site and try again.');
       } else {
         testPopup.close();
         console.log('✅ [EBAY-OAUTH] Popup blocker check passed');
+        this.debugConsole?.log('✅ Popup capability confirmed', 'success', 'popup-test');
       }
       
       // Open eBay OAuth in popup window with enhanced validation
+      this.debugConsole?.log('Opening eBay OAuth popup window...', 'info', 'popup-open');
+      this.debugConsole?.updateStatus('Opening authentication window...');
+      
       const popup = window.open(
         authData.authUrl,
         'ebay-oauth',
@@ -349,6 +366,7 @@ class EbayOAuthService {
       
       if (!popup) {
         console.error('❌ [EBAY-OAUTH] CRITICAL: Popup creation failed despite blocker check');
+        this.debugConsole?.log('❌ CRITICAL: Failed to open popup window!', 'error', 'popup-fail');
         throw new Error('Failed to open authentication window. Please check your browser settings and allow popups for this site.');
       }
       
@@ -366,6 +384,9 @@ class EbayOAuthService {
         closed: popup.closed,
         location: popup.location ? 'accessible' : 'cross-origin'
       });
+      
+      this.debugConsole?.log('✅ Popup window opened successfully!', 'success', 'popup-success');
+      this.debugConsole?.updateStatus('Popup opened - waiting for user authentication...');
       
       // Optimized popup monitoring with performance-aware polling
       console.log('🔍 [EBAY-OAUTH] Starting optimized popup monitoring...');
@@ -424,11 +445,13 @@ class EbayOAuthService {
         if (isValidMessage && (event.data.type === 'EBAY_OAUTH_SUCCESS' ? hasValidTokenStructure : true) && isRecentMessage) {
           if (event.data.type === 'EBAY_OAUTH_SUCCESS') {
             console.log('✅ [EBAY-OAUTH] Processing success message from popup (enhanced validation)');
+            this.debugConsole?.log('🎉 OAuth SUCCESS message received from popup!', 'success', 'popup-message');
             clearInterval(checkClosed);
             
             // Store tokens if provided
             if (event.data.tokens) {
               console.log('💾 [EBAY-OAUTH] Storing tokens from popup message');
+              this.debugConsole?.log('💾 Storing OAuth tokens from popup...', 'info', 'token-store');
               await this.storeTokens(event.data.tokens);
             }
             
@@ -496,6 +519,8 @@ class EbayOAuthService {
         // Check if popup is closed
         if (popup.closed) {
           console.log('🔍 [EBAY-OAUTH] Popup closed, performing final token check...');
+          this.debugConsole?.log('🔍 Popup window closed - checking for tokens...', 'info', 'popup-closed');
+          this.debugConsole?.updateStatus('Popup closed - verifying authentication...');
           clearInterval(enhancedPopupMonitor);
           clearInterval(checkClosed);
           window.removeEventListener('message', messageHandler);
@@ -511,6 +536,8 @@ class EbayOAuthService {
           const hasTokens = this.isAuthenticated();
           if (hasTokens) {
             console.log('✅ [EBAY-OAUTH] Tokens detected via polling while popup open!');
+            this.debugConsole?.log('🎉 Tokens detected via polling while popup open!', 'success', 'polling-success');
+            this.debugConsole?.updateStatus('Authentication detected!');
             clearInterval(enhancedPopupMonitor);
             clearInterval(checkClosed);
             popup.close();
@@ -571,6 +598,9 @@ class EbayOAuthService {
         errorCategory = 'general_error';
         userFriendlyMessage = `Authentication failed: ${error.message}`;
       }
+
+      this.debugConsole?.log(`❌ OAuth Error (${errorCategory}): ${userFriendlyMessage}`, 'error', 'oauth-error');
+      this.debugConsole?.updateStatus(`Error: ${errorCategory}`);
 
       console.error('🔍 [EBAY-OAUTH] Error Analysis:', {
         category: errorCategory,
@@ -1246,11 +1276,13 @@ class EbayOAuthService {
    */
   performAggressiveTokenCheck(source: string): void {
     console.log(`🔍 [EBAY-OAUTH] Starting aggressive token check from: ${source}`);
+    this.debugConsole?.log(`🔍 Starting aggressive token verification from: ${source}`, 'info', 'token-check');
     
     // Strategy 1: Immediate check
     setTimeout(() => {
       const isAuth1 = this.isAuthenticated();
       console.log(`🔍 [EBAY-OAUTH] Check 1 (immediate): ${isAuth1}`);
+      this.debugConsole?.log(`Token check 1: ${isAuth1 ? 'FOUND' : 'Not found'}`, isAuth1 ? 'success' : 'info', 'token-check');
       if (isAuth1) {
         this.dispatchAuthEvent(source, 1);
       }
@@ -1260,6 +1292,7 @@ class EbayOAuthService {
     setTimeout(() => {
       const isAuth2 = this.isAuthenticated();
       console.log(`🔍 [EBAY-OAUTH] Check 2 (100ms): ${isAuth2}`);
+      this.debugConsole?.log(`Token check 2: ${isAuth2 ? 'FOUND' : 'Not found'}`, isAuth2 ? 'success' : 'info', 'token-check');
       if (isAuth2) {
         this.dispatchAuthEvent(source, 2);
       }
@@ -1269,6 +1302,7 @@ class EbayOAuthService {
     setTimeout(() => {
       const isAuth3 = this.isAuthenticated();
       console.log(`🔍 [EBAY-OAUTH] Check 3 (500ms): ${isAuth3}`);
+      this.debugConsole?.log(`Token check 3: ${isAuth3 ? 'FOUND' : 'Not found'}`, isAuth3 ? 'success' : 'info', 'token-check');
       if (isAuth3) {
         this.dispatchAuthEvent(source, 3);
       }
@@ -1298,6 +1332,8 @@ class EbayOAuthService {
    */
   private dispatchAuthEvent(source: string, attempt: number): void {
     console.log(`🎉 [EBAY-OAUTH] Authentication detected on attempt ${attempt} from ${source}!`);
+    this.debugConsole?.log(`🎉 AUTHENTICATION CONFIRMED on attempt ${attempt}!`, 'success', 'auth-confirmed');
+    this.debugConsole?.updateStatus('Authentication successful!');
     
     // Dispatch multiple event types for maximum compatibility
     window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
