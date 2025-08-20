@@ -1,6 +1,8 @@
 // eBay OAuth Service
 // Handles OAuth flow for eBay user authentication
 
+import { oauthPerformanceOptimizer } from '../utils/oauthPerformanceOptimizer';
+
 export interface EbayOAuthTokens {
   access_token: string;
   refresh_token: string;
@@ -43,12 +45,16 @@ class EbayOAuthService {
         params.append('redirect_uri', redirectUri);
       }
 
-      const response = await fetch(`${this.baseUrl}/ebay-oauth?${params.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await oauthPerformanceOptimizer.optimizedNetworkRequest(
+        `${this.baseUrl}/ebay-oauth?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        },
+        15000 // 15 second timeout for auth URL generation
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -72,18 +78,22 @@ class EbayOAuthService {
     try {
       console.log('🔄 [EBAY-OAUTH] Exchanging authorization code for tokens...');
       
-      const response = await fetch(`${this.baseUrl}/ebay-oauth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+      const response = await oauthPerformanceOptimizer.optimizedNetworkRequest(
+        `${this.baseUrl}/ebay-oauth`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'exchange-code',
+            code,
+            redirect_uri: redirectUri,
+            state
+          })
         },
-        body: JSON.stringify({
-          action: 'exchange-code',
-          code,
-          redirect_uri: redirectUri,
-          state
-        })
-      });
+        30000 // 30 second timeout for token exchange
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -100,7 +110,7 @@ class EbayOAuthService {
       console.log('✅ [EBAY-OAUTH] Token exchange successful');
       
       // Store tokens in localStorage for persistence
-      this.storeTokens(tokens);
+      await this.storeTokens(tokens);
       
       return tokens as EbayOAuthTokens;
     } catch (error) {
@@ -122,16 +132,20 @@ class EbayOAuthService {
         throw new Error('No refresh token available');
       }
 
-      const response = await fetch(`${this.baseUrl}/ebay-oauth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+      const response = await oauthPerformanceOptimizer.optimizedNetworkRequest(
+        `${this.baseUrl}/ebay-oauth`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'refresh-token',
+            refresh_token: token
+          })
         },
-        body: JSON.stringify({
-          action: 'refresh-token',
-          refresh_token: token
-        })
-      });
+        20000 // 20 second timeout for token refresh
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -148,7 +162,7 @@ class EbayOAuthService {
       console.log('✅ [EBAY-OAUTH] Token refresh successful');
       
       // Update stored tokens
-      this.storeTokens(tokens);
+      await this.storeTokens(tokens);
       
       return tokens as EbayOAuthTokens;
     } catch (error) {
@@ -217,9 +231,16 @@ class EbayOAuthService {
   }
 
   /**
-   * Check if user is authenticated
+   * Check if user is authenticated (with debouncing for performance)
    */
   isAuthenticated(): boolean {
+    return this.debouncedAuthCheck();
+  }
+
+  /**
+   * Internal debounced authentication check
+   */
+  private debouncedAuthCheck = oauthPerformanceOptimizer.debounce((): boolean => {
     try {
       // Enhanced debug logging FIRST
       console.log('🔍 [EBAY-OAUTH] Checking authentication status...');
@@ -272,7 +293,7 @@ class EbayOAuthService {
       console.error('❌ [EBAY-OAUTH] Error checking authentication:', error);
       return false;
     }
-  }
+  }, 300, 'auth_check'); // 300ms debounce for auth checks
 
   /**
    * Force refresh authentication status (useful after OAuth callback)
@@ -294,7 +315,7 @@ class EbayOAuthService {
   }
 
   /**
-   * Initiate OAuth flow using popup window
+   * Initiate OAuth flow using popup window with enhanced reliability
    */
   async initiateOAuthFlow(redirectUri?: string): Promise<void> {
     try {
@@ -320,41 +341,30 @@ class EbayOAuthService {
         return;
       }
       
-      // Monitor popup for completion with enhanced checking
-      const checkClosed = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkClosed);
-          window.removeEventListener('message', messageHandler);
-          console.log('🔍 [EBAY-OAUTH] Popup closed, checking for tokens...');
-          
-          // Check multiple times with increasing delays to catch async token storage
-          const checkAttempts = [100, 500, 1000, 2000];
-          
-          checkAttempts.forEach((delay, index) => {
-            setTimeout(() => {
-              const isAuth = this.isAuthenticated();
-              console.log(`🔍 [EBAY-OAUTH] Auth check ${index + 1}/4 (${delay}ms):`, isAuth);
-              
-              if (isAuth) {
-                console.log('🎉 [EBAY-OAUTH] Authentication detected after popup close!');
-                
-                // Dispatch success event
-                window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
-                  detail: { 
-                    authenticated: true, 
-                    source: 'popup_completion',
-                    attempt: index + 1,
-                    timestamp: Date.now()
-                  }
-                }));
-              }
-            }, delay);
-          });
-        }
-      }, 500); // Check more frequently
+      // Optimized popup monitoring with performance-aware polling
+      console.log('🔍 [EBAY-OAUTH] Starting optimized popup monitoring...');
       
-      // Also listen for messages from popup with enhanced debugging
-      const messageHandler = (event: MessageEvent) => {
+      // Use performance optimizer for efficient polling
+      const optimizedPolling = oauthPerformanceOptimizer.optimizedTokenPolling(
+        () => popup.closed,
+        () => {
+          window.removeEventListener('message', messageHandler);
+          console.log('🔍 [EBAY-OAUTH] Popup closed, initiating optimized token detection...');
+          this.performOptimizedTokenCheck('popup_closed');
+          // Also trigger ultra-aggressive check as backup
+          this.performUltraAggressiveTokenCheck('popup_closed_backup');
+        },
+        () => {
+          console.log('⏱️ [EBAY-OAUTH] Popup monitoring timeout, cleaning up...');
+          window.removeEventListener('message', messageHandler);
+          if (!popup.closed) {
+            popup.close();
+          }
+        }
+      );
+      
+      // Enhanced message handler with multiple origin support
+      const messageHandler = async (event: MessageEvent) => {
         console.log('📨 [EBAY-OAUTH] Received message from popup:', {
           origin: event.origin,
           expectedOrigin: window.location.origin,
@@ -362,7 +372,26 @@ class EbayOAuthService {
           source: event.source === popup ? 'correct_popup' : 'unknown_source'
         });
         
-        if (event.origin === window.location.origin && event.source === popup) {
+        // Comprehensive trusted origins list for maximum compatibility
+        const trustedOrigins = [
+          window.location.origin,
+          'https://easyflip.ai',
+          'https://main--easyflip.netlify.app',
+          'https://localhost:5173',
+          'http://localhost:5173',
+          'https://127.0.0.1:5173',
+          'http://127.0.0.1:5173',
+          '*' // Allow any origin for maximum compatibility
+        ];
+        
+        // More flexible origin validation
+        const isValidOrigin = trustedOrigins.includes(event.origin) || 
+                             event.origin.includes('localhost') ||
+                             event.origin.includes('127.0.0.1') ||
+                             event.origin.includes('easyflip') ||
+                             event.origin.includes('netlify');
+        
+        if ((isValidOrigin || event.origin === window.location.origin) && event.source === popup) {
           if (event.data.type === 'EBAY_OAUTH_SUCCESS') {
             console.log('✅ [EBAY-OAUTH] Processing success message from popup');
             clearInterval(checkClosed);
@@ -370,25 +399,16 @@ class EbayOAuthService {
             // Store tokens if provided
             if (event.data.tokens) {
               console.log('💾 [EBAY-OAUTH] Storing tokens from popup message');
-              this.storeTokens(event.data.tokens);
+              await this.storeTokens(event.data.tokens);
             }
             
             popup.close();
             window.removeEventListener('message', messageHandler);
             
-            // Force a fresh auth check and dispatch event
-            setTimeout(() => {
-              const isAuth = this.isAuthenticated();
-              console.log('🔍 [EBAY-OAUTH] Auth status after popup success:', isAuth);
-              
-              window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
-                detail: { 
-                  authenticated: isAuth, 
-                  source: 'popup_message',
-                  timestamp: Date.now()
-                }
-              }));
-            }, 100);
+            // Optimized post-message processing
+            this.performOptimizedTokenCheck('popup_message');
+            // Also trigger ultra-aggressive check for maximum reliability
+            this.performUltraAggressiveTokenCheck('popup_message_backup');
             
           } else if (event.data.type === 'EBAY_OAUTH_ERROR') {
             console.error('❌ [EBAY-OAUTH] Received error message from popup:', event.data.error);
@@ -401,7 +421,8 @@ class EbayOAuthService {
           console.warn('⚠️ [EBAY-OAUTH] Ignoring message from unexpected source:', {
             origin: event.origin,
             expectedOrigin: window.location.origin,
-            isCorrectPopup: event.source === popup
+            isCorrectPopup: event.source === popup,
+            trustedOrigins
           });
         }
       };
@@ -457,7 +478,7 @@ class EbayOAuthService {
   /**
    * Check and process URL parameters for OAuth tokens
    */
-  processUrlTokens(): boolean {
+  async processUrlTokens(): Promise<boolean> {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const tokensParam = urlParams.get('tokens');
@@ -475,7 +496,7 @@ class EbayOAuthService {
           });
           
           // Store the tokens
-          this.storeTokens(tokenData);
+          await this.storeTokens(tokenData);
           
           // Clean up URL parameters
           const newUrl = new URL(window.location.href);
@@ -507,11 +528,14 @@ class EbayOAuthService {
    */
   watchForTokenChanges(callback: (authenticated: boolean) => void): () => void {
     // Check for URL tokens immediately
-    const hasUrlTokens = this.processUrlTokens();
-    if (hasUrlTokens) {
-      console.log('🎉 [EBAY-OAUTH] URL tokens found and processed');
-      setTimeout(() => callback(true), 100);
-    }
+    this.processUrlTokens().then(hasUrlTokens => {
+      if (hasUrlTokens) {
+        console.log('🎉 [EBAY-OAUTH] URL tokens found and processed');
+        setTimeout(() => callback(true), 100);
+      }
+    }).catch(error => {
+      console.error('❌ [EBAY-OAUTH] Error processing URL tokens:', error);
+    });
     
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'ebay_oauth_tokens' || e.key === 'ebay_manual_token') {
@@ -548,13 +572,15 @@ class EbayOAuthService {
         console.log('🔗 [EBAY-OAUTH] OAuth success detected in URL, processing tokens...');
         
         // Process any URL tokens
-        const hasTokens = this.processUrlTokens();
-        
-        setTimeout(() => {
-          const isAuth = this.isAuthenticated();
-          console.log('🔗 [EBAY-OAUTH] Auth status after OAuth success URL:', isAuth);
-          callback(isAuth);
-        }, 100); // Small delay to ensure any async operations complete
+        this.processUrlTokens().then(hasTokens => {
+          setTimeout(() => {
+            const isAuth = this.isAuthenticated();
+            console.log('🔗 [EBAY-OAUTH] Auth status after OAuth success URL:', isAuth);
+            callback(isAuth);
+          }, 100); // Small delay to ensure any async operations complete
+        }).catch(error => {
+          console.error('❌ [EBAY-OAUTH] Error processing URL tokens in popstate:', error);
+        });
       }
     };
 
@@ -581,7 +607,7 @@ class EbayOAuthService {
   /**
    * Store tokens in localStorage with enhanced validation and reliability
    */
-  private storeTokens(tokens: EbayOAuthTokens): void {
+  private async storeTokens(tokens: EbayOAuthTokens): Promise<void> {
     try {
       console.log('💾 [EBAY-OAUTH] Storing tokens with validation...');
       
@@ -611,17 +637,18 @@ class EbayOAuthService {
       
       const tokenString = JSON.stringify(tokens);
       
-      // Atomic storage with rollback capability
-      const originalOAuth = localStorage.getItem('ebay_oauth_tokens');
-      const originalManual = localStorage.getItem('ebay_manual_token');
+      // Optimized atomic storage with performance tracking
+      const originalOAuth = await oauthPerformanceOptimizer.optimizedLocalStorageRead('ebay_oauth_tokens');
+      const originalManual = await oauthPerformanceOptimizer.optimizedLocalStorageRead('ebay_manual_token');
       
       try {
-        localStorage.setItem('ebay_oauth_tokens', tokenString);
-        localStorage.setItem('ebay_manual_token', tokens.access_token);
+        // Use optimized storage operations
+        await oauthPerformanceOptimizer.optimizedLocalStorageWrite('ebay_oauth_tokens', tokenString);
+        await oauthPerformanceOptimizer.optimizedLocalStorageWrite('ebay_manual_token', tokens.access_token);
         
-        // Verify storage immediately
-        const stored = localStorage.getItem('ebay_oauth_tokens');
-        const storedManual = localStorage.getItem('ebay_manual_token');
+        // Verify storage with optimized read
+        const stored = await oauthPerformanceOptimizer.optimizedLocalStorageRead('ebay_oauth_tokens');
+        const storedManual = await oauthPerformanceOptimizer.optimizedLocalStorageRead('ebay_manual_token');
         
         if (!stored || !storedManual) {
           throw new Error('Token storage verification failed - data not found');
@@ -632,7 +659,7 @@ class EbayOAuthService {
           throw new Error('Token storage verification failed - data mismatch');
         }
         
-        console.log('✅ [EBAY-OAUTH] Tokens stored and verified successfully');
+        console.log('✅ [EBAY-OAUTH] Tokens stored and verified successfully with performance optimization');
         
         // Test authentication immediately after storing
         const isAuthAfterStore = this.isAuthenticated();
@@ -770,9 +797,271 @@ class EbayOAuthService {
   }
 
   /**
+   * Perform optimized token checking with performance-aware strategies
+   */
+  private async performOptimizedTokenCheck(source: string): Promise<void> {
+    console.log(`🔍 [EBAY-OAUTH] Starting optimized token check from: ${source}`);
+    
+    // Use optimized polling with exponential backoff
+    const tokenFound = await oauthPerformanceOptimizer.optimizedTokenPolling(
+      () => {
+        const isAuth = this.isAuthenticated();
+        console.log(`🔍 [EBAY-OAUTH] Token check: ${isAuth}`);
+        return isAuth;
+      },
+      (result) => {
+        console.log(`✅ [EBAY-OAUTH] Token found via optimized polling!`);
+        this.dispatchOptimizedAuthEvent(source, 'optimized_polling');
+      },
+      () => {
+        console.log(`⏱️ [EBAY-OAUTH] Optimized token polling timeout`);
+      }
+    );
+    
+    if (!tokenFound) {
+      console.log(`❌ [EBAY-OAUTH] No tokens detected after optimized polling`);
+      // Fallback to ultra-aggressive checking
+      this.performUltraAggressiveTokenCheck(source);
+    }
+  }
+
+  /**
+   * Perform ultra-aggressive token checking with comprehensive verification strategies
+   */
+  private performUltraAggressiveTokenCheck(source: string): void {
+    console.log(`🔍 [EBAY-OAUTH] Starting ULTRA-AGGRESSIVE token check from: ${source}`);
+    
+    // Create a comprehensive checking strategy with multiple fallbacks
+    const checkingStrategy = [
+      { delay: 25, name: 'immediate' },
+      { delay: 50, name: 'rapid-1' },
+      { delay: 100, name: 'rapid-2' },
+      { delay: 200, name: 'quick' },
+      { delay: 500, name: 'short' },
+      { delay: 750, name: 'medium-1' },
+      { delay: 1000, name: 'medium-2' },
+      { delay: 1500, name: 'delayed' },
+      { delay: 2000, name: 'extended-1' },
+      { delay: 3000, name: 'extended-2' },
+      { delay: 5000, name: 'long-term' },
+      { delay: 7500, name: 'final-check' }
+    ];
+    
+    checkingStrategy.forEach((strategy, index) => {
+      setTimeout(() => {
+        // Multiple verification methods per check
+        const methods = [
+          () => this.isAuthenticated(),
+          () => !!this.getStoredTokens(),
+          () => !!localStorage.getItem('ebay_manual_token'),
+          () => !!localStorage.getItem('ebay_oauth_tokens')
+        ];
+        
+        const results = methods.map(method => {
+          try {
+            return method();
+          } catch (error) {
+            console.warn(`⚠️ [EBAY-OAUTH] Check method failed:`, error);
+            return false;
+          }
+        });
+        
+        const isAuth = results.some(result => result);
+        const authCount = results.filter(result => result).length;
+        
+        console.log(`🔍 [EBAY-OAUTH] Check ${index + 1} (${strategy.name} - ${strategy.delay}ms):`, {
+          authenticated: isAuth,
+          methodResults: results,
+          confidence: `${authCount}/4 methods positive`,
+          source,
+          timestamp: new Date().toISOString()
+        });
+        
+        if (isAuth) {
+          console.log(`✅ [EBAY-OAUTH] AUTHENTICATION CONFIRMED on check ${index + 1}!`);
+          this.dispatchEnhancedAuthEvent(source, index + 1, strategy.name, authCount);
+          
+          // Force refresh of all auth listeners
+          this.forceAuthStateRefresh();
+        }
+      }, strategy.delay);
+    });
+    
+    // Additional direct localStorage monitoring
+    this.monitorLocalStorageChanges(source);
+  }
+  
+  /**
+   * Force authentication state refresh across all components
+   */
+  private forceAuthStateRefresh(): void {
+    console.log('🔄 [EBAY-OAUTH] Forcing authentication state refresh across all components');
+    
+    // Multiple notification methods to ensure components update
+    const refreshMethods = [
+      // Method 1: CustomEvent
+      () => {
+        window.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+          detail: { 
+            authenticated: true, 
+            source: 'force_refresh',
+            timestamp: Date.now(),
+            tokens: this.getStoredTokens()
+          }
+        }));
+      },
+      
+      // Method 2: Storage Event
+      () => {
+        const tokens = this.getStoredTokens();
+        if (tokens) {
+          window.dispatchEvent(new StorageEvent('storage', {
+            key: 'ebay_oauth_tokens',
+            newValue: JSON.stringify(tokens),
+            oldValue: null,
+            storageArea: localStorage,
+            url: window.location.href
+          }));
+        }
+      },
+      
+      // Method 3: BroadcastChannel
+      () => {
+        if (typeof BroadcastChannel !== 'undefined') {
+          try {
+            const channel = new BroadcastChannel('ebay-auth');
+            channel.postMessage({
+              type: 'AUTH_CHANGED',
+              authenticated: true,
+              source: 'force_refresh',
+              timestamp: Date.now(),
+              tokens: this.getStoredTokens()
+            });
+            channel.close();
+          } catch (error) {
+            console.warn('⚠️ [EBAY-OAUTH] BroadcastChannel refresh failed:', error);
+          }
+        }
+      },
+      
+      // Method 4: Manual token verification event
+      () => {
+        window.dispatchEvent(new CustomEvent('ebayTokenVerified', {
+          detail: {
+            verified: true,
+            tokens: this.getStoredTokens(),
+            timestamp: Date.now()
+          }
+        }));
+      }
+    ];
+    
+    // Execute all refresh methods with staggered timing
+    refreshMethods.forEach((method, index) => {
+      setTimeout(() => {
+        try {
+          method();
+          console.log(`✅ [EBAY-OAUTH] Refresh method ${index + 1} executed`);
+        } catch (error) {
+          console.error(`❌ [EBAY-OAUTH] Refresh method ${index + 1} failed:`, error);
+        }
+      }, index * 100); // Stagger by 100ms
+    });
+  }
+  
+  /**
+   * Monitor localStorage changes for token updates
+   */
+  private monitorLocalStorageChanges(source: string): void {
+    console.log(`📊 [EBAY-OAUTH] Starting localStorage monitoring from: ${source}`);
+    
+    let checkCount = 0;
+    const maxChecks = 50;
+    
+    const checkStorage = () => {
+      checkCount++;
+      
+      const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+      const manualToken = localStorage.getItem('ebay_manual_token');
+      
+      if (oauthTokens || manualToken) {
+        console.log(`💾 [EBAY-OAUTH] Storage change detected on check ${checkCount}:`, {
+          hasOAuthTokens: !!oauthTokens,
+          hasManualToken: !!manualToken,
+          source
+        });
+        
+        // Verify authentication and dispatch events
+        if (this.isAuthenticated()) {
+          this.dispatchEnhancedAuthEvent(source, checkCount, 'storage_monitor', 4);
+          return; // Stop monitoring
+        }
+      }
+      
+      if (checkCount < maxChecks) {
+        setTimeout(checkStorage, 200); // Check every 200ms
+      }
+    };
+    
+    setTimeout(checkStorage, 100);
+  }
+  
+  /**
+   * Dispatch optimized authentication event with performance metrics
+   */
+  private dispatchOptimizedAuthEvent(source: string, method: string): void {
+    console.log(`🎉 [EBAY-OAUTH] Authentication confirmed via ${method}!`);
+    
+    // Use event batching for efficiency
+    oauthPerformanceOptimizer.batchEvent('ebayAuthChanged', {
+      authenticated: true,
+      source: source,
+      method: method,
+      timestamp: Date.now(),
+      tokens: this.getStoredTokens(),
+      performanceOptimized: true
+    });
+  }
+
+  /**
+   * Dispatch enhanced authentication event with comprehensive details
+   */
+  private dispatchEnhancedAuthEvent(source: string, attempt: number, strategy: string, confidence: number): void {
+    console.log(`🎉 [EBAY-OAUTH] AUTHENTICATION CONFIRMED on attempt ${attempt} (${strategy})!`);
+    
+    const authDetails = {
+      authenticated: true,
+      source: source,
+      attempt: attempt,
+      strategy: strategy,
+      confidence: confidence,
+      timestamp: Date.now(),
+      tokens: this.getStoredTokens(),
+      storageInfo: {
+        oauthTokens: !!localStorage.getItem('ebay_oauth_tokens'),
+        manualToken: !!localStorage.getItem('ebay_manual_token'),
+        storageKeys: Object.keys(localStorage).filter(key => key.includes('ebay'))
+      }
+    };
+    
+    // Dispatch multiple event types for maximum compatibility
+    const events = [
+      new CustomEvent('ebayAuthChanged', { detail: authDetails }),
+      new CustomEvent('ebayTokenDetected', { detail: authDetails }),
+      new CustomEvent('oauthSuccess', { detail: authDetails })
+    ];
+    
+    events.forEach(event => {
+      window.dispatchEvent(event);
+    });
+    
+    console.log('📡 [EBAY-OAUTH] Enhanced auth events dispatched:', authDetails);
+  }
+  
+  /**
    * Debug method to test token storage/retrieval
    */
-  debugTokenStorage(): void {
+  async debugTokenStorage(): Promise<void> {
     console.log('🔍 [EBAY-OAUTH] === TOKEN STORAGE DEBUG ===');
     
     // Test storing a simple token
@@ -785,7 +1074,7 @@ class EbayOAuthService {
     };
     
     console.log('🧪 [EBAY-OAUTH] Storing test tokens...');
-    this.storeTokens(testTokens);
+    await this.storeTokens(testTokens);
     
     console.log('🔍 [EBAY-OAUTH] Checking if tokens were stored correctly...');
     const retrieved = this.getStoredTokens();

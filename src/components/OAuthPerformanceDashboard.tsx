@@ -1,0 +1,334 @@
+import React, { useState, useEffect } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { Activity, Clock, Zap, CheckCircle, AlertTriangle, TrendingUp, Database, Wifi } from 'lucide-react';
+import { oauthPerformanceOptimizer } from '../utils/oauthPerformanceOptimizer';
+
+interface PerformanceDashboardProps {
+  className?: string;
+}
+
+const OAuthPerformanceDashboard: React.FC<PerformanceDashboardProps> = ({ className = '' }) => {
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  useEffect(() => {
+    const loadAnalytics = () => {
+      try {
+        const data = oauthPerformanceOptimizer.getPerformanceAnalytics();
+        setAnalytics(data);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error loading performance analytics:', error);
+        setIsLoading(false);
+      }
+    };
+
+    loadAnalytics();
+
+    let interval: NodeJS.Timeout | null = null;
+    if (autoRefresh) {
+      interval = setInterval(loadAnalytics, 5000); // Refresh every 5 seconds
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [autoRefresh]);
+
+  const formatDuration = (ms: number) => {
+    if (ms < 1000) return `${Math.round(ms)}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  };
+
+  const getStatusColor = (value: number, thresholds: { good: number; warning: number }) => {
+    if (value <= thresholds.good) return 'text-green-600';
+    if (value <= thresholds.warning) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const getStatusIcon = (value: number, thresholds: { good: number; warning: number }) => {
+    if (value <= thresholds.good) return <CheckCircle className="w-5 h-5 text-green-600" />;
+    if (value <= thresholds.warning) return <AlertTriangle className="w-5 h-5 text-yellow-600" />;
+    return <AlertTriangle className="w-5 h-5 text-red-600" />;
+  };
+
+  if (isLoading) {
+    return (
+      <div className={`bg-white rounded-lg shadow-lg p-6 ${className}`}>
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center space-x-2">
+            <Activity className="w-6 h-6 animate-pulse text-blue-600" />
+            <span className="text-gray-600">Loading performance data...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!analytics || analytics.summary.totalOperations === 0) {
+    return (
+      <div className={`bg-white rounded-lg shadow-lg p-6 ${className}`}>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-800">OAuth Performance Dashboard</h3>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                autoRefresh 
+                  ? 'bg-blue-100 text-blue-700' 
+                  : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              {autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
+            </button>
+          </div>
+        </div>
+        
+        <div className="text-center py-12">
+          <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h4 className="text-lg font-medium text-gray-600 mb-2">No Performance Data Available</h4>
+          <p className="text-gray-500">
+            Start using OAuth operations to see performance metrics here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const { summary, metrics, recommendations } = analytics;
+
+  // Prepare chart data
+  const recentMetrics = metrics.slice(-20); // Last 20 operations
+  const chartData = recentMetrics.map((metric: any, index: number) => ({
+    operation: index + 1,
+    duration: metric.operationDuration,
+    retries: metric.retryCount,
+    storageTime: metric.storageAccessTime,
+    networkLatency: metric.networkLatency,
+    success: metric.successRate
+  }));
+
+  // Operation type distribution
+  const operationTypes = metrics.reduce((acc: any, metric: any) => {
+    const type = metric.operation || 'unknown';
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {});
+
+  const operationChartData = Object.entries(operationTypes).map(([name, count]) => ({
+    name,
+    count
+  }));
+
+  const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe'];
+
+  return (
+    <div className={`bg-white rounded-lg shadow-lg p-6 ${className}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-semibold text-gray-800">OAuth Performance Dashboard</h3>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-gray-500">
+            Last updated: {new Date(summary.lastUpdated).toLocaleTimeString()}
+          </span>
+          <button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              autoRefresh 
+                ? 'bg-blue-100 text-blue-700' 
+                : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
+          </button>
+        </div>
+      </div>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-blue-600 font-medium">Avg Duration</p>
+              <p className={`text-xl font-bold ${getStatusColor(summary.averageDuration, { good: 1000, warning: 2000 })}`}>
+                {formatDuration(summary.averageDuration)}
+              </p>
+            </div>
+            <div className="flex items-center">
+              {getStatusIcon(summary.averageDuration, { good: 1000, warning: 2000 })}
+              <Clock className="w-6 h-6 text-blue-600 ml-2" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-green-600 font-medium">Success Rate</p>
+              <p className={`text-xl font-bold ${getStatusColor(100 - summary.successRate, { good: 5, warning: 10 })}`}>
+                {summary.successRate.toFixed(1)}%
+              </p>
+            </div>
+            <div className="flex items-center">
+              {getStatusIcon(100 - summary.successRate, { good: 5, warning: 10 })}
+              <CheckCircle className="w-6 h-6 text-green-600 ml-2" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 p-4 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-yellow-600 font-medium">Avg Retries</p>
+              <p className={`text-xl font-bold ${getStatusColor(summary.averageRetries, { good: 1, warning: 2 })}`}>
+                {summary.averageRetries.toFixed(1)}
+              </p>
+            </div>
+            <div className="flex items-center">
+              {getStatusIcon(summary.averageRetries, { good: 1, warning: 2 })}
+              <TrendingUp className="w-6 h-6 text-yellow-600 ml-2" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-purple-600 font-medium">Total Operations</p>
+              <p className="text-xl font-bold text-purple-800">{summary.totalOperations}</p>
+            </div>
+            <Activity className="w-6 h-6 text-purple-600" />
+          </div>
+        </div>
+      </div>
+
+      {/* Detailed Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="flex items-center mb-3">
+            <Database className="w-5 h-5 text-gray-600 mr-2" />
+            <h4 className="font-medium text-gray-800">Storage Performance</h4>
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">Average Time:</span>
+              <span className={`text-sm font-medium ${getStatusColor(summary.averageStorageTime, { good: 50, warning: 100 })}`}>
+                {formatDuration(summary.averageStorageTime)}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min((summary.averageStorageTime / 200) * 100, 100)}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="flex items-center mb-3">
+            <Wifi className="w-5 h-5 text-gray-600 mr-2" />
+            <h4 className="font-medium text-gray-800">Network Performance</h4>
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">Average Latency:</span>
+              <span className={`text-sm font-medium ${getStatusColor(summary.averageNetworkLatency, { good: 2000, warning: 5000 })}`}>
+                {formatDuration(summary.averageNetworkLatency)}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min((summary.averageNetworkLatency / 10000) * 100, 100)}%` }}
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Performance Trend Chart */}
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h4 className="font-medium text-gray-800 mb-4">Performance Trend (Last 20 Operations)</h4>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="operation" />
+              <YAxis />
+              <Tooltip formatter={(value, name) => [formatDuration(value as number), name]} />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="duration" 
+                stroke="#8884d8" 
+                strokeWidth={2}
+                name="Duration"
+              />
+              <Line 
+                type="monotone" 
+                dataKey="storageTime" 
+                stroke="#82ca9d" 
+                strokeWidth={2}
+                name="Storage Time"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Operation Types Distribution */}
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h4 className="font-medium text-gray-800 mb-4">Operation Types Distribution</h4>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={operationChartData}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="count"
+                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+              >
+                {operationChartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Recommendations */}
+      {recommendations.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <h4 className="font-medium text-amber-800 mb-3 flex items-center">
+            <AlertTriangle className="w-5 h-5 mr-2" />
+            Performance Recommendations
+          </h4>
+          <ul className="space-y-2">
+            {recommendations.map((recommendation: string, index: number) => (
+              <li key={index} className="text-amber-700 text-sm flex items-start">
+                <span className="w-2 h-2 bg-amber-500 rounded-full mt-1.5 mr-2 flex-shrink-0"></span>
+                {recommendation}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="mt-6 pt-4 border-t border-gray-200">
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <span>Performance optimization active</span>
+          <span>Metrics collected: {metrics.length}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default OAuthPerformanceDashboard;

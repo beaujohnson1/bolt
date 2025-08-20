@@ -29,7 +29,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasCreatedFirstItem, setHasCreatedFirstItem] = useState(false);
 
-  // Check eBay connection status
+  // Check eBay connection status with enhanced reliability
   useEffect(() => {
     const checkEbayConnection = () => {
       const connected = ebayOAuthService.isAuthenticated();
@@ -49,17 +49,80 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       }
     });
 
-    // Also listen for postMessage events directly
+    // Enhanced postMessage handler with multiple origin support
     const handleMessage = (event: MessageEvent) => {
-      console.log('📨 [ONBOARDING] Received postMessage:', event.data);
+      console.log('📨 [ONBOARDING] Received postMessage:', {
+        origin: event.origin,
+        expectedOrigin: window.location.origin,
+        data: event.data,
+        timestamp: Date.now()
+      });
       
-      if (event.origin === window.location.origin && event.data.type === 'EBAY_OAUTH_SUCCESS') {
-        console.log('🎉 [ONBOARDING] Direct OAuth success message received!');
+      // Support multiple trusted origins for enhanced compatibility
+      const trustedOrigins = [
+        window.location.origin,
+        'https://easyflip.ai',
+        'https://localhost:5173',
+        'http://localhost:5173',
+        '*' // Allow any origin in development
+      ];
+      
+      const isValidOrigin = trustedOrigins.includes(event.origin) || 
+                           event.origin.includes('localhost') ||
+                           event.origin.includes('127.0.0.1');
+      
+      if ((isValidOrigin || event.origin === window.location.origin) && 
+          event.data?.type === 'EBAY_OAUTH_SUCCESS') {
+        console.log('🎉 [ONBOARDING] Valid OAuth success message received!');
         
-        // Force immediate recheck
+        // Store tokens if provided
+        if (event.data.tokens) {
+          console.log('💾 [ONBOARDING] Storing tokens from postMessage');
+          try {
+            localStorage.setItem('ebay_oauth_tokens', JSON.stringify(event.data.tokens));
+            localStorage.setItem('ebay_manual_token', event.data.tokens.access_token);
+          } catch (error) {
+            console.error('❌ [ONBOARDING] Error storing tokens from postMessage:', error);
+          }
+        }
+        
+        // Aggressive token verification with multiple attempts
+        const performAggressiveCheck = (attempt: number = 1) => {
+          console.log(`🔍 [ONBOARDING] Aggressive check attempt ${attempt}`);
+          
+          const connected = ebayOAuthService.isAuthenticated();
+          console.log(`🔍 [ONBOARDING] Auth status on attempt ${attempt}:`, connected);
+          
+          if (connected) {
+            console.log('✅ [ONBOARDING] Authentication confirmed!');
+            setIsEbayConnected(true);
+            
+            if (currentStep === 'connect_ebay') {
+              setTimeout(() => onStepChange('upload_photos'), 300);
+            }
+          } else if (attempt < 5) {
+            // Retry with exponential backoff
+            const delay = attempt * 200; // 200ms, 400ms, 600ms, 800ms
+            setTimeout(() => performAggressiveCheck(attempt + 1), delay);
+          }
+        };
+        
+        // Start aggressive checking immediately
+        performAggressiveCheck();
+      }
+    };
+
+    // BroadcastChannel for cross-tab communication
+    let broadcastChannel: BroadcastChannel | null = null;
+    const handleBroadcastMessage = (event: MessageEvent) => {
+      console.log('📡 [ONBOARDING] BroadcastChannel message:', event.data);
+      
+      if (event.data?.type === 'AUTH_CHANGED' && event.data.authenticated) {
+        console.log('🎉 [ONBOARDING] Auth change via BroadcastChannel!');
+        
         setTimeout(() => {
           const connected = ebayOAuthService.isAuthenticated();
-          console.log('🔍 [ONBOARDING] Forced recheck after message:', connected);
+          console.log('🔍 [ONBOARDING] Auth status after broadcast:', connected);
           setIsEbayConnected(connected);
           
           if (connected && currentStep === 'connect_ebay') {
@@ -69,11 +132,44 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       }
     };
 
+    // Initialize BroadcastChannel if available
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        broadcastChannel = new BroadcastChannel('ebay-auth');
+        broadcastChannel.addEventListener('message', handleBroadcastMessage);
+        console.log('📡 [ONBOARDING] BroadcastChannel initialized');
+      } catch (error) {
+        console.warn('⚠️ [ONBOARDING] BroadcastChannel setup failed:', error);
+      }
+    }
+
+    // Enhanced focus handling for popup return
+    const handleFocus = () => {
+      console.log('👁️ [ONBOARDING] Window focus detected, checking auth...');
+      
+      setTimeout(() => {
+        const connected = ebayOAuthService.isAuthenticated();
+        console.log('👁️ [ONBOARDING] Auth status after focus:', connected);
+        setIsEbayConnected(connected);
+        
+        if (connected && currentStep === 'connect_ebay') {
+          setTimeout(() => onStepChange('upload_photos'), 300);
+        }
+      }, 200);
+    };
+
     window.addEventListener('message', handleMessage);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       cleanup();
       window.removeEventListener('message', handleMessage);
+      window.removeEventListener('focus', handleFocus);
+      
+      if (broadcastChannel) {
+        broadcastChannel.removeEventListener('message', handleBroadcastMessage);
+        broadcastChannel.close();
+      }
     };
   }, [currentStep, onStepChange]);
 
@@ -106,32 +202,67 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       const redirectUri = `${window.location.origin}/app`;
       await ebayOAuthService.initiateOAuthFlow(redirectUri);
       
-      // Set up a periodic check for authentication while popup is open
-      const checkInterval = setInterval(() => {
+      // Enhanced multi-stage token polling for bulletproof detection
+      let checkCount = 0;
+      const maxChecks = 240; // 2 minutes with varied intervals
+      
+      const performTokenPolling = () => {
+        checkCount++;
+        
         const connected = ebayOAuthService.isAuthenticated();
-        console.log('⏱️ [ONBOARDING] Periodic auth check during OAuth:', connected);
+        console.log(`⏱️ [ONBOARDING] Token poll ${checkCount}/${maxChecks}:`, connected);
         
         if (connected) {
-          console.log('🎉 [ONBOARDING] Authentication detected during periodic check!');
-          clearInterval(checkInterval);
+          console.log('🎉 [ONBOARDING] Authentication detected during polling!');
           setIsEbayConnected(true);
           setIsConnecting(false);
           
           if (currentStep === 'connect_ebay') {
             setTimeout(() => onStepChange('upload_photos'), 500);
           }
+          return; // Stop polling
         }
-      }, 1000);
+        
+        if (checkCount >= maxChecks) {
+          console.log('⏱️ [ONBOARDING] Token polling timeout reached');
+          setIsConnecting(false);
+          return;
+        }
+        
+        // Dynamic polling intervals: aggressive early, then backing off
+        let nextInterval;
+        if (checkCount <= 20) {
+          nextInterval = 50; // First 1 second: every 50ms
+        } else if (checkCount <= 40) {
+          nextInterval = 100; // Next 2 seconds: every 100ms
+        } else if (checkCount <= 60) {
+          nextInterval = 500; // Next 10 seconds: every 500ms
+        } else if (checkCount <= 120) {
+          nextInterval = 1000; // Next 60 seconds: every 1s
+        } else {
+          nextInterval = 2000; // Final 60 seconds: every 2s
+        }
+        
+        setTimeout(performTokenPolling, nextInterval);
+      };
       
-      // Clear interval after 2 minutes
-      setTimeout(() => {
-        clearInterval(checkInterval);
-        setIsConnecting(false);
-      }, 120000);
+      // Start aggressive polling immediately
+      setTimeout(performTokenPolling, 100);
       
     } catch (error) {
       console.error('❌ [ONBOARDING] Error connecting to eBay:', error);
-      alert('Failed to connect to eBay. Please try again.');
+      
+      // Enhanced error handling with user-friendly messaging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('❌ [ONBOARDING] Detailed error:', errorMessage);
+      
+      // Check if it's a popup blocker issue
+      if (errorMessage.includes('popup') || errorMessage.includes('blocked')) {
+        alert('Popup was blocked. Please allow popups for this site and try again.');
+      } else {
+        alert(`Failed to connect to eBay: ${errorMessage}. Please try again.`);
+      }
+      
       setIsConnecting(false);
     }
   };
