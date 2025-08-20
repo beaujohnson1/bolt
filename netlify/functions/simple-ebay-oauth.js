@@ -75,25 +75,51 @@ exports.handler = async (event, context) => {
                     };
                 }
 
+                // Decode the URL-encoded authorization code
+                const decodedCode = decodeURIComponent(code);
                 console.log(`🔄 Exchanging code: ${code.substring(0, 50)}...`);
+                console.log(`🔧 Decoded code: ${decodedCode.substring(0, 50)}...`);
                 
                 // Exchange code for token
-                const token = await ebay.OAuth2.getToken(code);
-                
-                console.log('✅ Token exchange successful');
-                
-                return {
-                    statusCode: 200,
-                    headers,
-                    body: JSON.stringify({
-                        success: true,
-                        access_token: token.access_token,
-                        refresh_token: token.refresh_token,
-                        expires_in: token.expires_in,
-                        token_type: token.token_type,
-                        message: 'Tokens retrieved successfully'
-                    })
-                };
+                try {
+                    const token = await ebay.OAuth2.getToken(decodedCode);
+                    console.log('✅ Token exchange successful');
+                    console.log('🔧 Token response:', {
+                        hasAccessToken: !!token.access_token,
+                        hasRefreshToken: !!token.refresh_token,
+                        expiresIn: token.expires_in,
+                        tokenType: token.token_type
+                    });
+                    
+                    return {
+                        statusCode: 200,
+                        headers,
+                        body: JSON.stringify({
+                            success: true,
+                            access_token: token.access_token,
+                            refresh_token: token.refresh_token,
+                            expires_in: token.expires_in,
+                            token_type: token.token_type,
+                            message: 'Tokens retrieved successfully'
+                        })
+                    };
+                } catch (tokenError) {
+                    console.error('❌ Token exchange error:', tokenError);
+                    return {
+                        statusCode: 400,
+                        headers,
+                        body: JSON.stringify({
+                            success: false,
+                            error: `Token exchange failed: ${tokenError.message}`,
+                            details: {
+                                errorType: tokenError.constructor.name,
+                                originalCode: code.substring(0, 50),
+                                decodedCode: decodedCode.substring(0, 50),
+                                errorMessage: tokenError.message
+                            }
+                        })
+                    };
+                }
 
             case 'refresh-token':
                 const { refresh_token } = body;
