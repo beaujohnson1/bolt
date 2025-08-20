@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🧪 OAuth Browser Validation Test</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+            line-height: 1.6;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; }
+        .btn-warning { background: #f39c12; }
+        .btn-danger { background: #e74c3c; }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.warning { background: #fff3cd; color: #856404; }
+        .status.info { background: #d1ecf1; color: #0c5460; }
+        .log-area {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border: 1px solid #ddd;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 OAuth Browser Validation Test</h1>
+        <p>This test validates the OAuth integration works properly with the EasyFlip main application.</p>
+        
+        <div id="summary-status" class="status info">
+            Ready to test OAuth integration...
+        </div>
+    </div>
+
+    <div class="grid">
+        <!-- Token Storage Tests -->
+        <div class="container">
+            <div class="test-section">
+                <h3>💾 Token Storage Tests</h3>
+                <button class="btn" onclick="testTokenStorage()">Test Token Format</button>
+                <button class="btn btn-warning" onclick="simulateTokenStorage()">Simulate OAuth Tokens</button>
+                <button class="btn btn-danger" onclick="clearAllTokens()">Clear All Tokens</button>
+                <div id="token-status" class="status info">No tokens detected</div>
+                <div id="token-details" class="log-area" style="max-height: 200px;"></div>
+            </div>
+
+            <div class="test-section">
+                <h3>🎯 Main App Integration</h3>
+                <button class="btn" onclick="testMainAppDetection()">Test Token Detection</button>
+                <button class="btn btn-success" onclick="openMainApp()">Open Main App</button>
+                <div id="integration-status" class="status info">Not tested</div>
+            </div>
+        </div>
+
+        <!-- OAuth Flow Tests -->
+        <div class="container">
+            <div class="test-section">
+                <h3>🚀 OAuth Flow Tests</h3>
+                <button class="btn" onclick="openOAuthTest()">Open OAuth Test Page</button>
+                <button class="btn btn-success" onclick="testOAuthEndpoint()">Test OAuth Endpoint</button>
+                <div id="oauth-status" class="status info">Not tested</div>
+            </div>
+
+            <div class="test-section">
+                <h3>🔄 Callback Tests</h3>
+                <button class="btn" onclick="testCallbackURL()">Test Callback URL</button>
+                <button class="btn btn-warning" onclick="simulateCallback()">Simulate OAuth Callback</button>
+                <div id="callback-status" class="status info">Not tested</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="test-section">
+            <h3>📋 Test Log</h3>
+            <button class="btn btn-warning" onclick="clearLog()">Clear Log</button>
+            <button class="btn btn-success" onclick="runAllTests()">Run All Tests</button>
+            <div id="test-log" class="log-area">
+OAuth Browser Validation Test initialized...
+Ready to test integration.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let testResults = {
+            total: 0,
+            passed: 0,
+            failed: 0
+        };
+
+        function log(message, type = 'info') {
+            const logArea = document.getElementById('test-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                error: 'color: #e74c3c;',
+                success: 'color: #27ae60;',
+                warning: 'color: #f39c12;',
+                info: 'color: #3498db;'
+            };
+            
+            logArea.innerHTML += `<span style="${colors[type] || colors.info}">[${timestamp}] ${message}</span>\n`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function updateSummary() {
+            const summaryDiv = document.getElementById('summary-status');
+            const total = testResults.total;
+            const passed = testResults.passed;
+            const failed = testResults.failed;
+            
+            if (total === 0) {
+                summaryDiv.className = 'status info';
+                summaryDiv.textContent = 'Ready to test OAuth integration...';
+            } else {
+                const passRate = ((passed / total) * 100).toFixed(1);
+                if (passRate >= 90) {
+                    summaryDiv.className = 'status success';
+                    summaryDiv.textContent = `✅ ${passRate}% Pass Rate (${passed}/${total}) - Integration Ready!`;
+                } else if (passRate >= 70) {
+                    summaryDiv.className = 'status warning';
+                    summaryDiv.textContent = `⚠️ ${passRate}% Pass Rate (${passed}/${total}) - Some Issues`;
+                } else {
+                    summaryDiv.className = 'status error';
+                    summaryDiv.textContent = `❌ ${passRate}% Pass Rate (${passed}/${total}) - Major Issues`;
+                }
+            }
+        }
+
+        function addTestResult(testName, passed, message) {
+            testResults.total++;
+            if (passed) {
+                testResults.passed++;
+                log(`✅ PASS: ${testName} - ${message}`, 'success');
+            } else {
+                testResults.failed++;
+                log(`❌ FAIL: ${testName} - ${message}`, 'error');
+            }
+            updateSummary();
+        }
+
+        function testTokenStorage() {
+            log('🧪 Testing token storage format...', 'info');
+            
+            // Check current tokens
+            const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+            const manualToken = localStorage.getItem('ebay_manual_token');
+            
+            let tokenDetails = 'Current Token Status:\n';
+            tokenDetails += `• ebay_oauth_tokens: ${oauthTokens ? '✓ Present' : '✗ Missing'}\n`;
+            tokenDetails += `• ebay_manual_token: ${manualToken ? '✓ Present' : '✗ Missing'}\n\n`;
+            
+            if (oauthTokens) {
+                try {
+                    const tokens = JSON.parse(oauthTokens);
+                    tokenDetails += 'OAuth Tokens Structure:\n';
+                    tokenDetails += `• access_token: ${tokens.access_token ? '✓' : '✗'}\n`;
+                    tokenDetails += `• refresh_token: ${tokens.refresh_token ? '✓' : '✗'}\n`;
+                    tokenDetails += `• expires_in: ${tokens.expires_in || 'N/A'}\n`;
+                    tokenDetails += `• expires_at: ${tokens.expires_at ? new Date(tokens.expires_at).toLocaleString() : 'N/A'}\n`;
+                    tokenDetails += `• token_type: ${tokens.token_type || 'N/A'}\n\n`;
+                    
+                    const isValid = tokens.access_token && tokens.refresh_token && tokens.expires_in;
+                    addTestResult('Token Format Validation', isValid, isValid ? 'All required fields present' : 'Missing required fields');
+                    
+                    // Check expiry
+                    if (tokens.expires_at) {
+                        const isExpired = tokens.expires_at < Date.now();
+                        addTestResult('Token Expiry Check', !isExpired, isExpired ? 'Token is expired' : 'Token is valid');
+                    }
+                    
+                } catch (e) {
+                    tokenDetails += `Error parsing OAuth tokens: ${e.message}\n`;
+                    addTestResult('Token Parsing', false, 'Failed to parse OAuth tokens JSON');
+                }
+            }
+            
+            document.getElementById('token-details').textContent = tokenDetails;
+            
+            const hasValidTokens = oauthTokens && manualToken;
+            const statusDiv = document.getElementById('token-status');
+            if (hasValidTokens) {
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '✅ Valid tokens detected';
+            } else {
+                statusDiv.className = 'status warning';
+                statusDiv.textContent = '⚠️ No valid tokens found - run OAuth flow first';
+            }
+            
+            addTestResult('Token Storage Detection', hasValidTokens, hasValidTokens ? 'Both token types present' : 'Tokens missing');
+        }
+
+        function simulateTokenStorage() {
+            log('🎭 Simulating OAuth token storage...', 'info');
+            
+            const mockTokens = {
+                access_token: 'v^1.1#i^1#f^0#I^3#p^1#r^0#t^H4sIAAAAAAAAAOVXa2wUVRTu_MOCK_TOKEN_FOR_TESTING',
+                refresh_token: 'v^1.1#i^1#f^0#r^1#p^1#I^3#t^Ul41_MOCK_REFRESH_TOKEN',
+                expires_in: 7200,
+                expires_at: Date.now() + 7200000,
+                token_type: 'Bearer'
+            };
+            
+            try {
+                localStorage.setItem('ebay_oauth_tokens', JSON.stringify(mockTokens));
+                localStorage.setItem('ebay_manual_token', mockTokens.access_token);
+                
+                log('✅ Mock tokens stored successfully', 'success');
+                testTokenStorage(); // Refresh the display
+                addTestResult('Mock Token Storage', true, 'Successfully stored mock tokens');
+            } catch (error) {
+                log(`❌ Failed to store mock tokens: ${error.message}`, 'error');
+                addTestResult('Mock Token Storage', false, `Storage failed: ${error.message}`);
+            }
+        }
+
+        function clearAllTokens() {
+            log('🗑️ Clearing all tokens...', 'info');
+            
+            localStorage.removeItem('ebay_oauth_tokens');
+            localStorage.removeItem('ebay_manual_token');
+            
+            log('✅ All tokens cleared', 'success');
+            testTokenStorage(); // Refresh the display
+            addTestResult('Token Clearing', true, 'All tokens successfully removed');
+        }
+
+        async function testMainAppDetection() {
+            log('🎯 Testing main app token detection...', 'info');
+            
+            const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+            const manualToken = localStorage.getItem('ebay_manual_token');
+            
+            // Simulate main app detection logic (from AuthContext)
+            const ebayConnected = oauthTokens || manualToken;
+            
+            const statusDiv = document.getElementById('integration-status');
+            if (ebayConnected) {
+                statusDiv.className = 'status success';
+                statusDiv.textContent = '✅ Main app would detect authentication';
+                addTestResult('Main App Detection', true, 'AuthContext would detect tokens');
+            } else {
+                statusDiv.className = 'status warning';
+                statusDiv.textContent = '⚠️ Main app would not detect authentication';
+                addTestResult('Main App Detection', false, 'No tokens for AuthContext to detect');
+            }
+        }
+
+        function openMainApp() {
+            log('🚀 Opening main EasyFlip app...', 'info');
+            window.open('https://easyflip.ai', '_blank');
+        }
+
+        function openOAuthTest() {
+            log('🧪 Opening OAuth test page...', 'info');
+            window.open('https://easyflip.ai/test-simple-oauth.html', '_blank');
+        }
+
+        async function testOAuthEndpoint() {
+            log('🔧 Testing OAuth endpoint...', 'info');
+            
+            try {
+                const response = await fetch('https://easyflip.ai/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'generate-auth-url' })
+                });
+                
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('oauth-status');
+                if (data.success && data.authUrl) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ OAuth endpoint working correctly';
+                    addTestResult('OAuth Endpoint Test', true, 'Auth URL generated successfully');
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '❌ OAuth endpoint error';
+                    addTestResult('OAuth Endpoint Test', false, data.error || 'Failed to generate auth URL');
+                }
+            } catch (error) {
+                const statusDiv = document.getElementById('oauth-status');
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Network error testing endpoint';
+                addTestResult('OAuth Endpoint Test', false, `Network error: ${error.message}`);
+            }
+        }
+
+        async function testCallbackURL() {
+            log('📞 Testing OAuth callback URL...', 'info');
+            
+            try {
+                const response = await fetch('https://easyflip.ai/.netlify/functions/simple-ebay-callback');
+                const responseOk = response.ok || response.status === 400; // 400 is expected for missing params
+                
+                const statusDiv = document.getElementById('callback-status');
+                if (responseOk) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ Callback URL accessible';
+                    addTestResult('Callback URL Test', true, 'Callback endpoint responding');
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = '❌ Callback URL error';
+                    addTestResult('Callback URL Test', false, `HTTP ${response.status}`);
+                }
+            } catch (error) {
+                const statusDiv = document.getElementById('callback-status');
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Network error testing callback';
+                addTestResult('Callback URL Test', false, `Network error: ${error.message}`);
+            }
+        }
+
+        function simulateCallback() {
+            log('🎭 Simulating OAuth callback success...', 'info');
+            
+            // Simulate successful OAuth callback by storing tokens
+            const mockTokens = {
+                access_token: 'v^1.1#i^1#callback_simulation_token',
+                refresh_token: 'v^1.1#i^1#callback_refresh_token',
+                expires_in: 7200,
+                expires_at: Date.now() + 7200000,
+                token_type: 'Bearer'
+            };
+            
+            localStorage.setItem('ebay_oauth_tokens', JSON.stringify(mockTokens));
+            localStorage.setItem('ebay_manual_token', mockTokens.access_token);
+            
+            // Trigger custom event (like the callback would)
+            window.dispatchEvent(new CustomEvent('simpleEbayAuthSuccess', { 
+                detail: mockTokens
+            }));
+            
+            log('✅ OAuth callback simulation complete', 'success');
+            testTokenStorage(); // Refresh displays
+            testMainAppDetection();
+            addTestResult('Callback Simulation', true, 'Successfully simulated OAuth callback');
+        }
+
+        function clearLog() {
+            document.getElementById('test-log').innerHTML = 'Log cleared...\n';
+        }
+
+        async function runAllTests() {
+            log('🚀 Running comprehensive OAuth integration tests...', 'info');
+            
+            // Reset test results
+            testResults = { total: 0, passed: 0, failed: 0 };
+            
+            // Run all tests in sequence
+            testTokenStorage();
+            await testMainAppDetection();
+            await testOAuthEndpoint();
+            await testCallbackURL();
+            
+            log(`🏁 All tests completed. Pass rate: ${((testResults.passed / testResults.total) * 100).toFixed(1)}%`, 'info');
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            log('🧪 OAuth Browser Validation Test ready', 'info');
+            testTokenStorage(); // Check initial state
+        });
+
+        // Listen for OAuth success events
+        window.addEventListener('simpleEbayAuthSuccess', (event) => {
+            log('🎉 Received OAuth success event!', 'success');
+            log(`Token details: ${JSON.stringify(event.detail, null, 2)}`, 'info');
+            setTimeout(() => {
+                testTokenStorage();
+                testMainAppDetection();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
