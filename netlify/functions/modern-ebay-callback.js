@@ -187,7 +187,9 @@ exports.handler = async (event, context) => {
                                             token_type: data.token_type || 'Bearer',
                                             expires_at: Date.now() + (data.expires_in * 1000)
                                         };
+                                        // Store in both formats for compatibility
                                         window.opener.localStorage.setItem('oauth_tokens', JSON.stringify(tokenData));
+                                        window.opener.localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
                                         
                                         console.log('✅ Tokens stored successfully in parent window');
                                         

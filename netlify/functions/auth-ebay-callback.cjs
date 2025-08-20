@@ -292,9 +292,13 @@ exports.handler = async (event, context) => {
                 
                 // Store tokens in multiple formats for compatibility
                 localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                localStorage.setItem('oauth_tokens', JSON.stringify(tokenData)); // Modern callback compatibility
                 localStorage.setItem('ebay_manual_token', tokenData.access_token);
                 localStorage.setItem('ebay_app_token', tokenData.access_token);
                 localStorage.setItem('ebay_app_token_expiry', tokenData.expires_at.toString());
+                localStorage.setItem('ebay_access_token', tokenData.access_token);
+                localStorage.setItem('ebay_refresh_token', tokenData.refresh_token);
+                localStorage.setItem('ebay_token_expiry', tokenData.expires_at.toString());
                 
                 // Verify storage immediately
                 const stored = localStorage.getItem('ebay_oauth_tokens');

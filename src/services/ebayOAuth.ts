@@ -869,9 +869,19 @@ class EbayOAuthService {
       const originalManual = localStorage.getItem('ebay_manual_token');
       
       try {
-        // Direct storage operations
+        // Store in multiple formats for compatibility with different callback handlers
         localStorage.setItem('ebay_oauth_tokens', tokenString);
+        localStorage.setItem('oauth_tokens', tokenString); // Modern callback compatibility
         localStorage.setItem('ebay_manual_token', tokens.access_token);
+        
+        // Store individual fields for maximum compatibility
+        localStorage.setItem('ebay_access_token', tokens.access_token);
+        if (tokens.refresh_token) {
+          localStorage.setItem('ebay_refresh_token', tokens.refresh_token);
+        }
+        if (tokens.expires_at) {
+          localStorage.setItem('ebay_token_expiry', tokens.expires_at.toString());
+        }
         
         // Verify storage
         const stored = localStorage.getItem('ebay_oauth_tokens');
@@ -964,11 +974,40 @@ class EbayOAuthService {
    */
   private getStoredTokens(): EbayOAuthTokens | null {
     try {
-      // First try the standard OAuth storage
+      // Try multiple storage locations due to different callback implementations
       let stored = localStorage.getItem('ebay_oauth_tokens');
-      let storageType = 'oauth_tokens';
+      let storageType = 'ebay_oauth_tokens';
       
-      // If not found, check for app token storage (from OAuth callback)
+      // Fallback 1: Check 'oauth_tokens' (modern-ebay-callback stores here)
+      if (!stored) {
+        stored = localStorage.getItem('oauth_tokens');
+        if (stored) {
+          storageType = 'oauth_tokens';
+          console.log('🔄 [EBAY-OAUTH] Found tokens in fallback location: oauth_tokens');
+        }
+      }
+      
+      // Fallback 2: Check for individual token fields (modern callback alternative format)
+      if (!stored) {
+        const accessToken = localStorage.getItem('ebay_access_token');
+        const refreshToken = localStorage.getItem('ebay_refresh_token');
+        const tokenExpiry = localStorage.getItem('ebay_token_expiry');
+        
+        if (accessToken) {
+          const expiryTime = tokenExpiry ? parseInt(tokenExpiry) : Date.now() + 3600000;
+          stored = JSON.stringify({
+            access_token: accessToken,
+            refresh_token: refreshToken || '',
+            expires_in: Math.max(0, Math.floor((expiryTime - Date.now()) / 1000)),
+            expires_at: expiryTime,
+            token_type: 'Bearer'
+          });
+          storageType = 'individual_tokens';
+          console.log('🔄 [EBAY-OAUTH] Reconstructed tokens from individual fields');
+        }
+      }
+      
+      // Fallback 3: Check for app token storage (from OAuth callback)
       if (!stored) {
         const appToken = localStorage.getItem('ebay_app_token');
         const appTokenExpiry = localStorage.getItem('ebay_app_token_expiry');
