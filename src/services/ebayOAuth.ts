@@ -2,6 +2,7 @@
 // Handles OAuth flow for eBay user authentication
 
 import { initializeOAuthDebugConsole } from '../utils/oauthDebugConsole';
+import { emergencyOAuthBridge } from '../utils/emergencyOAuthBridge';
 
 export interface EbayOAuthTokens {
   access_token: string;
@@ -280,10 +281,10 @@ class EbayOAuthService {
   }
 
   /**
-   * Force refresh authentication status (useful after OAuth callback)
+   * Force refresh authentication status with emergency bridge integration (useful after OAuth callback)
    */
   refreshAuthStatus(): boolean {
-    console.log('🔄 [EBAY-OAUTH] Force refreshing authentication status...');
+    console.log('🔄 [EBAY-OAUTH] Force refreshing authentication status with emergency bridge...');
     
     // Clear any potential cache issues
     const tokens = this.getStoredTokens();
@@ -294,6 +295,19 @@ class EbayOAuthService {
       hasManualToken: !!manualToken,
       localStorageKeys: Object.keys(localStorage).filter(key => key.includes('ebay'))
     });
+    
+    // Trigger emergency bridge detection if tokens exist but not recognized
+    if ((tokens || manualToken) && !this.isAuthenticated()) {
+      console.log('🚨 [EBAY-OAUTH] Token mismatch detected - triggering emergency bridge');
+      emergencyOAuthBridge.startEmergencyDetection()
+        .then((token) => {
+          console.log('✅ [EBAY-OAUTH] Emergency bridge resolved token mismatch:', token);
+          this.forceAuthStateRefresh();
+        })
+        .catch((error) => {
+          console.warn('⚠️ [EBAY-OAUTH] Emergency bridge failed:', error);
+        });
+    }
     
     return this.isAuthenticated();
   }
@@ -388,24 +402,44 @@ class EbayOAuthService {
       this.debugConsole?.log('✅ Popup window opened successfully!', 'success', 'popup-success');
       this.debugConsole?.updateStatus('Popup opened - waiting for user authentication...');
       
-      // Optimized popup monitoring with performance-aware polling
-      console.log('🔍 [EBAY-OAUTH] Starting optimized popup monitoring...');
+      // CRITICAL FIX: Ultra-responsive popup monitoring with emergency bridge integration
+      console.log('🔍 [EBAY-OAUTH] Starting CRITICAL popup monitoring with emergency bridge integration...');
       
-      // Simple popup monitoring with direct polling
-      const checkClosed = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkClosed);
+      // Initialize emergency bridge for ultra-fast detection
+      emergencyOAuthBridge.addEventListener('token-detected', (data) => {
+        console.log('🚨 [EBAY-OAUTH] Emergency bridge detected token during popup monitoring!', data);
+        clearInterval(ultraFastCheckClosed);
+        clearInterval(enhancedPopupMonitor);
+        window.removeEventListener('message', messageHandler);
+        popup.close();
+        this.forceAuthStateRefresh();
+      });
+      
+      // Ultra-fast popup monitoring for immediate token detection
+      let isPopupClosed = false;
+      const ultraFastCheckClosed = setInterval(() => {
+        if (popup.closed && !isPopupClosed) {
+          isPopupClosed = true;
+          clearInterval(ultraFastCheckClosed);
+          clearInterval(enhancedPopupMonitor);
           window.removeEventListener('message', messageHandler);
-          console.log('🔍 [EBAY-OAUTH] Popup closed, initiating comprehensive token detection...');
-          this.debugConsole?.log('🔍 Popup closed - checking for tokens...', 'info', 'popup-monitor');
           
-          // Immediate beacon check
-          this.checkForSuccessBeacon();
+          console.log('🚨 [EBAY-OAUTH] CRITICAL: Popup closed, implementing EMERGENCY token detection protocol...');
+          this.debugConsole?.log('🚨 POPUP CLOSED - Emergency token detection!', 'warning', 'popup-critical');
           
-          // Then perform aggressive token check
-          this.performAggressiveTokenCheck('popup_closed');
+          // CRITICAL: Start emergency bridge ultra-fast detection
+          emergencyOAuthBridge.startEmergencyDetection()
+            .then((token) => {
+              console.log('✅ [EBAY-OAUTH] Emergency bridge successfully detected token:', token);
+              this.forceAuthStateRefresh();
+            })
+            .catch((error) => {
+              console.warn('⚠️ [EBAY-OAUTH] Emergency bridge detection failed:', error);
+              // Fallback to legacy detection
+              this.implementEmergencyTokenDetection('popup_closed_critical');
+            });
         }
-      }, 100);
+      }, 25); // Check every 25ms for ultra-fast detection
       
       // Enhanced message handler with multiple origin support
       const messageHandler = async (event: MessageEvent) => {
@@ -1341,6 +1375,126 @@ class EbayOAuthService {
     }
   }
 
+  /**
+   * CRITICAL: Implement emergency token detection protocol with emergency bridge integration
+   */
+  implementEmergencyTokenDetection(source: string): void {
+    console.log(`🚨 [EBAY-OAUTH] EMERGENCY TOKEN DETECTION from: ${source}`);
+    this.debugConsole?.log(`🚨 EMERGENCY TOKEN DETECTION from: ${source}`, 'error', 'emergency');
+    
+    // First, try emergency bridge for ultra-fast detection
+    emergencyOAuthBridge.startEmergencyDetection()
+      .then((token) => {
+        console.log(`🎉 [EBAY-OAUTH] EMERGENCY BRIDGE SUCCESS from: ${source}!`);
+        this.debugConsole?.log(`🎉 EMERGENCY BRIDGE SUCCESS!`, 'success', 'emergency-bridge');
+        
+        // Immediate event dispatch
+        this.dispatchEmergencyAuthEvent(source, 1, 25);
+        this.triggerComponentRefresh();
+      })
+      .catch((error) => {
+        console.warn(`⚠️ [EBAY-OAUTH] Emergency bridge failed, falling back to legacy detection:`, error);
+        
+        // Fallback to legacy multi-stage detection
+        const immediateChecks = [0, 10, 25, 50, 75, 100, 150, 200, 300, 500];
+        
+        immediateChecks.forEach((delay, index) => {
+          setTimeout(() => {
+            // Multi-method verification per check
+            const authMethods = [
+              () => this.isAuthenticated(),
+              () => !!this.getStoredTokens(),
+              () => !!localStorage.getItem('ebay_manual_token'),
+              () => !!localStorage.getItem('ebay_oauth_tokens'),
+              () => !!localStorage.getItem('ebay_oauth_beacon')
+            ];
+            
+            const results = authMethods.map(method => {
+              try { return method(); } catch { return false; }
+            });
+            
+            const positiveResults = results.filter(r => r).length;
+            const isAuthenticated = positiveResults >= 2; // Require at least 2 confirmations
+            
+            console.log(`🔍 [EMERGENCY-CHECK-${index + 1}] ${delay}ms: ${positiveResults}/5 methods positive, Auth: ${isAuthenticated}`);
+            
+            if (isAuthenticated) {
+              console.log(`🎉 [EBAY-OAUTH] EMERGENCY SUCCESS on check ${index + 1}!`);
+              this.debugConsole?.log(`🎉 EMERGENCY SUCCESS on check ${index + 1}!`, 'success', 'emergency-success');
+              
+              // Immediate event dispatch with multiple methods
+              this.dispatchEmergencyAuthEvent(source, index + 1, delay);
+              
+              // Force component refresh
+              this.triggerComponentRefresh();
+              
+              return; // Stop checking
+            }
+          }, delay);
+        });
+        
+        // Continue with extended aggressive checking
+        setTimeout(() => this.performAggressiveTokenCheck(source), 1000);
+      });
+  }
+  
+  /**
+   * Dispatch emergency authentication event with maximum compatibility
+   */
+  private dispatchEmergencyAuthEvent(source: string, attempt: number, delay: number): void {
+    const authData = {
+      authenticated: true,
+      source: source,
+      attempt: attempt,
+      delay: delay,
+      timestamp: Date.now(),
+      emergency: true,
+      tokens: this.getStoredTokens()
+    };
+    
+    // Method 1: Multiple CustomEvents
+    const eventTypes = ['ebayAuthChanged', 'ebayTokenDetected', 'oauthSuccess', 'emergencyAuthSuccess'];
+    eventTypes.forEach(type => {
+      window.dispatchEvent(new CustomEvent(type, { detail: authData }));
+    });
+    
+    // Method 2: BroadcastChannel
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        const channel = new BroadcastChannel('ebay-auth');
+        channel.postMessage({ type: 'EMERGENCY_AUTH_SUCCESS', ...authData });
+        channel.close();
+      } catch (e) {}
+    }
+    
+    // Method 3: Storage Event
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'ebay_oauth_tokens',
+      newValue: JSON.stringify(this.getStoredTokens()),
+      oldValue: null,
+      storageArea: localStorage,
+      url: window.location.href
+    }));
+    
+    console.log('🚨 [EBAY-OAUTH] Emergency auth events dispatched:', authData);
+  }
+  
+  /**
+   * Force component refresh for immediate state update
+   */
+  private triggerComponentRefresh(): void {
+    // Method 1: Focus event to trigger component checks
+    window.dispatchEvent(new Event('focus'));
+    
+    // Method 2: Page visibility change
+    window.dispatchEvent(new Event('visibilitychange'));
+    
+    // Method 3: Custom refresh event
+    window.dispatchEvent(new CustomEvent('forceComponentRefresh', {
+      detail: { source: 'oauth_emergency', timestamp: Date.now() }
+    }));
+  }
+  
   /**
    * Perform aggressive token detection after popup closes
    */

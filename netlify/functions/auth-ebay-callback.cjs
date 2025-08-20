@@ -474,23 +474,75 @@ exports.handler = async (event, context) => {
               updateStatus('Success! Closing window...');
               addLog('All communication methods attempted');
 
-              // Close popup after delay to allow message processing
+              // CRITICAL FIX: Extended delay for popup closure with emergency beacon writing
               setTimeout(() => {
-                addLog('🔚 Closing popup window');
+                addLog('🔚 Preparing to close popup window...');
+                
+                // Emergency beacon for ultra-fast detection
                 try {
-                  window.close();
+                  const emergencyBeacon = document.createElement('div');
+                  emergencyBeacon.setAttribute('data-oauth-token', tokenData.access_token);
+                  emergencyBeacon.setAttribute('data-timestamp', Date.now().toString());
+                  emergencyBeacon.style.display = 'none';
+                  emergencyBeacon.id = 'emergency-oauth-beacon';
+                  document.body.appendChild(emergencyBeacon);
+                  addLog('✅ Emergency DOM beacon created');
                 } catch (e) {
-                  addLog('❌ Window close failed: ' + e.message);
-                  // Fallback: try to navigate parent to success page
-                  if (window.opener) {
-                    try {
-                      window.opener.location.href = '${baseUrl}/app?ebay_connected=true&popup_closed=true';
-                    } catch (navError) {
-                      addLog('❌ Parent navigation failed: ' + navError.message);
-                    }
-                  }
+                  addLog('❌ Emergency DOM beacon failed: ' + e.message);
                 }
-              }, 2000);
+                
+                // Final beacon write before closing with multiple formats
+                try {
+                  const finalBeacon = {
+                    success: true,
+                    tokens: tokenData,
+                    timestamp: Date.now(),
+                    windowName: window.name,
+                    hasOpener: hasOpener,
+                    finalWrite: true
+                  };
+                  localStorage.setItem('ebay_oauth_beacon', JSON.stringify(finalBeacon));
+                  localStorage.setItem('ebay_emergency_token', tokenData.access_token);
+                  sessionStorage.setItem('ebay_emergency_token', tokenData.access_token);
+                  addLog('✅ Final beacon written in multiple formats before popup close');
+                } catch (e) {
+                  addLog('❌ Final beacon write failed: ' + e.message);
+                }
+                
+                // Multiple close attempts with increasing delays (extended timing)
+                const closeAttempts = [0, 500, 1000, 2000, 3000, 4000];
+                closeAttempts.forEach((delay, index) => {
+                  setTimeout(() => {
+                    addLog(\`🔚 Close attempt \${index + 1}/\${closeAttempts.length}\`);
+                    try {
+                      if (!window.closed) {
+                        // Additional emergency token writing before each close attempt
+                        try {
+                          localStorage.setItem('ebay_emergency_token_' + Date.now(), tokenData.access_token);
+                          window.opener && (window.opener.ebayEmergencyToken = tokenData.access_token);
+                        } catch (emergencyError) {
+                          addLog('❌ Emergency token write failed: ' + emergencyError.message);
+                        }
+                        
+                        window.close();
+                        addLog('✅ Popup closed successfully');
+                      }
+                    } catch (e) {
+                      addLog('❌ Window close attempt failed: ' + e.message);
+                      if (index === closeAttempts.length - 1) {
+                        // Final fallback: try to navigate parent to success page
+                        if (window.opener) {
+                          try {
+                            window.opener.location.href = '${baseUrl}/app?ebay_connected=true&popup_closed=true&emergency=true';
+                          } catch (navError) {
+                            addLog('❌ Parent navigation failed: ' + navError.message);
+                          }
+                        }
+                      }
+                    }
+                  }, delay);
+                });
+              }, 3000); // Extended timing for emergency bridge detection
 
             } else if (isIframe) {
               updateStatus('Running in iframe, notifying parent...');

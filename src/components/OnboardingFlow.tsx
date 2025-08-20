@@ -3,6 +3,7 @@ import { CheckCircle, ArrowRight, Link2, Upload, Bot, Zap, ShoppingCart } from '
 import { useAuth } from '../contexts/AuthContext';
 import ebayOAuthService from '../services/ebayOAuth';
 import { initializeOAuthDebugConsole } from '../utils/oauthDebugConsole';
+import { emergencyOAuthBridge } from '../utils/emergencyOAuthBridge';
 
 interface OnboardingStep {
   id: string;
@@ -571,6 +572,16 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     setIsConnecting(true);
     setShowManualCheck(false);
     
+    // Initialize emergency bridge for ultra-fast detection
+    emergencyOAuthBridge.addEventListener('token-detected', (data) => {
+      console.log('🚨 [ONBOARDING] Emergency bridge detected token!', data);
+      setIsEbayConnected(true);
+      setIsConnecting(false);
+      if (currentStep === 'connect_ebay') {
+        setTimeout(() => onStepChange('upload_photos'), 300);
+      }
+    });
+    
     try {
       console.log('🌐 [ONBOARDING] Calling OAuth service to initiate flow...');
       debugConsole.log('Requesting OAuth authorization URL from server...', 'info', 'oauth-init');
@@ -600,8 +611,30 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         
         checkCount++;
         
-        // Check multiple sources for authentication success
+        // CRITICAL: Multi-source authentication verification with enhanced detection
         const connected = ebayOAuthService.isAuthenticated();
+        
+        // EMERGENCY: Force token reload before checking
+        try {
+          // Refresh localStorage access to detect newly stored tokens
+          const tokenCheck1 = !!localStorage.getItem('ebay_oauth_tokens');
+          const tokenCheck2 = !!localStorage.getItem('ebay_manual_token');
+          const tokenCheck3 = !!localStorage.getItem('ebay_app_token');
+          
+          if ((tokenCheck1 || tokenCheck2 || tokenCheck3) && !connected) {
+            console.log('🚨 [ONBOARDING] CRITICAL: Tokens detected but service not recognizing - forcing refresh');
+            debugConsole.log('🚨 Token mismatch detected - forcing service refresh', 'warning', 'token-mismatch');
+            
+            // Force service to re-read tokens
+            const forceConnected = ebayOAuthService.refreshAuthStatus();
+            if (forceConnected) {
+              console.log('✅ [ONBOARDING] Forced token recognition successful!');
+              debugConsole.log('✅ Forced token recognition successful!', 'success', 'force-success');
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ [ONBOARDING] Token check failed:', e);
+        }
         
         // Check for success beacon from callback page
         let beaconFound = false;
@@ -701,8 +734,30 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           window.history.replaceState({}, '', newUrl.toString());
         }
         
-        // Consider authentication successful if ANY method detects it
-        const authDetected = connected || beaconFound || mainWindowFound || hasSuccessParam || isOnCallbackPage;
+        // CRITICAL: Enhanced success detection with immediate action
+        const anySuccess = connected || beaconFound || mainWindowFound || hasSuccessParam || isOnCallbackPage;
+        
+        // Force immediate synchronization if indicators found but not connected
+        if (!connected && (beaconFound || mainWindowFound)) {
+          console.log('🚨 [ONBOARDING] Beacon/indicator found but not connected - forcing emergency sync');
+          try {
+            // Use emergency bridge for ultra-fast token detection
+            emergencyOAuthBridge.startEmergencyDetection()
+              .then((token) => {
+                console.log('✅ [ONBOARDING] Emergency bridge detected token:', token);
+                setIsEbayConnected(true);
+                setIsConnecting(false);
+                pollingActive = false;
+              })
+              .catch((error) => {
+                console.warn('⚠️ [ONBOARDING] Emergency detection failed:', error);
+              });
+          } catch (e) {
+            console.warn('⚠️ [ONBOARDING] Emergency sync failed:', e);
+          }
+        }
+        
+        const authDetected = anySuccess;
         
         console.log(`⏱️ [ONBOARDING] Token poll ${checkCount}/${maxChecks}: connected=${connected}, beacon=${beaconFound}, main=${mainWindowFound}, url=${hasSuccessParam}, callback=${isOnCallbackPage}`);
         debugConsole.log(`Token poll ${checkCount}/${maxChecks}: ${authDetected ? 'FOUND!' : 'No tokens yet'} (auth=${connected}, beacon=${beaconFound}, main=${mainWindowFound}, url=${hasSuccessParam}, callback=${isOnCallbackPage})`, authDetected ? 'success' : 'info', 'polling');
