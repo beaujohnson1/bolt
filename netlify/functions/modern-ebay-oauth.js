@@ -70,7 +70,7 @@ exports.handler = async (event, context) => {
                 console.log('🔧 Environment: PRODUCTION');
                 console.log('🔧 RedirectUri (RuName):', redirectUri);
                 
-                const options = body.state ? { state: body.state } : {};
+                const options = body.state ? { state: body.state, prompt: 'login' } : { prompt: 'login' };
                 console.log('🔧 Options:', options);
                 
                 try {
