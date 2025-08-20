@@ -196,6 +196,15 @@ exports.handler = async (event, context) => {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
+        .debug-info {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          padding: 15px;
+          margin: 20px 0;
+          font-family: monospace;
+          font-size: 12px;
+          text-align: left;
+        }
       </style>
     </head>
     <body>
@@ -204,6 +213,7 @@ exports.handler = async (event, context) => {
         <div class="spinner"></div>
         <p>Completing setup...</p>
         <p id="status">Storing authentication tokens...</p>
+        <div id="debug" class="debug-info" style="display: none;"></div>
       </div>
       
       <script>
@@ -211,65 +221,157 @@ exports.handler = async (event, context) => {
           console.log('🎉 [EBAY-CALLBACK] eBay OAuth success page loaded');
           
           const statusEl = document.getElementById('status');
+          const debugEl = document.getElementById('debug');
+          const logs = [];
+          
+          function addLog(message) {
+            logs.push(new Date().toLocaleTimeString() + ': ' + message);
+            console.log('📝 [EBAY-CALLBACK] ' + message);
+            debugEl.innerHTML = logs.join('<br>');
+            debugEl.style.display = 'block';
+          }
           
           try {
             const tokenData = ${tokenDataJson};
             
-            console.log('💾 [EBAY-CALLBACK] Storing tokens in localStorage...');
+            addLog('Received token data successfully');
+            addLog('Access token length: ' + (tokenData.access_token?.length || 0));
+            addLog('Has refresh token: ' + !!tokenData.refresh_token);
+            
             statusEl.textContent = 'Storing authentication tokens...';
             
-            // Store tokens with enhanced validation
-            localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
-            localStorage.setItem('ebay_manual_token', tokenData.access_token);
+            // Store tokens with enhanced validation and multiple attempts
+            let storageAttempts = 0;
+            const maxAttempts = 3;
+            let storageSuccess = false;
             
-            // Verify storage
-            const stored = localStorage.getItem('ebay_oauth_tokens');
-            if (!stored) {
-              throw new Error('Failed to store tokens in localStorage');
+            while (storageAttempts < maxAttempts && !storageSuccess) {
+              try {
+                storageAttempts++;
+                addLog(\`Storage attempt \${storageAttempts}/\${maxAttempts}\`);
+                
+                localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                localStorage.setItem('ebay_manual_token', tokenData.access_token);
+                
+                // Verify storage immediately
+                const stored = localStorage.getItem('ebay_oauth_tokens');
+                const storedManual = localStorage.getItem('ebay_manual_token');
+                
+                if (!stored || !storedManual) {
+                  throw new Error(\`Storage verification failed - stored: \${!!stored}, manual: \${!!storedManual}\`);
+                }
+                
+                // Parse and validate
+                const parsed = JSON.parse(stored);
+                if (parsed.access_token !== tokenData.access_token) {
+                  throw new Error('Token storage validation failed - data mismatch');
+                }
+                
+                addLog('Tokens stored and verified successfully');
+                storageSuccess = true;
+                
+              } catch (storageError) {
+                addLog(\`Storage attempt \${storageAttempts} failed: \${storageError.message}\`);
+                if (storageAttempts >= maxAttempts) {
+                  throw new Error(\`Token storage failed after \${maxAttempts} attempts: \${storageError.message}\`);
+                }
+                // Wait a bit before retry
+                await new Promise(resolve => setTimeout(resolve, 100));
+              }
             }
             
-            console.log('✅ [EBAY-CALLBACK] Tokens stored successfully');
             statusEl.textContent = 'Authentication complete!';
             
             // Check if we're in a popup
             const isPopup = window.opener && window.opener !== window;
+            addLog(\`Running in popup: \${isPopup}\`);
             
             if (isPopup) {
-              console.log('📡 [EBAY-CALLBACK] Running in popup, notifying parent window...');
               statusEl.textContent = 'Notifying main application...';
+              addLog('Starting parent window communication...');
               
-              // Send success message to parent window
-              window.opener.postMessage({
-                type: 'EBAY_OAUTH_SUCCESS',
-                tokens: tokenData,
-                timestamp: Date.now()
-              }, window.location.origin);
+              // Multiple communication methods for maximum reliability
+              const communicationMethods = [];
               
-              // Also trigger storage event for parent window
-              try {
-                // Dispatch custom event on parent window
-                window.opener.dispatchEvent(new CustomEvent('ebayAuthChanged', {
-                  detail: { 
-                    authenticated: true, 
+              // Method 1: PostMessage with different target origins
+              const origins = ['*', window.location.origin, 'https://easyflip.ai'];
+              for (const origin of origins) {
+                try {
+                  addLog(\`Sending postMessage to origin: \${origin}\`);
+                  window.opener.postMessage({
+                    type: 'EBAY_OAUTH_SUCCESS',
                     tokens: tokenData,
-                    source: 'popup_callback',
-                    timestamp: Date.now()
-                  }
-                }));
-              } catch (e) {
-                console.warn('⚠️ [EBAY-CALLBACK] Could not dispatch event to parent:', e);
+                    timestamp: Date.now(),
+                    source: 'callback_page'
+                  }, origin);
+                  communicationMethods.push(\`postMessage(\${origin})\`);
+                  addLog(\`PostMessage sent to \${origin} successfully\`);
+                } catch (e) {
+                  addLog(\`PostMessage to \${origin} failed: \${e.message}\`);
+                }
               }
               
-              statusEl.textContent = 'Success! Closing window...';
+              // Method 2: Direct parent window storage (if same-origin)
+              try {
+                if (window.opener.localStorage) {
+                  addLog('Setting tokens in parent localStorage...');
+                  window.opener.localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                  window.opener.localStorage.setItem('ebay_manual_token', tokenData.access_token);
+                  communicationMethods.push('directStorage');
+                  addLog('Parent storage updated successfully');
+                }
+              } catch (e) {
+                addLog(\`Could not access parent localStorage: \${e.message}\`);
+              }
               
-              // Close popup after short delay
+              // Method 3: Custom event dispatch (if same-origin)
+              try {
+                if (window.opener.dispatchEvent) {
+                  addLog('Dispatching custom event to parent...');
+                  window.opener.dispatchEvent(new CustomEvent('ebayAuthChanged', {
+                    detail: { 
+                      authenticated: true, 
+                      tokens: tokenData,
+                      source: 'popup_callback',
+                      timestamp: Date.now()
+                    }
+                  }));
+                  communicationMethods.push('customEvent');
+                  addLog('Custom event dispatched successfully');
+                }
+              } catch (e) {
+                addLog(\`Could not dispatch event to parent: \${e.message}\`);
+              }
+              
+              // Method 4: Storage event simulation
+              try {
+                if (window.opener.dispatchEvent) {
+                  addLog('Simulating storage event in parent...');
+                  window.opener.dispatchEvent(new StorageEvent('storage', {
+                    key: 'ebay_oauth_tokens',
+                    newValue: JSON.stringify(tokenData),
+                    oldValue: null,
+                    storageArea: window.opener.localStorage,
+                    url: window.opener.location.href
+                  }));
+                  communicationMethods.push('storageEvent');
+                  addLog('Storage event simulated successfully');
+                }
+              } catch (e) {
+                addLog(\`Could not simulate storage event: \${e.message}\`);
+              }
+              
+              addLog(\`Communication methods used: \${communicationMethods.join(', ')}\`);
+              statusEl.textContent = \`Success! Used \${communicationMethods.length} communication methods. Closing window...\`;
+              
+              // Close popup after delay to allow communication
               setTimeout(() => {
-                console.log('🔚 [EBAY-CALLBACK] Closing popup window');
+                addLog('Closing popup window after communication attempts');
                 window.close();
-              }, 1000);
+              }, 3000); // Longer delay to ensure communication
               
             } else {
-              console.log('🔄 [EBAY-CALLBACK] Running in main window, redirecting...');
+              addLog('Running in main window, preparing redirect...');
               statusEl.textContent = 'Redirecting to application...';
               
               // Dispatch event for same-window scenario
@@ -282,28 +384,47 @@ exports.handler = async (event, context) => {
                 }
               }));
               
-              // Redirect to dashboard with success flag
+              // Force a storage event for cross-component communication
+              window.dispatchEvent(new StorageEvent('storage', {
+                key: 'ebay_oauth_tokens',
+                newValue: JSON.stringify(tokenData),
+                oldValue: null,
+                storageArea: localStorage,
+                url: window.location.href
+              }));
+              
+              // Redirect to dashboard with success flag and tokens
               setTimeout(() => {
                 const returnUrl = localStorage.getItem('ebay_oauth_return_url') || '${baseUrl}/app';
                 localStorage.removeItem('ebay_oauth_return_url');
+                const tokenParam = encodeURIComponent(JSON.stringify({
+                  access_token: tokenData.access_token,
+                  timestamp: Date.now()
+                }));
                 const separator = returnUrl.includes('?') ? '&' : '?';
-                window.location.href = returnUrl + separator + 'ebay_connected=true&timestamp=' + Date.now();
+                window.location.href = returnUrl + separator + 'ebay_connected=true&tokens=' + tokenParam + '&timestamp=' + Date.now();
               }, 1000);
             }
             
           } catch (error) {
             console.error('❌ [EBAY-CALLBACK] Error in success page:', error);
+            addLog(\`ERROR: \${error.message}\`);
             statusEl.textContent = 'Error: ' + error.message;
             
             if (window.opener) {
               // Send error message to parent
-              window.opener.postMessage({
-                type: 'EBAY_OAUTH_ERROR',
-                error: error.message,
-                timestamp: Date.now()
-              }, window.location.origin);
+              try {
+                window.opener.postMessage({
+                  type: 'EBAY_OAUTH_ERROR',
+                  error: error.message,
+                  timestamp: Date.now()
+                }, '*');
+                addLog('Error message sent to parent');
+              } catch (e) {
+                addLog(\`Could not send error to parent: \${e.message}\`);
+              }
               
-              setTimeout(() => window.close(), 3000);
+              setTimeout(() => window.close(), 5000);
             } else {
               // Redirect to app with error
               setTimeout(() => {

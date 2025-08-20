@@ -13,7 +13,8 @@
       "Bash(find:*)",
       "Bash(node:*)",
       "Bash(grep:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }
