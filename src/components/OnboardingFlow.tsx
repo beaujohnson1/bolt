@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import ebayOAuthService from '../services/ebayOAuth';
 import { initializeOAuthDebugConsole } from '../utils/oauthDebugConsole';
 import { emergencyOAuthBridge } from '../utils/emergencyOAuthBridge';
+import { callbackVerifier } from '../utils/callbackVerifier';
 
 interface OnboardingStep {
   id: string;
@@ -34,6 +35,45 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   
   // Initialize debug console and get reference
   const debugConsole = initializeOAuthDebugConsole();
+
+  // CRITICAL: Initialize Emergency OAuth Bridge
+  useEffect(() => {
+    console.log('🚨 [EMERGENCY-BRIDGE] Initializing Emergency OAuth Bridge...');
+    
+    // Set up emergency bridge event listener for ultra-fast token detection
+    const handleEmergencyTokenDetection = (data: any) => {
+      console.log('🚨 [EMERGENCY-BRIDGE] Emergency token detected!', data);
+      
+      // Immediately set connection state
+      setIsEbayConnected(true);
+      setIsConnecting(false);
+      
+      // Trigger step advancement
+      if (currentStep === 'connect_ebay') {
+        console.log('🚀 [EMERGENCY-BRIDGE] Emergency advancement to upload_photos');
+        setTimeout(() => onStepChange('upload_photos'), 100);
+      }
+      
+      // Dispatch global authentication event
+      window.dispatchEvent(new CustomEvent('ebayEmergencyAuthSuccess', {
+        detail: { 
+          source: 'emergency_bridge',
+          data: data,
+          timestamp: Date.now()
+        }
+      }));
+    };
+    
+    // Add emergency bridge event listener
+    emergencyOAuthBridge.addEventListener('token-detected', handleEmergencyTokenDetection);
+    
+    console.log('✅ [EMERGENCY-BRIDGE] Emergency OAuth Bridge initialized with event listener');
+    
+    return () => {
+      emergencyOAuthBridge.removeEventListener('token-detected', handleEmergencyTokenDetection);
+      console.log('🧹 [EMERGENCY-BRIDGE] Emergency bridge event listener cleaned up');
+    };
+  }, [currentStep, onStepChange]);
 
   // Check eBay connection status with enhanced reliability
   useEffect(() => {
@@ -572,7 +612,29 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     setIsConnecting(true);
     setShowManualCheck(false);
     
-    // Initialize emergency bridge for ultra-fast detection
+    // CRITICAL: Verify callback URL accessibility before starting OAuth
+    console.log('🧪 [ONBOARDING] Verifying callback URL before OAuth...');
+    try {
+      const callbackTest = await callbackVerifier.runComprehensiveTest();
+      console.log('🧪 [ONBOARDING] Callback verification result:', callbackTest.summary);
+      
+      if (!callbackTest.summary.callbackAccessible) {
+        console.error('❌ [ONBOARDING] Callback URL not accessible!', callbackTest);
+        debugConsole.log('Callback URL verification failed', 'error', 'callback-test');
+        setIsConnecting(false);
+        return;
+      } else {
+        console.log('✅ [ONBOARDING] Callback URL verified successfully');
+        debugConsole.log('Callback URL verification passed', 'success', 'callback-test');
+      }
+    } catch (error) {
+      console.warn('⚠️ [ONBOARDING] Callback verification failed, proceeding anyway:', error);
+    }
+
+    // CRITICAL: Start Emergency OAuth Bridge for ultra-fast detection
+    console.log('🚨 [ONBOARDING] Starting Emergency OAuth Bridge detection...');
+    emergencyOAuthBridge.startEmergencyDetection();
+    
     emergencyOAuthBridge.addEventListener('token-detected', (data) => {
       console.log('🚨 [ONBOARDING] Emergency bridge detected token!', data);
       setIsEbayConnected(true);
