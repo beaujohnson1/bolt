@@ -66,7 +66,8 @@ exports.handler = async (event, context) => {
                 ];
                 
                 console.log('🔧 Generating auth URL with state:', body.state);
-                const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', scopes, body.state);
+                const options = body.state ? { state: body.state } : {};
+                const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', scopes, options);
                 
                 console.log('✅ Generated auth URL:', authUrl);
                 return {
@@ -130,12 +131,14 @@ exports.handler = async (event, context) => {
 
                 console.log('🔄 Refreshing access token');
                 
-                const refreshResponse = await ebayAuthToken.getAccessToken('PRODUCTION', refresh_token, [
+                const refreshScopes = [
                     'https://api.ebay.com/oauth/api_scope/sell.inventory',
                     'https://api.ebay.com/oauth/api_scope/sell.account',
                     'https://api.ebay.com/oauth/api_scope/sell.fulfillment', 
                     'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
-                ]);
+                ];
+                
+                const refreshResponse = await ebayAuthToken.getAccessToken('PRODUCTION', refresh_token, refreshScopes);
                 
                 console.log('✅ Token refresh successful');
                 
