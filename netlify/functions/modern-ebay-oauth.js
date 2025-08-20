@@ -1,0 +1,168 @@
+const EbayAuthToken = require('ebay-oauth-nodejs-client');
+
+// Modern eBay OAuth implementation using official client library
+exports.handler = async (event, context) => {
+    // CORS headers for all responses
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    };
+
+    // Handle preflight CORS requests
+    if (event.httpMethod === 'OPTIONS') {
+        return { statusCode: 204, headers, body: '' };
+    }
+
+    try {
+        // Initialize eBay OAuth client with production credentials
+        const ebayAuthToken = new EbayAuthToken({
+            clientId: process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID,
+            clientSecret: process.env.EBAY_PROD_CERT || process.env.VITE_EBAY_PROD_CERT_ID,
+            redirectUri: 'easyflip.ai-easyflip-easyfl-cnqajybp', // RuName
+            baseUrl: 'api.ebay.com' // Production environment
+        });
+
+        const body = event.body ? JSON.parse(event.body) : {};
+        const action = body.action || event.queryStringParameters?.action;
+
+        console.log(`🚀 Modern OAuth Handler - Action: ${action}`);
+
+        switch (action) {
+            case 'generate-auth-url':
+                // Generate user authorization URL using official library
+                const authUrl = ebayAuthToken.generateUserAuthorizationUrl('PRODUCTION', [
+                    'https://api.ebay.com/oauth/api_scope/sell.inventory',
+                    'https://api.ebay.com/oauth/api_scope/sell.account', 
+                    'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+                    'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
+                ], body.state);
+                
+                console.log('✅ Generated auth URL:', authUrl);
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        success: true,
+                        authUrl: authUrl,
+                        message: 'Authorization URL generated successfully'
+                    })
+                };
+
+            case 'exchange-code':
+                // Exchange authorization code for access token using official library
+                const { code, state } = body;
+                
+                if (!code) {
+                    return {
+                        statusCode: 400,
+                        headers,
+                        body: JSON.stringify({
+                            success: false,
+                            error: 'Authorization code is required'
+                        })
+                    };
+                }
+
+                console.log(`🔄 Exchanging code for tokens - Code: ${code.substring(0, 50)}...`);
+                
+                const tokenResponse = await ebayAuthToken.exchangeCodeForAccessToken('PRODUCTION', code);
+                
+                console.log('✅ Token exchange successful');
+                
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        success: true,
+                        access_token: tokenResponse.access_token,
+                        refresh_token: tokenResponse.refresh_token,
+                        expires_in: tokenResponse.expires_in,
+                        token_type: tokenResponse.token_type,
+                        message: 'Tokens retrieved successfully'
+                    })
+                };
+
+            case 'refresh-token':
+                // Refresh expired access token using official library
+                const { refresh_token } = body;
+                
+                if (!refresh_token) {
+                    return {
+                        statusCode: 400,
+                        headers,
+                        body: JSON.stringify({
+                            success: false,
+                            error: 'Refresh token is required'
+                        })
+                    };
+                }
+
+                console.log('🔄 Refreshing access token');
+                
+                const refreshResponse = await ebayAuthToken.getAccessToken('PRODUCTION', refresh_token, [
+                    'https://api.ebay.com/oauth/api_scope/sell.inventory',
+                    'https://api.ebay.com/oauth/api_scope/sell.account',
+                    'https://api.ebay.com/oauth/api_scope/sell.fulfillment', 
+                    'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
+                ]);
+                
+                console.log('✅ Token refresh successful');
+                
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        success: true,
+                        access_token: refreshResponse.access_token,
+                        expires_in: refreshResponse.expires_in,
+                        token_type: refreshResponse.token_type,
+                        message: 'Token refreshed successfully'
+                    })
+                };
+
+            case 'get-app-token':
+                // Get application token for non-user specific operations
+                console.log('🔄 Getting application token');
+                
+                const appToken = await ebayAuthToken.getApplicationToken('PRODUCTION');
+                
+                console.log('✅ Application token retrieved');
+                
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        success: true,
+                        access_token: appToken.access_token,
+                        expires_in: appToken.expires_in,
+                        token_type: appToken.token_type,
+                        message: 'Application token retrieved successfully'
+                    })
+                };
+
+            default:
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Invalid action. Use: generate-auth-url, exchange-code, refresh-token, or get-app-token'
+                    })
+                };
+        }
+
+    } catch (error) {
+        console.error('❌ OAuth Error:', error);
+        
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({
+                success: false,
+                error: error.message || 'OAuth operation failed',
+                details: error.toString()
+            })
+        };
+    }
+};
