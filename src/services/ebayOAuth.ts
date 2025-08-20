@@ -479,8 +479,8 @@ class EbayOAuthService {
           event.data.tokens.access_token && 
           event.data.tokens.token_type;
         
-        const isRecentMessage = event.data.timestamp && 
-          (Date.now() - event.data.timestamp) < 300000; // 5 minutes max
+        const isRecentMessage = !event.data.timestamp || 
+          (Date.now() - event.data.timestamp) < 300000; // 5 minutes max, allow missing timestamp
         
         if (isValidMessage && (event.data.type === 'EBAY_OAUTH_SUCCESS' ? hasValidTokenStructure : true) && isRecentMessage) {
           if (event.data.type === 'EBAY_OAUTH_SUCCESS') {

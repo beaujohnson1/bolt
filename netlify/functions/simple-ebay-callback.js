@@ -128,16 +128,49 @@ exports.handler = async (event, context) => {
                                         
                                         console.log('✅ Tokens stored successfully in parent window');
                                         
-                                        // Trigger event in parent window
-                                        if (window.opener.dispatchEvent) {
-                                            window.opener.dispatchEvent(new CustomEvent('simpleEbayAuthSuccess', { 
-                                                detail: {
+                                        // Multiple communication methods to ensure parent window gets notified
+                                        try {
+                                            // Method 1: Custom event
+                                            if (window.opener.dispatchEvent) {
+                                                window.opener.dispatchEvent(new CustomEvent('simpleEbayAuthSuccess', { 
+                                                    detail: {
+                                                        access_token: data.access_token,
+                                                        refresh_token: data.refresh_token,
+                                                        expires_in: data.expires_in,
+                                                        token_type: data.token_type
+                                                    }
+                                                }));
+                                                console.log('✅ Custom event dispatched to parent window');
+                                            }
+                                            
+                                            // Method 2: Direct postMessage
+                                            window.opener.postMessage({
+                                                type: 'EBAY_OAUTH_SUCCESS',
+                                                timestamp: Date.now(),
+                                                tokens: {
                                                     access_token: data.access_token,
                                                     refresh_token: data.refresh_token,
                                                     expires_in: data.expires_in,
-                                                    token_type: data.token_type
+                                                    expires_at: Date.now() + (data.expires_in * 1000),
+                                                    token_type: data.token_type || 'Bearer'
                                                 }
-                                            }));
+                                            }, '*');
+                                            console.log('✅ PostMessage sent to parent window');
+                                            
+                                            // Method 3: Force parent window location refresh to trigger auth check
+                                            setTimeout(() => {
+                                                try {
+                                                    if (window.opener && !window.opener.closed) {
+                                                        window.opener.location.reload();
+                                                        console.log('✅ Parent window refreshed');
+                                                    }
+                                                } catch (error) {
+                                                    console.log('⚠️ Could not refresh parent window:', error.message);
+                                                }
+                                            }, 1000);
+                                            
+                                        } catch (error) {
+                                            console.error('❌ Error communicating with parent window:', error);
                                         }
                                     } else {
                                         // Fallback: store in current window using EasyFlip format
