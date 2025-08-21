@@ -1115,7 +1115,29 @@ class EbayApiService {
           statusText: response.statusText,
           errorText: errorText.substring(0, 200)
         });
-        throw new Error(`eBay API proxy error: ${response.status} ${response.statusText}`);
+
+        // Enhanced error handling for specific status codes
+        if (response.status === 502) {
+          console.error('🚨 [EBAY-API] 502 Bad Gateway detected in proxy response');
+          console.error('🚨 [EBAY-API] This indicates the proxy could not reach eBay API or received invalid response');
+          
+          // Try to parse error response for more details
+          try {
+            const errorData = JSON.parse(errorText);
+            if (errorData.details && errorData.details.troubleshooting) {
+              console.error('🔧 [EBAY-API] Troubleshooting suggestions:', errorData.details.troubleshooting);
+            }
+          } catch (parseError) {
+            console.warn('⚠️ [EBAY-API] Could not parse 502 error details');
+          }
+        }
+
+        // Throw enhanced error with more context
+        const enhancedError = new Error(`eBay API proxy error: ${response.status} ${response.statusText}`);
+        enhancedError.status = response.status;
+        enhancedError.statusText = response.statusText;
+        enhancedError.responseText = errorText;
+        throw enhancedError;
       }
 
       const responseText = await response.text();
@@ -1127,15 +1149,81 @@ class EbayApiService {
         return { error: 'Empty response from eBay API' };
       }
 
-      // Try to parse as JSON
-      try {
-        const jsonResponse = JSON.parse(responseText);
-        console.log('✅ [EBAY-API] Successfully parsed JSON response');
-        return jsonResponse;
-      } catch (parseError) {
-        console.log('📄 [EBAY-API] Response is not JSON, treating as XML/text');
+      // Enhanced content type validation
+      const contentType = response.headers.get('Content-Type') || '';
+      const isAccountAPI = url.includes('/sell/account/');
+      const expectedJson = isAccountAPI || contentType.includes('application/json');
+      const expectedXml = contentType.includes('text/xml') || contentType.includes('application/xml');
+
+      console.log('📋 [EBAY-API] Content type analysis:', {
+        contentType,
+        isAccountAPI,
+        expectedJson,
+        expectedXml,
+        responseStartsWith: responseText.substring(0, 50)
+      });
+
+      // Validate Account API responses should be JSON
+      if (isAccountAPI && !contentType.includes('application/json') && !responseText.trim().startsWith('{')) {
+        console.error('❌ [EBAY-API] Account API returned unexpected content type');
+        console.error('❌ [EBAY-API] Expected JSON but got:', contentType);
+        console.error('❌ [EBAY-API] Response preview:', responseText.substring(0, 200));
+        
+        return {
+          error: 'Invalid content type from Account API',
+          expectedContentType: 'application/json',
+          actualContentType: contentType,
+          responsePreview: responseText.substring(0, 200)
+        };
+      }
+
+      // Try to parse as JSON first for Account API and JSON content types
+      if (expectedJson || responseText.trim().startsWith('{') || responseText.trim().startsWith('[')) {
+        try {
+          const jsonResponse = JSON.parse(responseText);
+          console.log('✅ [EBAY-API] Successfully parsed JSON response');
+          
+          // Validate JSON structure for Account API
+          if (isAccountAPI && jsonResponse.error) {
+            console.error('❌ [EBAY-API] eBay Account API returned error:', jsonResponse.error);
+            if (jsonResponse.error.message) {
+              console.error('❌ [EBAY-API] Error message:', jsonResponse.error.message);
+            }
+          }
+          
+          return jsonResponse;
+        } catch (parseError) {
+          console.error('❌ [EBAY-API] JSON parsing failed for expected JSON response');
+          console.error('❌ [EBAY-API] Parse error:', parseError.message);
+          console.error('❌ [EBAY-API] Response preview:', responseText.substring(0, 300));
+          
+          // For Account API, this is a critical error
+          if (isAccountAPI) {
+            return {
+              error: 'Invalid JSON response from Account API',
+              parseError: parseError.message,
+              responsePreview: responseText.substring(0, 300)
+            };
+          }
+        }
+      }
+
+      // Handle XML responses (Trading API)
+      if (expectedXml || responseText.trim().startsWith('<?xml')) {
+        console.log('📄 [EBAY-API] Processing XML response from Trading API');
         return responseText;
       }
+
+      // Fallback for unexpected content types
+      console.warn('⚠️ [EBAY-API] Unexpected response format, returning as text');
+      console.warn('⚠️ [EBAY-API] Content-Type:', contentType);
+      console.warn('⚠️ [EBAY-API] Response starts with:', responseText.substring(0, 100));
+      
+      return {
+        rawResponse: responseText,
+        contentType,
+        warning: 'Unexpected response format'
+      };
     } catch (error) {
       console.error('❌ [EBAY-API] Proxy call failed:', error);
       throw error;

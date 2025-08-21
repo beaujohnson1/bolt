@@ -1,3 +1,20 @@
+// Enhanced retry configuration for business policy requests
+interface RetryConfig {
+  maxRetries: number;
+  baseDelay: number;
+  maxDelay: number;
+  backoffMultiplier: number;
+  retryableStatusCodes: number[];
+}
+
+const RETRY_CONFIG: RetryConfig = {
+  maxRetries: 3,
+  baseDelay: 1000,
+  maxDelay: 8000,
+  backoffMultiplier: 2,
+  retryableStatusCodes: [502, 503, 504, 408, 429]
+};
+
 interface BusinessPolicy {
   id: string;
   name: string;
@@ -53,6 +70,10 @@ interface BusinessPolicyResponse {
 
 class BusinessPolicyService {
   private ebayApiService: any;
+  private cache: Map<string, { data: any; timestamp: number; ttl: number }> = new Map();
+  private lastRequestTime: number = 0;
+  private requestCount: number = 0;
+  private maxRequestsPerMinute: number = 30; // Conservative rate limiting
 
   constructor() {
     // Import EbayApiService dynamically to avoid circular dependencies
@@ -65,11 +86,20 @@ class BusinessPolicyService {
   }
 
   /**
-   * Fetch all business policies for the authenticated user
+   * Fetch all business policies for the authenticated user with enhanced error recovery
    */
   async getAllBusinessPolicies(): Promise<BusinessPolicyResponse> {
+    const cacheKey = 'all_business_policies';
+    
     try {
       console.log('🏢 [BUSINESS-POLICY] Fetching all business policies...');
+      
+      // Check cache first
+      const cached = this.getFromCache(cacheKey);
+      if (cached) {
+        console.log('💾 [BUSINESS-POLICY] Returning cached business policies');
+        return cached;
+      }
       
       if (!this.ebayApiService) {
         await this.initializeEbayService();
@@ -80,36 +110,76 @@ class BusinessPolicyService {
       // If in dev mode, return mock data
       if (accessToken === 'dev_mode_bypass_token') {
         console.log('🏢 [BUSINESS-POLICY] Dev mode - returning mock policies');
-        return this.getMockPolicies();
+        const mockPolicies = this.getMockPolicies();
+        this.setCache(cacheKey, mockPolicies, 300000); // Cache for 5 minutes
+        return mockPolicies;
       }
 
-      // Fetch all policy types in parallel
-      const [fulfillmentPolicies, paymentPolicies, returnPolicies] = await Promise.all([
-        this.getFulfillmentPolicies(accessToken),
-        this.getPaymentPolicies(accessToken),
-        this.getReturnPolicies(accessToken)
+      // Rate limiting check
+      await this.enforceRateLimit();
+
+      // Fetch all policy types with retry logic
+      const [fulfillmentPolicies, paymentPolicies, returnPolicies] = await Promise.allSettled([
+        this.getFulfillmentPoliciesWithRetry(accessToken),
+        this.getPaymentPoliciesWithRetry(accessToken),
+        this.getReturnPoliciesWithRetry(accessToken)
       ]);
 
-      const result = {
-        fulfillmentPolicies,
-        paymentPolicies,
-        returnPolicies
+      const result: BusinessPolicyResponse = {
+        fulfillmentPolicies: fulfillmentPolicies.status === 'fulfilled' ? fulfillmentPolicies.value : [],
+        paymentPolicies: paymentPolicies.status === 'fulfilled' ? paymentPolicies.value : [],
+        returnPolicies: returnPolicies.status === 'fulfilled' ? returnPolicies.value : []
       };
 
-      console.log('✅ [BUSINESS-POLICY] All business policies fetched:', {
-        fulfillment: fulfillmentPolicies.length,
-        payment: paymentPolicies.length,
-        return: returnPolicies.length
+      // Log any partial failures
+      const failedRequests = [fulfillmentPolicies, paymentPolicies, returnPolicies]
+        .filter(result => result.status === 'rejected');
+      
+      if (failedRequests.length > 0) {
+        console.warn('⚠️ [BUSINESS-POLICY] Some policy requests failed:', {
+          failed: failedRequests.length,
+          total: 3,
+          errors: failedRequests.map(r => r.status === 'rejected' ? r.reason?.message : 'Unknown')
+        });
+      }
+
+      // Cache successful result
+      if (result.fulfillmentPolicies.length > 0 || result.paymentPolicies.length > 0 || result.returnPolicies.length > 0) {
+        this.setCache(cacheKey, result, 600000); // Cache for 10 minutes
+      }
+
+      console.log('✅ [BUSINESS-POLICY] Business policies fetched:', {
+        fulfillment: result.fulfillmentPolicies.length,
+        payment: result.paymentPolicies.length,
+        return: result.returnPolicies.length,
+        cached: false
       });
 
       return result;
     } catch (error) {
       console.error('❌ [BUSINESS-POLICY] Error fetching business policies:', error);
       
-      // Return mock data as fallback
+      // Try to return cached data even if expired
+      const expiredCache = this.getFromCache(cacheKey, true);
+      if (expiredCache) {
+        console.log('🔄 [BUSINESS-POLICY] Using expired cache as fallback');
+        return expiredCache;
+      }
+      
+      // Return mock data as final fallback
       console.log('🔧 [BUSINESS-POLICY] Falling back to mock policies');
       return this.getMockPolicies();
     }
+  }
+
+  /**
+   * Fetch fulfillment (shipping) policies with retry logic
+   */
+  private async getFulfillmentPoliciesWithRetry(accessToken: string): Promise<FulfillmentPolicy[]> {
+    return this.retryRequest(
+      () => this.getFulfillmentPolicies(accessToken),
+      'fulfillment policies'
+    );
   }
 
   /**
@@ -119,6 +189,11 @@ class BusinessPolicyService {
     try {
       console.log('📦 [BUSINESS-POLICY] Fetching fulfillment policies with enhanced headers...');
       
+      // Validate token scopes before making request
+      if (!this.validateTokenScope(accessToken, 'sell.account')) {
+        throw new Error('OAuth token missing required sell.account scope for fulfillment policies');
+      }
+      
       const response = await this.ebayApiService._callProxy(
         `${this.ebayApiService.baseUrl}/sell/account/v1/fulfillment_policy`,
         'GET',
@@ -126,21 +201,32 @@ class BusinessPolicyService {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+          'X-EBAY-C-ENDUSERCTX': 'affiliateCampaignId=5338193840', // Add context headers
+          'Cache-Control': 'no-cache' // Ensure fresh data
         }
       );
 
+      // Enhanced response validation
+      if (!response) {
+        throw new Error('Empty response from eBay fulfillment policy API');
+      }
+
+      if (response.error) {
+        throw new Error(`eBay API Error: ${response.error} - ${response.message || 'Unknown error'}`);
+      }
+
       const policies = response?.fulfillmentPolicies || [];
       
-      return policies.map((policy: any) => ({
+      const mappedPolicies = policies.map((policy: any) => ({
         id: policy.fulfillmentPolicyId,
-        name: policy.name,
-        description: policy.description,
+        name: policy.name || 'Unnamed Fulfillment Policy',
+        description: policy.description || '',
         type: 'fulfillment' as const,
         isDefault: policy.marketplaceId === 'EBAY_US',
         categoryTypes: policy.categoryTypes?.map((ct: any) => ct.name) || [],
         shippingOptions: policy.shippingOptions?.map((option: any) => ({
-          service: option.optionType,
+          service: option.optionType || 'Standard',
           cost: parseFloat(option.shippingCost?.value || '0'),
           estimatedDelivery: option.shippingCarrierCode || 'Standard'
         })) || [],
@@ -154,18 +240,25 @@ class BusinessPolicyService {
           shippingPromotions: true
         }
       }));
+
+      console.log('✅ [BUSINESS-POLICY] Fulfillment policies processed:', mappedPolicies.length);
+      return mappedPolicies;
+      
     } catch (error) {
       console.error('❌ [BUSINESS-POLICY] Error fetching fulfillment policies:', error);
-      
-      // Enhanced error logging for 502 issues
-      if (error.message && error.message.includes('502')) {
-        console.error('🚨 [BUSINESS-POLICY] 502 ERROR: eBay Account API returned Bad Gateway');
-        console.error('🚨 [BUSINESS-POLICY] Possible causes: Invalid token, missing sell.account scope, API down');
-        console.error('🚨 [BUSINESS-POLICY] Check OAuth token in localStorage for sell.account scope');
-      }
-      
-      return [];
+      this.logEnhancedError(error, 'fulfillment policies');
+      throw error; // Re-throw for retry logic
     }
+  }
+
+  /**
+   * Fetch payment policies with retry logic
+   */
+  private async getPaymentPoliciesWithRetry(accessToken: string): Promise<PaymentPolicy[]> {
+    return this.retryRequest(
+      () => this.getPaymentPolicies(accessToken),
+      'payment policies'
+    );
   }
 
   /**
@@ -175,6 +268,11 @@ class BusinessPolicyService {
     try {
       console.log('💳 [BUSINESS-POLICY] Fetching payment policies with enhanced headers...');
       
+      // Validate token scopes before making request
+      if (!this.validateTokenScope(accessToken, 'sell.account')) {
+        throw new Error('OAuth token missing required sell.account scope for payment policies');
+      }
+      
       const response = await this.ebayApiService._callProxy(
         `${this.ebayApiService.baseUrl}/sell/account/v1/payment_policy`,
         'GET',
@@ -182,16 +280,27 @@ class BusinessPolicyService {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+          'X-EBAY-C-ENDUSERCTX': 'affiliateCampaignId=5338193840',
+          'Cache-Control': 'no-cache'
         }
       );
 
+      // Enhanced response validation
+      if (!response) {
+        throw new Error('Empty response from eBay payment policy API');
+      }
+
+      if (response.error) {
+        throw new Error(`eBay API Error: ${response.error} - ${response.message || 'Unknown error'}`);
+      }
+
       const policies = response?.paymentPolicies || [];
       
-      return policies.map((policy: any) => ({
+      const mappedPolicies = policies.map((policy: any) => ({
         id: policy.paymentPolicyId,
-        name: policy.name,
-        description: policy.description,
+        name: policy.name || 'Unnamed Payment Policy',
+        description: policy.description || '',
         type: 'payment' as const,
         isDefault: policy.marketplaceId === 'EBAY_US',
         categoryTypes: policy.categoryTypes?.map((ct: any) => ct.name) || [],
@@ -200,18 +309,25 @@ class BusinessPolicyService {
         payPalEmailAddress: policy.paymentInstructions?.payeeEmail,
         creditCardTypes: ['VISA', 'MASTERCARD', 'AMERICAN_EXPRESS', 'DISCOVER']
       }));
+
+      console.log('✅ [BUSINESS-POLICY] Payment policies processed:', mappedPolicies.length);
+      return mappedPolicies;
+      
     } catch (error) {
       console.error('❌ [BUSINESS-POLICY] Error fetching payment policies:', error);
-      
-      // Enhanced error logging for 502 issues
-      if (error.message && error.message.includes('502')) {
-        console.error('🚨 [BUSINESS-POLICY] 502 ERROR: eBay Account API returned Bad Gateway');
-        console.error('🚨 [BUSINESS-POLICY] Possible causes: Invalid token, missing sell.account scope, API down');
-        console.error('🚨 [BUSINESS-POLICY] Check OAuth token in localStorage for sell.account scope');
-      }
-      
-      return [];
+      this.logEnhancedError(error, 'payment policies');
+      throw error; // Re-throw for retry logic
     }
+  }
+
+  /**
+   * Fetch return policies with retry logic
+   */
+  private async getReturnPoliciesWithRetry(accessToken: string): Promise<ReturnPolicy[]> {
+    return this.retryRequest(
+      () => this.getReturnPolicies(accessToken),
+      'return policies'
+    );
   }
 
   /**
@@ -221,6 +337,11 @@ class BusinessPolicyService {
     try {
       console.log('🔄 [BUSINESS-POLICY] Fetching return policies with enhanced headers...');
       
+      // Validate token scopes before making request
+      if (!this.validateTokenScope(accessToken, 'sell.account')) {
+        throw new Error('OAuth token missing required sell.account scope for return policies');
+      }
+      
       const response = await this.ebayApiService._callProxy(
         `${this.ebayApiService.baseUrl}/sell/account/v1/return_policy`,
         'GET',
@@ -228,16 +349,27 @@ class BusinessPolicyService {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+          'X-EBAY-C-ENDUSERCTX': 'affiliateCampaignId=5338193840',
+          'Cache-Control': 'no-cache'
         }
       );
 
+      // Enhanced response validation
+      if (!response) {
+        throw new Error('Empty response from eBay return policy API');
+      }
+
+      if (response.error) {
+        throw new Error(`eBay API Error: ${response.error} - ${response.message || 'Unknown error'}`);
+      }
+
       const policies = response?.returnPolicies || [];
       
-      return policies.map((policy: any) => ({
+      const mappedPolicies = policies.map((policy: any) => ({
         id: policy.returnPolicyId,
-        name: policy.name,
-        description: policy.returnInstructions || policy.description,
+        name: policy.name || 'Unnamed Return Policy',
+        description: policy.returnInstructions || policy.description || '',
         type: 'return' as const,
         isDefault: policy.marketplaceId === 'EBAY_US',
         categoryTypes: policy.categoryTypes?.map((ct: any) => ct.name) || [],
@@ -250,17 +382,14 @@ class BusinessPolicyService {
         returnShippingCostPaidBy: policy.returnShippingCostPayer || 'BUYER',
         restockingFeePercentage: parseFloat(policy.restockingFeePercentage || '0')
       }));
+
+      console.log('✅ [BUSINESS-POLICY] Return policies processed:', mappedPolicies.length);
+      return mappedPolicies;
+      
     } catch (error) {
       console.error('❌ [BUSINESS-POLICY] Error fetching return policies:', error);
-      
-      // Enhanced error logging for 502 issues
-      if (error.message && error.message.includes('502')) {
-        console.error('🚨 [BUSINESS-POLICY] 502 ERROR: eBay Account API returned Bad Gateway');
-        console.error('🚨 [BUSINESS-POLICY] Possible causes: Invalid token, missing sell.account scope, API down');
-        console.error('🚨 [BUSINESS-POLICY] Check OAuth token in localStorage for sell.account scope');
-      }
-      
-      return [];
+      this.logEnhancedError(error, 'return policies');
+      throw error; // Re-throw for retry logic
     }
   }
 
@@ -388,21 +517,252 @@ class BusinessPolicyService {
   }
 
   /**
-   * Get default policy IDs for quick setup
+   * Get default policy IDs for quick setup with enhanced error recovery
    */
   async getDefaultPolicyIds(): Promise<{shipping?: string, payment?: string, return?: string}> {
     try {
       const policies = await this.getAllBusinessPolicies();
       
-      return {
-        shipping: policies.fulfillmentPolicies.find(p => p.isDefault)?.id,
-        payment: policies.paymentPolicies.find(p => p.isDefault)?.id,
-        return: policies.returnPolicies.find(p => p.isDefault)?.id
+      const defaultIds = {
+        shipping: policies.fulfillmentPolicies.find(p => p.isDefault)?.id || policies.fulfillmentPolicies[0]?.id,
+        payment: policies.paymentPolicies.find(p => p.isDefault)?.id || policies.paymentPolicies[0]?.id,
+        return: policies.returnPolicies.find(p => p.isDefault)?.id || policies.returnPolicies[0]?.id
       };
+
+      console.log('🎯 [BUSINESS-POLICY] Default policy IDs resolved:', {
+        shipping: !!defaultIds.shipping,
+        payment: !!defaultIds.payment,
+        return: !!defaultIds.return
+      });
+
+      return defaultIds;
     } catch (error) {
       console.error('❌ [BUSINESS-POLICY] Error getting default policy IDs:', error);
+      
+      // Try to get cached policies as fallback
+      const cached = this.getFromCache('all_business_policies', true);
+      if (cached) {
+        console.log('🔄 [BUSINESS-POLICY] Using cached policies for default IDs');
+        return {
+          shipping: cached.fulfillmentPolicies.find((p: any) => p.isDefault)?.id || cached.fulfillmentPolicies[0]?.id,
+          payment: cached.paymentPolicies.find((p: any) => p.isDefault)?.id || cached.paymentPolicies[0]?.id,
+          return: cached.returnPolicies.find((p: any) => p.isDefault)?.id || cached.returnPolicies[0]?.id
+        };
+      }
+      
       return {};
     }
+  }
+  /**
+   * Enhanced retry mechanism with exponential backoff
+   */
+  private async retryRequest<T>(
+    requestFn: () => Promise<T>,
+    requestType: string,
+    attempt: number = 0
+  ): Promise<T> {
+    try {
+      return await requestFn();
+    } catch (error) {
+      const isRetryable = this.isRetryableError(error);
+      const hasRetriesLeft = attempt < RETRY_CONFIG.maxRetries;
+      
+      if (!isRetryable || !hasRetriesLeft) {
+        console.error(`❌ [BUSINESS-POLICY] Final failure for ${requestType} after ${attempt + 1} attempts:`, error);
+        throw error;
+      }
+      
+      const delay = this.calculateRetryDelay(attempt);
+      console.log(`⏳ [BUSINESS-POLICY] Retrying ${requestType} in ${delay}ms (attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries + 1})`);
+      
+      await this.sleep(delay);
+      return this.retryRequest(requestFn, requestType, attempt + 1);
+    }
+  }
+
+  /**
+   * Check if error is retryable
+   */
+  private isRetryableError(error: any): boolean {
+    if (!error) return false;
+    
+    // Check for HTTP status codes
+    if (error.response?.status && RETRY_CONFIG.retryableStatusCodes.includes(error.response.status)) {
+      return true;
+    }
+    
+    // Check error message for specific patterns
+    const message = error.message?.toLowerCase() || '';
+    const retryablePatterns = [
+      '502', 'bad gateway', 'gateway',
+      '503', 'service unavailable',
+      '504', 'gateway timeout',
+      '408', 'request timeout',
+      '429', 'too many requests',
+      'timeout', 'network', 'connection',
+      'econnreset', 'etimedout', 'enotfound'
+    ];
+    
+    return retryablePatterns.some(pattern => message.includes(pattern));
+  }
+
+  /**
+   * Calculate retry delay with exponential backoff and jitter
+   */
+  private calculateRetryDelay(attempt: number): number {
+    const delay = Math.min(
+      RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt),
+      RETRY_CONFIG.maxDelay
+    );
+    
+    // Add jitter (±25%)
+    const jitter = delay * 0.25 * (Math.random() * 2 - 1);
+    return Math.round(delay + jitter);
+  }
+
+  /**
+   * Sleep utility
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Enhanced error logging with context
+   */
+  private logEnhancedError(error: any, context: string): void {
+    const errorInfo = {
+      context,
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      timestamp: new Date().toISOString()
+    };
+    
+    if (error.message && error.message.includes('502')) {
+      console.error('🚨 [BUSINESS-POLICY] 502 BAD GATEWAY DETECTED!');
+      console.error('🚨 [BUSINESS-POLICY] Context:', context);
+      console.error('🚨 [BUSINESS-POLICY] Possible causes:');
+      console.error('🚨 [BUSINESS-POLICY] 1. eBay Account API is temporarily down');
+      console.error('🚨 [BUSINESS-POLICY] 2. Invalid or expired OAuth token');
+      console.error('🚨 [BUSINESS-POLICY] 3. Missing sell.account OAuth scope');
+      console.error('🚨 [BUSINESS-POLICY] 4. Rate limiting or quota exceeded');
+      console.error('🚨 [BUSINESS-POLICY] 5. Malformed request headers or body');
+      console.error('🚨 [BUSINESS-POLICY] 6. eBay API infrastructure issues');
+      
+      // Check localStorage for OAuth token details
+      try {
+        const tokens = localStorage.getItem('ebay_oauth_tokens');
+        if (tokens) {
+          const tokenData = JSON.parse(tokens);
+          console.error('🔍 [BUSINESS-POLICY] OAuth token analysis:', {
+            hasToken: !!tokenData.access_token,
+            scope: tokenData.scope,
+            isExpired: tokenData.expires_at ? Date.now() >= tokenData.expires_at : 'unknown',
+            expiresAt: tokenData.expires_at ? new Date(tokenData.expires_at).toISOString() : 'unknown'
+          });
+        } else {
+          console.error('🔍 [BUSINESS-POLICY] No OAuth tokens found in localStorage');
+        }
+      } catch (e) {
+        console.error('🔍 [BUSINESS-POLICY] Could not analyze OAuth tokens:', e);
+      }
+    }
+    
+    console.error('❌ [BUSINESS-POLICY] Enhanced error details:', errorInfo);
+  }
+
+  /**
+   * Validate OAuth token scope
+   */
+  private validateTokenScope(accessToken: string, requiredScope: string): boolean {
+    try {
+      // For dev mode bypass token, always return true
+      if (accessToken === 'dev_mode_bypass_token') {
+        return true;
+      }
+      
+      // Check localStorage for scope information
+      const tokens = localStorage.getItem('ebay_oauth_tokens');
+      if (tokens) {
+        const tokenData = JSON.parse(tokens);
+        const scopes = tokenData.scope?.split(' ') || [];
+        
+        if (!scopes.includes(requiredScope)) {
+          console.warn(`⚠️ [BUSINESS-POLICY] OAuth token missing required scope: ${requiredScope}`);
+          console.warn(`⚠️ [BUSINESS-POLICY] Current scopes: ${scopes.join(', ')}`);
+          return false;
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.warn('⚠️ [BUSINESS-POLICY] Could not validate token scope:', error);
+      return true; // Assume valid if we can't validate
+    }
+  }
+
+  /**
+   * Rate limiting enforcement
+   */
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    const oneMinute = 60000;
+    
+    // Reset counter if more than a minute has passed
+    if (now - this.lastRequestTime > oneMinute) {
+      this.requestCount = 0;
+    }
+    
+    this.requestCount++;
+    this.lastRequestTime = now;
+    
+    if (this.requestCount > this.maxRequestsPerMinute) {
+      const waitTime = oneMinute - (now - this.lastRequestTime);
+      console.log(`⏳ [BUSINESS-POLICY] Rate limit reached, waiting ${waitTime}ms`);
+      await this.sleep(waitTime);
+      this.requestCount = 1; // Reset after wait
+    }
+  }
+
+  /**
+   * Cache management utilities
+   */
+  private setCache(key: string, data: any, ttl: number): void {
+    try {
+      this.cache.set(key, {
+        data,
+        timestamp: Date.now(),
+        ttl
+      });
+      console.log(`💾 [BUSINESS-POLICY] Cached ${key} for ${ttl / 1000}s`);
+    } catch (error) {
+      console.warn('⚠️ [BUSINESS-POLICY] Failed to set cache:', error);
+    }
+  }
+
+  private getFromCache(key: string, allowExpired: boolean = false): any {
+    try {
+      const cached = this.cache.get(key);
+      if (!cached) return null;
+      
+      const isExpired = Date.now() - cached.timestamp > cached.ttl;
+      
+      if (isExpired && !allowExpired) {
+        this.cache.delete(key);
+        return null;
+      }
+      
+      return cached.data;
+    } catch (error) {
+      console.warn('⚠️ [BUSINESS-POLICY] Failed to get from cache:', error);
+      return null;
+    }
+  }
+
+  private clearCache(): void {
+    this.cache.clear();
+    console.log('🗑️ [BUSINESS-POLICY] Cache cleared');
   }
 }
 

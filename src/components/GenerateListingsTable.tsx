@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Eye, Edit, Trash2, ExternalLink, CheckCircle, Clock, AlertCircle, RefreshCw, Zap, Brain, Target } from 'lucide-react';
+import { Package, Eye, Edit, Trash2, ExternalLink, CheckCircle, Clock, AlertCircle, RefreshCw, Zap, Brain, Target, ShoppingCart } from 'lucide-react';
 import { supabase, type Item } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { formatPrice, formatDate, getCategoryPath, getItemSpecifics, normalizeCondition, normalizeCategory } from '../utils/itemUtils';
 import { analyzeClothingItem } from '../services/openaiService.js';
+import EbayApiService from '../services/ebayApi';
+import ebayOAuth from '../services/ebayOAuth';
+import EbayAuthButton from './EbayAuthButton';
+import { validateCompleteEbayListing, formatValidationResults } from '../utils/ebayListingValidator';
 
 // Debug function to analyze AI response structure
 const debugAIResponse = (aiAnalysis: any) => {
@@ -476,9 +480,33 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
   // Edit modal state
   const [editingListing, setEditingListing] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isEbayAuthenticated, setIsEbayAuthenticated] = useState(false);
+  const [isPostingToEbay, setIsPostingToEbay] = useState(false);
+  const [postingProgress, setPostingProgress] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchSKUGroups();
+    
+    // Check eBay authentication status
+    const checkEbayAuth = () => {
+      const authStatus = ebayOAuth.isAuthenticated();
+      setIsEbayAuthenticated(authStatus);
+      console.log('🔍 [GENERATE-TABLE] eBay auth status:', authStatus);
+    };
+    
+    checkEbayAuth();
+    
+    // Watch for eBay auth changes
+    const unwatchEbay = ebayOAuth.watchForTokenChanges((authenticated) => {
+      console.log('🔄 [GENERATE-TABLE] eBay auth status changed:', authenticated);
+      setIsEbayAuthenticated(authenticated);
+    });
+    
+    return () => {
+      if (typeof unwatchEbay === 'function') {
+        unwatchEbay();
+      }
+    };
   }, [authUser]);
 
   const fetchSKUGroups = async () => {
@@ -756,6 +784,181 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
       setErrorMessage(`Failed to delete SKU group: ${error.message}`);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // Handle posting completed listings to eBay
+  const handlePostToEbay = async (listing?: any) => {
+    if (!isEbayAuthenticated) {
+      setErrorMessage('Please authenticate with eBay first to post listings.');
+      return;
+    }
+
+    // If no specific listing provided, post all completed listings
+    const listingsToPost = listing ? [listing] : 
+      skuGroups.filter(group => group.status === 'completed');
+    
+    if (listingsToPost.length === 0) {
+      setErrorMessage('No completed listings found to post to eBay.');
+      return;
+    }
+
+    setIsPostingToEbay(true);
+    setPostingProgress({});
+    setSuccessMessage('');
+    setErrorMessage('');
+
+    const ebayService = new EbayApiService();
+    const successfulPosts = [];
+    const failedPosts = [];
+
+    try {
+      console.log('📦 [EBAY-POST] Starting bulk eBay posting for', listingsToPost.length, 'listings');
+      
+      for (let i = 0; i < listingsToPost.length; i++) {
+        const group = listingsToPost[i];
+        
+        try {
+          console.log(`📝 [EBAY-POST] Posting listing ${i + 1}/${listingsToPost.length}: ${group.title}`);
+          setPostingProgress(prev => ({
+            ...prev,
+            [group.sku]: `Posting ${i + 1}/${listingsToPost.length}...`
+          }));
+
+          // Find the corresponding item and listing in database
+          const { data: items } = await supabase
+            .from('items')
+            .select('*')
+            .eq('sku', group.sku)
+            .eq('user_id', authUser.id)
+            .limit(1);
+
+          if (!items || items.length === 0) {
+            throw new Error(`No item found for SKU ${group.sku}`);
+          }
+
+          const item = items[0];
+          
+          // Validate listing data before posting to eBay
+          const validationResult = validateCompleteEbayListing({
+            listing: {
+              title: item.title,
+              description: item.description || '',
+              price: item.suggested_price || item.final_price,
+              condition: item.condition,
+              images: item.images || [],
+              brand: item.brand,
+              size: item.size,
+              color: item.color,
+              keywords: item.ai_suggested_keywords
+            },
+            categoryId: item.ai_analysis?.ebay_category_id,
+            businessPolicies: item.businessPolicies,
+            itemSpecifics: item.ai_analysis?.item_specifics
+          });
+
+          if (!validationResult.isValid) {
+            console.error(`❌ [EBAY-POST] Validation failed for ${group.sku}:`, validationResult.errors);
+            throw new Error(`Listing validation failed: ${validationResult.errors.join(', ')}`);
+          }
+
+          if (validationResult.warnings.length > 0) {
+            console.warn(`⚠️ [EBAY-POST] Validation warnings for ${group.sku}:`, validationResult.warnings);
+          }
+
+          console.log(`✅ [EBAY-POST] Validation passed for ${group.sku}`);
+          
+          // Create eBay listing
+          const ebayListing = await ebayService.createListingFromItem(item);
+          
+          if (ebayListing.listingId && !ebayListing.listingId.includes('MOCK_') && !ebayListing.listingId.includes('demo_')) {
+            // Real eBay listing created
+            console.log(`✅ [EBAY-POST] Real eBay listing created: ${ebayListing.listingUrl}`);
+            
+            // Update listing in database with eBay details
+            const { error: updateError } = await supabase
+              .from('listings')
+              .update({
+                ebay_listing_id: ebayListing.listingId,
+                ebay_listing_url: ebayListing.listingUrl,
+                status: 'active',
+                platforms: ['ebay'],
+                listed_at: new Date().toISOString()
+              })
+              .eq('item_id', item.id)
+              .eq('user_id', authUser.id);
+
+            if (updateError) {
+              console.warn('⚠️ [EBAY-POST] Failed to update listing in database:', updateError);
+            }
+
+            successfulPosts.push({
+              sku: group.sku,
+              title: group.title,
+              url: ebayListing.listingUrl,
+              listingId: ebayListing.listingId
+            });
+            
+            setPostingProgress(prev => ({
+              ...prev,
+              [group.sku]: 'Posted successfully ✅'
+            }));
+          } else {
+            // Mock/demo listing - warn user
+            console.warn(`⚠️ [EBAY-POST] Mock listing detected for ${group.sku} - not a real eBay listing`);
+            failedPosts.push({
+              sku: group.sku,
+              title: group.title,
+              error: 'Demo mode - no real eBay listing created'
+            });
+            
+            setPostingProgress(prev => ({
+              ...prev,
+              [group.sku]: 'Demo mode ⚠️'
+            }));
+          }
+        } catch (error) {
+          console.error(`❌ [EBAY-POST] Failed to post SKU ${group.sku}:`, error);
+          failedPosts.push({
+            sku: group.sku,
+            title: group.title,
+            error: error.message
+          });
+          
+          setPostingProgress(prev => ({
+            ...prev,
+            [group.sku]: `Error: ${error.message}`
+          }));
+        }
+      }
+
+      // Show results
+      if (successfulPosts.length > 0) {
+        setSuccessMessage(
+          `Successfully posted ${successfulPosts.length} listing${successfulPosts.length !== 1 ? 's' : ''} to eBay! ` +
+          successfulPosts.map(post => `${post.title} (${post.listingId})`).join(', ')
+        );
+      }
+
+      if (failedPosts.length > 0) {
+        setErrorMessage(
+          `Failed to post ${failedPosts.length} listing${failedPosts.length !== 1 ? 's' : ''}: ` +
+          failedPosts.map(post => `${post.title} (${post.error})`).join(', ')
+        );
+      }
+
+      console.log('🎉 [EBAY-POST] Bulk eBay posting complete:', {
+        successful: successfulPosts.length,
+        failed: failedPosts.length,
+        results: { successfulPosts, failedPosts }
+      });
+      
+    } catch (error) {
+      console.error('❌ [EBAY-POST] Error in bulk eBay posting:', error);
+      setErrorMessage(`Failed to post to eBay: ${error.message}`);
+    } finally {
+      setIsPostingToEbay(false);
+      setTimeout(() => setPostingProgress({}), 3000); // Clear progress after 3 seconds
     }
   };
 
@@ -1253,22 +1456,59 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                       <td className="px-4 py-4">
                         <div className="flex items-center space-x-2">
                           {group.status === 'completed' && (
-                            <button
-                              onClick={() => handleEditListing(group)}
-                              disabled={isGenerating || isDeleting}
-                              className={`p-2 rounded-lg transition-colors ${
-                                isDarkMode 
-                                  ? 'hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 disabled:text-blue-600' 
-                                  : 'hover:bg-blue-50 text-blue-600 hover:text-blue-700 disabled:text-blue-400'
-                              }`}
-                              title="Edit listing"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
+                            <>
+                              {/* Post to eBay Button */}
+                              {isEbayAuthenticated ? (
+                                <button
+                                  onClick={() => handlePostToEbay(group)}
+                                  disabled={isGenerating || isDeleting || isPostingToEbay}
+                                  className={`p-2 rounded-lg transition-colors ${
+                                    isDarkMode 
+                                      ? 'hover:bg-yellow-500/20 text-yellow-400 hover:text-yellow-300 disabled:text-yellow-600' 
+                                      : 'hover:bg-yellow-50 text-yellow-600 hover:text-yellow-700 disabled:text-yellow-400'
+                                  }`}
+                                  title="Post to eBay"
+                                >
+                                  {postingProgress[group.sku] ? (
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                                  ) : (
+                                    <ShoppingCart className="w-4 h-4" />
+                                  )}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setErrorMessage('Please authenticate with eBay first')}
+                                  className={`p-2 rounded-lg transition-colors ${
+                                    isDarkMode 
+                                      ? 'text-gray-500 hover:bg-gray-700' 
+                                      : 'text-gray-400 hover:bg-gray-50'
+                                  }`}
+                                  title="eBay authentication required"
+                                >
+                                  <ShoppingCart className="w-4 h-4" />
+                                </button>
+                              )}
+                              
+                              {/* Edit Button */}
+                              <button
+                                onClick={() => handleEditListing(group)}
+                                disabled={isGenerating || isDeleting || isPostingToEbay}
+                                className={`p-2 rounded-lg transition-colors ${
+                                  isDarkMode 
+                                    ? 'hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 disabled:text-blue-600' 
+                                    : 'hover:bg-blue-50 text-blue-600 hover:text-blue-700 disabled:text-blue-400'
+                                }`}
+                                title="Edit listing"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            </>
                           )}
+                          
+                          {/* Delete Button */}
                           <button
                             onClick={() => handleDeleteSKUGroup(group.sku)}
-                            disabled={isGenerating || isDeleting}
+                            disabled={isGenerating || isDeleting || isPostingToEbay}
                             className={`p-2 rounded-lg transition-colors ${
                               isDarkMode 
                                 ? 'hover:bg-red-500/20 text-red-400 hover:text-red-300 disabled:text-red-600' 
@@ -1283,6 +1523,13 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
                             )}
                           </button>
                         </div>
+                        
+                        {/* Show posting progress */}
+                        {postingProgress[group.sku] && (
+                          <div className={`mt-1 text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                            {postingProgress[group.sku]}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1302,6 +1549,40 @@ const GenerateListingsTable: React.FC<GenerateListingsTableProps> = ({ isDarkMod
           </div>
         </>
       )}
+
+      {/* eBay Integration Status */}
+      <div className="mt-6">
+        <div className={`${isDarkMode ? 'glass-panel' : 'glass-panel-light'} backdrop-blur-glass rounded-lg p-4 border ${
+          isEbayAuthenticated 
+            ? 'border-green-200 bg-green-50 dark:border-green-700 dark:bg-green-900/20' 
+            : 'border-yellow-200 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-900/20'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full ${isEbayAuthenticated ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+              <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                eBay Integration: {isEbayAuthenticated ? 'Connected' : 'Not Connected'}
+              </span>
+            </div>
+            {!isEbayAuthenticated && (
+              <EbayAuthButton 
+                onAuthSuccess={() => setIsEbayAuthenticated(true)}
+                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium transition-colors text-sm"
+              />
+            )}
+          </div>
+          {isEbayAuthenticated && (
+            <p className={`mt-2 text-sm ${isDarkMode ? 'text-green-300' : 'text-green-700'}`}>
+              ✅ Ready to post listings directly to eBay marketplace.
+            </p>
+          )}
+          {!isEbayAuthenticated && (
+            <p className={`mt-2 text-sm ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
+              🔐 Connect your eBay account to post generated listings directly to eBay marketplace.
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* How It Works */}
       <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-6">

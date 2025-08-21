@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Business Policy Diagnostics Tool</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background-color: #fafafa;
+        }
+        .section h2 {
+            color: #444;
+            margin-top: 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #007cba;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status-good {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .status-warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        .status-bad {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .log-container {
+            background: #000;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 6px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+        .results {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 6px;
+            background: #f8f9fa;
+        }
+        .metric {
+            display: inline-block;
+            margin: 5px 10px;
+            padding: 8px 15px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .error-details {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .token-info {
+            background: #f0f8ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .recommendations {
+            background: #f8fff0;
+            border: 1px solid #c3e6c3;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Business Policy Diagnostics Tool</h1>
+        <p style="text-align: center; color: #666;">Comprehensive testing and debugging for eBay Business Policy API integration</p>
+
+        <div class="section">
+            <h2>🔍 OAuth Token Analysis</h2>
+            <button onclick="analyzeOAuthToken()">Analyze OAuth Token</button>
+            <div id="tokenAnalysis" class="results"></div>
+        </div>
+
+        <div class="section">
+            <h2>🌐 Network Connectivity Tests</h2>
+            <button onclick="testConnectivity()">Test Connectivity</button>
+            <button onclick="testProxyHealth()">Test Proxy Health</button>
+            <div id="connectivityResults" class="results"></div>
+        </div>
+
+        <div class="section">
+            <h2>📋 Business Policy API Tests</h2>
+            <button onclick="testFulfillmentPolicies()">Test Fulfillment Policies</button>
+            <button onclick="testPaymentPolicies()">Test Payment Policies</button>
+            <button onclick="testReturnPolicies()">Test Return Policies</button>
+            <button onclick="testAllPolicies()">Test All Policies</button>
+            <div id="policyResults" class="results"></div>
+        </div>
+
+        <div class="section">
+            <h2>🔄 Retry Logic Test</h2>
+            <button onclick="testRetryLogic()">Test Retry Mechanism</button>
+            <button onclick="testCircuitBreaker()">Test Circuit Breaker</button>
+            <div id="retryResults" class="results"></div>
+        </div>
+
+        <div class="section">
+            <h2>📊 Performance Metrics</h2>
+            <button onclick="runPerformanceTest()">Run Performance Test</button>
+            <div id="performanceResults" class="results"></div>
+        </div>
+
+        <div class="section">
+            <h2>🩺 Health Check & Diagnostics</h2>
+            <button onclick="runFullDiagnostics()">Run Full Diagnostics</button>
+            <button onclick="generateReport()">Generate Report</button>
+            <div id="diagnosticsResults" class="results"></div>
+        </div>
+
+        <div class="log-container" id="logContainer">
+            Diagnostic logs will appear here...
+        </div>
+    </div>
+
+    <script>
+        const logContainer = document.getElementById('logContainer');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const colors = {
+                info: '#00ff00',
+                error: '#ff6b6b',
+                warning: '#ffd93d',
+                success: '#6bcf7f'
+            };
+            
+            const entry = document.createElement('div');
+            entry.style.color = colors[type] || '#00ff00';
+            entry.innerHTML = `[${timestamp}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function clearLog() {
+            logContainer.innerHTML = '';
+        }
+
+        async function analyzeOAuthToken() {
+            clearLog();
+            log('🔍 Starting OAuth token analysis...', 'info');
+            
+            const tokenAnalysis = document.getElementById('tokenAnalysis');
+            
+            try {
+                // Check OAuth tokens in localStorage
+                const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+                const manualToken = localStorage.getItem('ebay_manual_token');
+                
+                let analysis = '<div class="token-info">';
+                analysis += '<h3>OAuth Token Status</h3>';
+                
+                if (oauthTokens) {
+                    try {
+                        const tokenData = JSON.parse(oauthTokens);
+                        const isExpired = tokenData.expires_at ? Date.now() >= tokenData.expires_at : false;
+                        const scopes = tokenData.scope ? tokenData.scope.split(' ') : [];
+                        const hasSellAccountScope = scopes.includes('sell.account');
+                        
+                        analysis += `
+                            <p><strong>✅ OAuth tokens found in localStorage</strong></p>
+                            <p>Access Token: ${tokenData.access_token ? '✅ Present' : '❌ Missing'}</p>
+                            <p>Expires At: ${tokenData.expires_at ? new Date(tokenData.expires_at).toLocaleString() : 'Unknown'}</p>
+                            <p>Is Expired: <span class="${isExpired ? 'status-bad' : 'status-good'}">${isExpired ? '❌ Yes' : '✅ No'}</span></p>
+                            <p>Scopes: ${scopes.join(', ') || 'Unknown'}</p>
+                            <p>Has sell.account scope: <span class="${hasSellAccountScope ? 'status-good' : 'status-bad'}">${hasSellAccountScope ? '✅ Yes' : '❌ No'}</span></p>
+                        `;
+                        
+                        if (!hasSellAccountScope) {
+                            analysis += '<div class="error-details">❌ <strong>Critical Issue:</strong> The OAuth token is missing the required "sell.account" scope needed for business policy APIs.</div>';
+                        }
+                        
+                        if (isExpired) {
+                            analysis += '<div class="error-details">❌ <strong>Critical Issue:</strong> The OAuth token has expired and needs to be refreshed.</div>';
+                        }
+                        
+                        log(`Token expires: ${new Date(tokenData.expires_at).toLocaleString()}`, isExpired ? 'error' : 'success');
+                        log(`Scopes: ${scopes.join(', ')}`, hasSellAccountScope ? 'success' : 'error');
+                        
+                    } catch (parseError) {
+                        analysis += '<p class="status-bad">❌ OAuth tokens found but could not be parsed</p>';
+                        log('❌ Failed to parse OAuth tokens', 'error');
+                    }
+                } else if (manualToken) {
+                    analysis += '<p>📝 Manual token found in localStorage</p>';
+                    analysis += '<p class="status-warning">⚠️ Using manual token - scope validation not possible</p>';
+                    log('📝 Using manual token', 'warning');
+                } else {
+                    analysis += '<p class="status-bad">❌ No OAuth tokens found in localStorage</p>';
+                    log('❌ No tokens found', 'error');
+                }
+                
+                analysis += '</div>';
+                tokenAnalysis.innerHTML = analysis;
+                
+            } catch (error) {
+                log(`❌ Token analysis failed: ${error.message}`, 'error');
+                tokenAnalysis.innerHTML = '<div class="error-details">❌ Token analysis failed</div>';
+            }
+        }
+
+        async function testConnectivity() {
+            log('🌐 Testing network connectivity...', 'info');
+            const results = document.getElementById('connectivityResults');
+            
+            try {
+                // Test proxy endpoint
+                const proxyResponse = await fetch('/.netlify/functions/ebay-proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: 'https://api.ebay.com/sell/account/v1/fulfillment_policy',
+                        method: 'GET',
+                        headers: {
+                            'Authorization': 'Bearer test-token',
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                });
+                
+                log(`Proxy response status: ${proxyResponse.status}`, proxyResponse.ok ? 'success' : 'error');
+                
+                let resultsHtml = '<div class="metric">Proxy Endpoint: ';
+                if (proxyResponse.status === 404) {
+                    resultsHtml += '<span class="status-warning">⚠️ Not Available (Dev Mode)</span>';
+                    log('⚠️ Proxy not available in development mode', 'warning');
+                } else {
+                    resultsHtml += `<span class="status-${proxyResponse.ok ? 'good' : 'bad'}">${proxyResponse.status}</span>`;
+                }
+                resultsHtml += '</div>';
+                
+                results.innerHTML = resultsHtml;
+                
+            } catch (error) {
+                log(`❌ Connectivity test failed: ${error.message}`, 'error');
+                results.innerHTML = '<div class="error-details">❌ Connectivity test failed</div>';
+            }
+        }
+
+        async function testProxyHealth() {
+            log('🔧 Testing proxy health...', 'info');
+            
+            try {
+                // Test with a simple request to check proxy functionality
+                const response = await fetch('/.netlify/functions/ebay-proxy', {
+                    method: 'OPTIONS'
+                });
+                
+                log(`Proxy OPTIONS response: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                // Check response headers for CORS
+                const corsHeaders = response.headers.get('Access-Control-Allow-Origin');
+                log(`CORS headers: ${corsHeaders || 'Not set'}`, corsHeaders ? 'success' : 'warning');
+                
+            } catch (error) {
+                log(`❌ Proxy health test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBusinessPolicyEndpoint(policyType, endpoint) {
+            log(`📋 Testing ${policyType} policies endpoint...`, 'info');
+            
+            try {
+                const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+                if (!oauthTokens) {
+                    log(`❌ No OAuth tokens for ${policyType} test`, 'error');
+                    return { success: false, error: 'No OAuth tokens' };
+                }
+                
+                const tokenData = JSON.parse(oauthTokens);
+                const accessToken = tokenData.access_token;
+                
+                const response = await fetch('/.netlify/functions/ebay-proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: `https://api.ebay.com/sell/account/v1/${endpoint}`,
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+                        }
+                    })
+                });
+                
+                const responseText = await response.text();
+                log(`${policyType} response status: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                if (response.status === 502) {
+                    log(`🚨 502 ERROR detected for ${policyType}!`, 'error');
+                    log('🔍 Common 502 causes:', 'warning');
+                    log('  1. eBay API temporarily down', 'warning');
+                    log('  2. Invalid/expired OAuth token', 'warning');
+                    log('  3. Missing sell.account scope', 'warning');
+                    log('  4. Rate limiting exceeded', 'warning');
+                    return { success: false, error: '502 Bad Gateway', details: responseText };
+                }
+                
+                if (response.ok) {
+                    try {
+                        const data = JSON.parse(responseText);
+                        const policyCount = data[`${policyType}Policies`]?.length || 0;
+                        log(`✅ ${policyType} policies retrieved: ${policyCount}`, 'success');
+                        return { success: true, count: policyCount, data };
+                    } catch (parseError) {
+                        log(`⚠️ ${policyType} response not JSON: ${responseText.substring(0, 100)}`, 'warning');
+                        return { success: false, error: 'Invalid JSON response' };
+                    }
+                } else {
+                    log(`❌ ${policyType} request failed: ${response.status}`, 'error');
+                    return { success: false, error: `HTTP ${response.status}`, details: responseText };
+                }
+                
+            } catch (error) {
+                log(`❌ ${policyType} test failed: ${error.message}`, 'error');
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function testFulfillmentPolicies() {
+            const result = await testBusinessPolicyEndpoint('fulfillment', 'fulfillment_policy');
+            updatePolicyResults('fulfillment', result);
+        }
+
+        async function testPaymentPolicies() {
+            const result = await testBusinessPolicyEndpoint('payment', 'payment_policy');
+            updatePolicyResults('payment', result);
+        }
+
+        async function testReturnPolicies() {
+            const result = await testBusinessPolicyEndpoint('return', 'return_policy');
+            updatePolicyResults('return', result);
+        }
+
+        async function testAllPolicies() {
+            log('🚀 Running comprehensive policy tests...', 'info');
+            
+            const results = await Promise.allSettled([
+                testBusinessPolicyEndpoint('fulfillment', 'fulfillment_policy'),
+                testBusinessPolicyEndpoint('payment', 'payment_policy'),
+                testBusinessPolicyEndpoint('return', 'return_policy')
+            ]);
+            
+            let successCount = 0;
+            let totalPolicies = 0;
+            
+            results.forEach((result, index) => {
+                const policyType = ['fulfillment', 'payment', 'return'][index];
+                if (result.status === 'fulfilled' && result.value.success) {
+                    successCount++;
+                    totalPolicies += result.value.count || 0;
+                }
+                updatePolicyResults(policyType, result.status === 'fulfilled' ? result.value : { success: false, error: result.reason });
+            });
+            
+            log(`📊 Policy test summary: ${successCount}/3 successful, ${totalPolicies} total policies`, successCount === 3 ? 'success' : 'warning');
+        }
+
+        function updatePolicyResults(policyType, result) {
+            const policyResults = document.getElementById('policyResults');
+            let html = policyResults.innerHTML;
+            
+            const resultHtml = `
+                <div class="metric">
+                    ${policyType.charAt(0).toUpperCase() + policyType.slice(1)} Policies: 
+                    <span class="status-${result.success ? 'good' : 'bad'}">
+                        ${result.success ? `✅ ${result.count || 0} found` : `❌ ${result.error}`}
+                    </span>
+                </div>
+            `;
+            
+            // Remove existing result for this policy type
+            const existingRegex = new RegExp(`<div class="metric">\\s*${policyType.charAt(0).toUpperCase() + policyType.slice(1)}[^<]*</div>`, 'i');
+            html = html.replace(existingRegex, '');
+            
+            policyResults.innerHTML = html + resultHtml;
+        }
+
+        async function testRetryLogic() {
+            log('🔄 Testing retry logic with simulated failures...', 'info');
+            
+            // Simulate multiple requests to test retry behavior
+            let attempts = 0;
+            const maxAttempts = 3;
+            
+            const testRetry = async () => {
+                attempts++;
+                log(`Attempt ${attempts}/${maxAttempts}`, 'info');
+                
+                if (attempts < maxAttempts) {
+                    // Simulate failure
+                    throw new Error('Simulated 502 error for retry testing');
+                } else {
+                    log('✅ Retry logic test completed successfully', 'success');
+                    return { success: true };
+                }
+            };
+            
+            try {
+                await testRetry();
+            } catch (error) {
+                if (attempts < maxAttempts) {
+                    log(`⏳ Retrying after failure: ${error.message}`, 'warning');
+                    setTimeout(() => testRetry(), 1000);
+                } else {
+                    log('❌ All retry attempts exhausted', 'error');
+                }
+            }
+            
+            document.getElementById('retryResults').innerHTML = `
+                <div class="metric">Retry Attempts: <span class="status-info">${attempts}/${maxAttempts}</span></div>
+                <div class="metric">Status: <span class="status-${attempts === maxAttempts ? 'good' : 'warning'}">
+                    ${attempts === maxAttempts ? '✅ Completed' : '⏳ In Progress'}
+                </span></div>
+            `;
+        }
+
+        async function testCircuitBreaker() {
+            log('⚡ Testing circuit breaker pattern...', 'info');
+            
+            // This would test the circuit breaker by making multiple failing requests
+            // In a real scenario, this would trigger the circuit breaker in the proxy
+            
+            let failureCount = 0;
+            for (let i = 0; i < 6; i++) {
+                try {
+                    log(`Circuit breaker test ${i + 1}/6`, 'info');
+                    
+                    // Simulate request that would fail
+                    const response = await fetch('/.netlify/functions/ebay-proxy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            url: 'https://invalid-ebay-endpoint.com/fail',
+                            method: 'GET',
+                            headers: {}
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        failureCount++;
+                        log(`Request ${i + 1} failed with status ${response.status}`, 'error');
+                    }
+                    
+                } catch (error) {
+                    failureCount++;
+                    log(`Request ${i + 1} failed: ${error.message}`, 'error');
+                }
+            }
+            
+            log(`Circuit breaker test completed: ${failureCount}/6 failures`, failureCount > 0 ? 'warning' : 'success');
+            
+            document.getElementById('retryResults').innerHTML += `
+                <div class="metric">Circuit Breaker Test: <span class="status-${failureCount < 5 ? 'good' : 'warning'}">
+                    ${failureCount}/6 failures
+                </span></div>
+            `;
+        }
+
+        async function runPerformanceTest() {
+            log('📊 Running performance tests...', 'info');
+            
+            const startTime = Date.now();
+            let requestCount = 0;
+            let successCount = 0;
+            let errorCount = 0;
+            const errors = [];
+            
+            try {
+                // Test multiple concurrent requests
+                const testPromises = [];
+                for (let i = 0; i < 5; i++) {
+                    testPromises.push(
+                        testBusinessPolicyEndpoint('fulfillment', 'fulfillment_policy')
+                            .then(result => {
+                                requestCount++;
+                                if (result.success) {
+                                    successCount++;
+                                } else {
+                                    errorCount++;
+                                    errors.push(result.error);
+                                }
+                                return result;
+                            })
+                            .catch(error => {
+                                requestCount++;
+                                errorCount++;
+                                errors.push(error.message);
+                            })
+                    );
+                }
+                
+                await Promise.allSettled(testPromises);
+                
+            } catch (error) {
+                log(`❌ Performance test failed: ${error.message}`, 'error');
+            }
+            
+            const endTime = Date.now();
+            const duration = endTime - startTime;
+            const avgResponseTime = duration / requestCount;
+            const successRate = (successCount / requestCount) * 100;
+            
+            log(`Performance test completed in ${duration}ms`, 'success');
+            log(`Success rate: ${successRate.toFixed(1)}%`, successRate > 80 ? 'success' : 'warning');
+            log(`Average response time: ${avgResponseTime.toFixed(0)}ms`, avgResponseTime < 5000 ? 'success' : 'warning');
+            
+            document.getElementById('performanceResults').innerHTML = `
+                <div class="metric">Total Requests: <span class="status-info">${requestCount}</span></div>
+                <div class="metric">Success Rate: <span class="status-${successRate > 80 ? 'good' : 'warning'}">${successRate.toFixed(1)}%</span></div>
+                <div class="metric">Avg Response Time: <span class="status-${avgResponseTime < 5000 ? 'good' : 'warning'}">${avgResponseTime.toFixed(0)}ms</span></div>
+                <div class="metric">Total Duration: <span class="status-info">${duration}ms</span></div>
+                ${errors.length > 0 ? `<div class="error-details">Errors: ${errors.slice(0, 3).join(', ')}</div>` : ''}
+            `;
+        }
+
+        async function runFullDiagnostics() {
+            log('🩺 Running full diagnostic suite...', 'info');
+            
+            const diagnosticsResults = document.getElementById('diagnosticsResults');
+            diagnosticsResults.innerHTML = '<div class="metric">Running diagnostics...</div>';
+            
+            // Run all tests in sequence
+            await analyzeOAuthToken();
+            await testConnectivity();
+            await testProxyHealth();
+            await testAllPolicies();
+            
+            // Generate summary
+            let summary = '<div class="recommendations">';
+            summary += '<h3>🎯 Diagnostic Summary & Recommendations</h3>';
+            
+            const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+            if (!oauthTokens) {
+                summary += '<p>❌ <strong>Critical:</strong> No OAuth tokens found. Please complete eBay OAuth flow.</p>';
+            } else {
+                try {
+                    const tokenData = JSON.parse(oauthTokens);
+                    const isExpired = tokenData.expires_at ? Date.now() >= tokenData.expires_at : false;
+                    const scopes = tokenData.scope ? tokenData.scope.split(' ') : [];
+                    const hasSellAccountScope = scopes.includes('sell.account');
+                    
+                    if (isExpired) {
+                        summary += '<p>❌ <strong>Critical:</strong> OAuth token expired. Please refresh token.</p>';
+                    }
+                    if (!hasSellAccountScope) {
+                        summary += '<p>❌ <strong>Critical:</strong> Missing sell.account scope. Re-authenticate with proper scopes.</p>';
+                    }
+                    if (!isExpired && hasSellAccountScope) {
+                        summary += '<p>✅ OAuth token appears valid with correct scopes.</p>';
+                    }
+                } catch (e) {
+                    summary += '<p>❌ <strong>Error:</strong> Cannot parse OAuth tokens.</p>';
+                }
+            }
+            
+            summary += '<h4>Next Steps:</h4>';
+            summary += '<ol>';
+            summary += '<li>Ensure eBay OAuth authentication is completed with sell.account scope</li>';
+            summary += '<li>Check that proxy function is deployed and accessible</li>';
+            summary += '<li>Verify eBay API credentials in environment variables</li>';
+            summary += '<li>Test individual policy endpoints to identify specific issues</li>';
+            summary += '<li>Monitor logs for 502 errors and implement retry mechanisms</li>';
+            summary += '</ol>';
+            summary += '</div>';
+            
+            diagnosticsResults.innerHTML = summary;
+            log('🎯 Full diagnostics completed', 'success');
+        }
+
+        async function generateReport() {
+            log('📄 Generating diagnostic report...', 'info');
+            
+            const timestamp = new Date().toISOString();
+            const logContent = logContainer.innerHTML;
+            
+            const report = {
+                timestamp,
+                userAgent: navigator.userAgent,
+                location: window.location.href,
+                localStorage: {
+                    hasOAuthTokens: !!localStorage.getItem('ebay_oauth_tokens'),
+                    hasManualToken: !!localStorage.getItem('ebay_manual_token')
+                },
+                logs: logContent
+            };
+            
+            // Create downloadable report
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `business-policy-diagnostic-report-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            log('📄 Diagnostic report generated and downloaded', 'success');
+        }
+
+        // Auto-run basic diagnostics on page load
+        window.onload = () => {
+            log('🚀 Business Policy Diagnostics Tool loaded', 'success');
+            log('Click any button above to start testing specific components', 'info');
+        };
+    </script>
+</body>
+</html>

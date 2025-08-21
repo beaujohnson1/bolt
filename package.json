@@ -12,7 +12,10 @@
     "test:oauth": "node tests/run-oauth-verification.js",
     "test:oauth:quick": "node tests/run-oauth-verification.js --quick",
     "test:oauth:production": "node tests/run-oauth-verification.js --production-diagnostic",
-    "test:oauth:verbose": "node tests/run-oauth-verification.js --verbose"
+    "test:oauth:verbose": "node tests/run-oauth-verification.js --verbose",
+    "test:oauth:connection": "node tests/verify-oauth-connection.js",
+    "test:oauth:connection:verbose": "node tests/verify-oauth-connection.js --verbose",
+    "test:oauth:connection:simulate": "node tests/verify-oauth-connection.js --simulate --verbose"
   },
   "dependencies": {
     "@google-cloud/vision": "^5.3.3",

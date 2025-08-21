@@ -1,5 +1,98 @@
 // eBay API Proxy Function for Netlify
 // This function acts as a proxy to bypass CORS restrictions when calling eBay APIs
+// Enhanced with retry logic, exponential backoff, and circuit breaker pattern
+
+// Retry configuration
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 1000, // 1 second
+  maxDelay: 10000, // 10 seconds
+  backoffMultiplier: 2,
+  retryableStatusCodes: [502, 503, 504, 408, 429],
+  retryableErrorTypes: ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND']
+};
+
+// Circuit breaker state
+let circuitBreakerState = {
+  failures: 0,
+  lastFailure: null,
+  state: 'CLOSED', // CLOSED, OPEN, HALF_OPEN
+  openUntil: null
+};
+
+// Exponential backoff with jitter
+const calculateDelay = (attempt) => {
+  const delay = Math.min(
+    RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt),
+    RETRY_CONFIG.maxDelay
+  );
+  // Add jitter (±25%)
+  const jitter = delay * 0.25 * (Math.random() * 2 - 1);
+  return Math.round(delay + jitter);
+};
+
+// Sleep utility
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Check if error is retryable
+const isRetryableError = (error, statusCode) => {
+  if (statusCode && RETRY_CONFIG.retryableStatusCodes.includes(statusCode)) {
+    return true;
+  }
+  
+  if (error && error.code && RETRY_CONFIG.retryableErrorTypes.includes(error.code)) {
+    return true;
+  }
+  
+  if (error && error.message) {
+    const message = error.message.toLowerCase();
+    return message.includes('timeout') || 
+           message.includes('network') || 
+           message.includes('connection') ||
+           message.includes('gateway');
+  }
+  
+  return false;
+};
+
+// Circuit breaker check
+const checkCircuitBreaker = () => {
+  const now = Date.now();
+  
+  if (circuitBreakerState.state === 'OPEN') {
+    if (now >= circuitBreakerState.openUntil) {
+      console.log('🔄 [EBAY-PROXY] Circuit breaker transitioning to HALF_OPEN');
+      circuitBreakerState.state = 'HALF_OPEN';
+      return true;
+    }
+    console.log('🚫 [EBAY-PROXY] Circuit breaker OPEN - rejecting request');
+    return false;
+  }
+  
+  return true;
+};
+
+// Update circuit breaker state
+const updateCircuitBreaker = (success) => {
+  const now = Date.now();
+  
+  if (success) {
+    if (circuitBreakerState.state === 'HALF_OPEN') {
+      console.log('✅ [EBAY-PROXY] Circuit breaker CLOSED after successful request');
+      circuitBreakerState.state = 'CLOSED';
+      circuitBreakerState.failures = 0;
+    }
+  } else {
+    circuitBreakerState.failures++;
+    circuitBreakerState.lastFailure = now;
+    
+    if (circuitBreakerState.failures >= 5) {
+      console.log('🚫 [EBAY-PROXY] Circuit breaker OPEN due to repeated failures');
+      circuitBreakerState.state = 'OPEN';
+      circuitBreakerState.openUntil = now + 60000; // Open for 1 minute
+    }
+  }
+};
 
 // XML parsing utility for Trading API responses
 const parseXMLResponse = (xmlString) => {
@@ -92,8 +185,21 @@ exports.handler = async (event, context) => {
     const expectedContentType = getContentType(url, requestHeaders);
     console.log('📋 [EBAY-PROXY] Expected response type:', expectedContentType);
 
-    // Forward the request to eBay API
-    const response = await fetch(url, {
+    // Check circuit breaker before making request
+    if (!checkCircuitBreaker()) {
+      return {
+        statusCode: 503,
+        headers,
+        body: JSON.stringify({
+          error: 'Service temporarily unavailable',
+          message: 'Circuit breaker is open due to repeated failures. Please try again later.',
+          retryAfter: Math.ceil((circuitBreakerState.openUntil - Date.now()) / 1000)
+        })
+      };
+    }
+
+    // Make request with retry logic
+    const response = await makeRequestWithRetry(url, {
       method,
       headers: {
         ...requestHeaders,
@@ -124,14 +230,67 @@ exports.handler = async (event, context) => {
       status: response.status
     });
 
-    // Enhanced error handling for Account API
+    // Update circuit breaker on success
+    updateCircuitBreaker(response.ok);
+
+    // Enhanced error handling for Account API with 502 specific handling
     if (!response.ok && url.includes('/sell/account/')) {
+      // Update circuit breaker on failure
+      updateCircuitBreaker(false);
+      
       console.error('❌ [EBAY-PROXY] Account API Error:', {
         status: response.status,
         statusText: response.statusText,
         url: url.replace('https://api.ebay.com', '[EBAY_API]'),
         responsePreview: responseText.substring(0, 300)
       });
+
+      // Special handling for 502 Bad Gateway errors
+      if (response.status === 502) {
+        console.error('🚨 [EBAY-PROXY] 502 BAD GATEWAY DETECTED!');
+        console.error('🚨 [EBAY-PROXY] Common causes:');
+        console.error('🚨 [EBAY-PROXY] 1. eBay API is temporarily down');
+        console.error('🚨 [EBAY-PROXY] 2. Invalid OAuth token or expired token');
+        console.error('🚨 [EBAY-PROXY] 3. Missing required OAuth scopes (sell.account)');
+        console.error('🚨 [EBAY-PROXY] 4. Rate limiting or quota exceeded');
+        console.error('🚨 [EBAY-PROXY] 5. Malformed request headers or body');
+        
+        // Enhanced 502 error response
+        const error502Response = {
+          error: 'eBay API Gateway Error',
+          message: 'The eBay API returned a 502 Bad Gateway error',
+          details: {
+            status: 502,
+            endpoint: url.replace('https://api.ebay.com', '[EBAY_API]'),
+            timestamp: new Date().toISOString(),
+            possibleCauses: [
+              'eBay API is temporarily unavailable',
+              'Invalid or expired OAuth token',
+              'Missing sell.account OAuth scope',
+              'Rate limiting exceeded',
+              'Malformed request'
+            ],
+            troubleshooting: [
+              'Check eBay API status at developer.ebay.com',
+              'Verify OAuth token is valid and not expired',
+              'Ensure token has sell.account scope',
+              'Wait a few minutes and retry',
+              'Check request format and headers'
+            ]
+          },
+          retryable: true,
+          retryAfter: 30
+        };
+        
+        return {
+          statusCode: 502,
+          headers: {
+            ...headers,
+            'Retry-After': '30'
+          },
+          body: JSON.stringify(error502Response)
+        };
+      }
 
       // Try to parse eBay error response
       try {
@@ -218,23 +377,95 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
+    // Update circuit breaker on error
+    updateCircuitBreaker(false);
+    
     console.error('❌ [EBAY-PROXY] Proxy error:', {
       error: error.message,
       stack: error.stack,
       url: url || 'unknown',
-      method: method || 'unknown'
+      method: method || 'unknown',
+      code: error.code
     });
     
-    // Return 502 Bad Gateway for fetch failures
+    // Enhanced error response with retry information
+    const errorResponse = {
+      error: 'Gateway error',
+      message: error.message || 'Failed to proxy request to eBay API',
+      details: 'The proxy service could not complete the request to eBay API',
+      url: url || 'unknown',
+      timestamp: new Date().toISOString(),
+      errorCode: error.code,
+      retryable: isRetryableError(error, null),
+      circuitBreakerState: circuitBreakerState.state
+    };
+    
     return {
       statusCode: 502,
-      headers,
-      body: JSON.stringify({
-        error: 'Gateway error',
-        message: error.message || 'Failed to proxy request to eBay API',
-        details: 'The proxy service could not complete the request to eBay API',
-        url: url || 'unknown'
-      })
+      headers: {
+        ...headers,
+        'Retry-After': '30'
+      },
+      body: JSON.stringify(errorResponse)
     };
+  }
+};
+
+// Enhanced fetch with retry logic and exponential backoff
+const makeRequestWithRetry = async (url, options, attempt = 0) => {
+  try {
+    console.log(`🔄 [EBAY-PROXY] Request attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries + 1}`);
+    
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    // If successful or non-retryable error, return immediately
+    if (response.ok || !isRetryableError(null, response.status)) {
+      if (response.ok) {
+        console.log(`✅ [EBAY-PROXY] Request succeeded on attempt ${attempt + 1}`);
+      }
+      return response;
+    }
+    
+    // If this was our last attempt, return the response
+    if (attempt >= RETRY_CONFIG.maxRetries) {
+      console.log(`❌ [EBAY-PROXY] All retry attempts exhausted, returning last response`);
+      return response;
+    }
+    
+    // Calculate delay and retry
+    const delay = calculateDelay(attempt);
+    console.log(`⏳ [EBAY-PROXY] Retrying after ${delay}ms (status: ${response.status})`);
+    await sleep(delay);
+    
+    return makeRequestWithRetry(url, options, attempt + 1);
+    
+  } catch (error) {
+    // Handle abort/timeout errors
+    if (error.name === 'AbortError') {
+      console.error('⏰ [EBAY-PROXY] Request timed out');
+      error.code = 'ETIMEDOUT';
+    }
+    
+    // If this was our last attempt or error is not retryable, throw
+    if (attempt >= RETRY_CONFIG.maxRetries || !isRetryableError(error, null)) {
+      console.log(`❌ [EBAY-PROXY] Throwing error after ${attempt + 1} attempts:`, error.message);
+      throw error;
+    }
+    
+    // Calculate delay and retry
+    const delay = calculateDelay(attempt);
+    console.log(`⏳ [EBAY-PROXY] Retrying after ${delay}ms (error: ${error.message})`);
+    await sleep(delay);
+    
+    return makeRequestWithRetry(url, options, attempt + 1);
   }
 };
