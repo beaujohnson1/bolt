@@ -633,12 +633,24 @@
             }
 
             setupEventListeners() {
-                document.getElementById('startFullTest').addEventListener('click', () => this.startFullTest());
-                document.getElementById('stepByStep').addEventListener('click', () => this.startStepByStep());
-                document.getElementById('clearAll').addEventListener('click', () => this.clearAll());
-                document.getElementById('testFunctions').addEventListener('click', () => this.testOAuthFunctions());
-                document.getElementById('checkStorage').addEventListener('click', () => this.refreshStatus());
-                document.getElementById('monitorNetwork').addEventListener('click', () => this.toggleNetworkMonitoring());
+                // Helper function to safely add event listeners
+                const addClickListener = (id, handler) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.addEventListener('click', () => handler.call(this));
+                        console.log(`✅ Event listener added for: ${id}`);
+                    } else {
+                        console.error(`❌ Element not found: ${id}`);
+                    }
+                };
+
+                // Add click listeners for all buttons
+                addClickListener('startFullTest', this.startFullTest);
+                addClickListener('stepByStep', this.startStepByStep);
+                addClickListener('clearAll', this.clearAll);
+                addClickListener('testFunctions', this.testOAuthFunctions);
+                addClickListener('checkStorage', this.refreshStatus);
+                addClickListener('monitorNetwork', this.toggleNetworkMonitoring);
 
                 // Listen for OAuth events
                 window.addEventListener('ebayAuthChanged', (e) => {
@@ -1395,8 +1407,33 @@
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', () => {
-            window.oauthDebugger = new OAuthDebugger();
-            console.log('🔍 OAuth Debugger initialized and ready!');
+            try {
+                console.log('🚀 Starting OAuth Debugger initialization...');
+                window.oauthDebugger = new OAuthDebugger();
+                console.log('✅ OAuth Debugger initialized and ready!');
+                
+                // Test that methods are accessible
+                if (typeof window.oauthDebugger.startFullTest === 'function') {
+                    console.log('✅ All debugger methods are accessible');
+                } else {
+                    console.error('❌ Debugger methods not properly initialized');
+                }
+            } catch (error) {
+                console.error('❌ Failed to initialize OAuth Debugger:', error);
+                console.error('Stack trace:', error.stack);
+                
+                // Show error on page
+                const container = document.querySelector('.container');
+                if (container) {
+                    container.innerHTML = `
+                        <div style="padding: 20px; background: #f8d7da; color: #721c24; border-radius: 5px;">
+                            <h2>❌ OAuth Debugger Failed to Initialize</h2>
+                            <p>Error: ${error.message}</p>
+                            <p>Please check the browser console for details.</p>
+                        </div>
+                    `;
+                }
+            }
         });
     </script>
 </body>
