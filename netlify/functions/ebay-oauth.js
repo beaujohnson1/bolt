@@ -258,12 +258,13 @@ async function exchangeCode(headers, credentials, tokenBase, body) {
       code: code
     });
     
-    // CRITICAL FIX: Use the same RuName for token exchange as authorization
-    // This must match the redirect_uri used in the authorization request
+    // CRITICAL FIX: Token exchange must use the ACTUAL redirect URL, not RuName!
+    // eBay's token endpoint expects the same redirect_uri that it redirected to
     if (isProduction) {
-      const ruName = 'easyflip.ai-easyflip-easyfl-cnqajybp';
-      tokenParams.append('redirect_uri', ruName);
-      console.log('🔄 [EBAY-OAUTH] Using production RuName for token exchange:', ruName);
+      // FIXED: Use the actual redirect URL that eBay redirects to (not the RuName)
+      const actualRedirectUri = 'https://easyflip.ai/app/api/ebay/callback-fixed';
+      tokenParams.append('redirect_uri', actualRedirectUri);
+      console.log('🔄 [EBAY-OAUTH] Using production redirect URL for token exchange:', actualRedirectUri);
     } else {
       const sandboxRuName = process.env.EBAY_SANDBOX_RUNAME || callbackUrl;
       tokenParams.append('redirect_uri', sandboxRuName);
