@@ -367,20 +367,33 @@ class EbayOAuthService {
         this.debugConsole?.log('✅ Popup capability confirmed', 'success', 'popup-test');
       }
       
-      // Open eBay OAuth in popup window with enhanced validation
-      this.debugConsole?.log('Opening eBay OAuth popup window...', 'info', 'popup-open');
+      // MODERN APPROACH: Open eBay OAuth in new tab for better reliability
+      this.debugConsole?.log('Opening eBay OAuth in new tab...', 'info', 'tab-open');
       this.debugConsole?.updateStatus('Opening authentication window...');
       
-      const popup = window.open(
-        authData.authUrl,
-        'ebay-oauth',
-        'width=600,height=700,scrollbars=yes,resizable=yes,status=yes,location=yes,toolbar=no,menubar=no'
-      );
+      // Try popup first, fall back to tab if blocked
+      let popup: Window | null = null;
+      try {
+        popup = window.open(
+          authData.authUrl,
+          'ebay-oauth',
+          'width=600,height=700,scrollbars=yes,resizable=yes,status=yes,location=yes,toolbar=no,menubar=no'
+        );
+      } catch (popupError) {
+        console.warn('⚠️ [EBAY-OAUTH] Popup failed, opening in new tab:', popupError);
+      }
+      
+      // If popup failed or was blocked, open in new tab
+      if (!popup || popup.closed) {
+        console.log('🔄 [EBAY-OAUTH] Popup blocked or failed, opening in new tab for better compatibility');
+        popup = window.open(authData.authUrl, '_blank');
+        this.debugConsole?.log('🔄 Popup blocked - opened in new tab', 'warning', 'tab-fallback');
+      }
       
       if (!popup) {
-        console.error('❌ [EBAY-OAUTH] CRITICAL: Popup creation failed despite blocker check');
-        this.debugConsole?.log('❌ CRITICAL: Failed to open popup window!', 'error', 'popup-fail');
-        throw new Error('Failed to open authentication window. Please check your browser settings and allow popups for this site.');
+        console.error('❌ [EBAY-OAUTH] CRITICAL: Failed to open authentication window');
+        this.debugConsole?.log('❌ CRITICAL: Failed to open authentication window!', 'error', 'window-fail');
+        throw new Error('Failed to open authentication window. Please check your browser settings and allow popups/new tabs for this site.');
       }
       
       // Validate popup opened successfully
@@ -773,23 +786,22 @@ class EbayOAuthService {
   }
 
   /**
-   * Listen for storage changes (e.g., from callback page)
+   * Listen for storage changes (enhanced for tab-based authentication)
    */
   watchForTokenChanges(callback: (authenticated: boolean) => void): () => void {
-    // Check for URL tokens immediately
-    this.processUrlTokens().then(hasUrlTokens => {
-      if (hasUrlTokens) {
-        console.log('🎉 [EBAY-OAUTH] URL tokens found and processed');
-        setTimeout(() => callback(true), 100);
-      }
-    }).catch(error => {
-      console.error('❌ [EBAY-OAUTH] Error processing URL tokens:', error);
-    });
+    // Immediate checks on watcher setup
+    this.performInitialAuthChecks(callback);
     
+    // Storage event handler for localStorage changes
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'ebay_oauth_tokens' || e.key === 'ebay_manual_token') {
-        console.log('📡 [EBAY-OAUTH] Token storage changed, checking auth status');
-        // Add a small delay to ensure localStorage is updated
+      const relevantKeys = [
+        'ebay_oauth_tokens', 'ebay_manual_token', 'oauth_tokens',
+        'ebay_oauth_success_beacon', 'ebay_oauth_beacon'
+      ];
+      
+      if (relevantKeys.includes(e.key || '')) {
+        console.log(`📡 [EBAY-OAUTH] Token storage changed (${e.key}), checking auth status`);
+        // Add delay to ensure localStorage is fully updated
         setTimeout(() => {
           const isAuth = this.isAuthenticated();
           console.log('📡 [EBAY-OAUTH] Auth status after storage change:', isAuth);
@@ -798,59 +810,146 @@ class EbayOAuthService {
       }
     };
 
+    // Custom event handler for auth changes
     const handleCustomEvent = (e: CustomEvent) => {
       console.log('📡 [EBAY-OAUTH] Custom auth event received:', e.detail);
-      // Force a fresh check when custom event is received
       const isAuth = this.isAuthenticated();
       console.log('📡 [EBAY-OAUTH] Auth status after custom event:', isAuth);
       callback(isAuth);
     };
 
-    // Also handle focus events (when user returns to tab)
+    // Focus event handler (when user returns to tab after OAuth)
     const handleFocus = () => {
-      console.log('👁️ [EBAY-OAUTH] Window focus detected, checking auth status');
+      console.log('👁️ [EBAY-OAUTH] Window focus detected, performing comprehensive auth check');
+      
+      // Check for beacons first (tab-based auth)
+      const beaconFound = this.checkForSuccessBeacon();
+      if (beaconFound) {
+        console.log('🎯 [EBAY-OAUTH] Beacon found on focus, tokens should be processed');
+      }
+      
       const isAuth = this.isAuthenticated();
       console.log('👁️ [EBAY-OAUTH] Auth status after focus:', isAuth);
       callback(isAuth);
     };
 
-    // Check for URL parameters indicating successful OAuth
+    // Popstate handler for URL-based auth success detection
     const handlePopstate = () => {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('ebay_connected') === 'true') {
-        console.log('🔗 [EBAY-OAUTH] OAuth success detected in URL, processing tokens...');
+        console.log('🔗 [EBAY-OAUTH] OAuth success detected in URL, processing...');
         
-        // Process any URL tokens
-        this.processUrlTokens().then(hasTokens => {
+        // Process URL tokens and check beacons
+        Promise.all([
+          this.processUrlTokens(),
+          new Promise(resolve => {
+            const beaconFound = this.checkForSuccessBeacon();
+            resolve(beaconFound);
+          })
+        ]).then(([hasUrlTokens, hasBeacon]) => {
+          console.log('🔍 [EBAY-OAUTH] URL processing results:', { hasUrlTokens, hasBeacon });
+          
           setTimeout(() => {
             const isAuth = this.isAuthenticated();
-            console.log('🔗 [EBAY-OAUTH] Auth status after OAuth success URL:', isAuth);
+            console.log('🔗 [EBAY-OAUTH] Final auth status after URL processing:', isAuth);
             callback(isAuth);
-          }, 100); // Small delay to ensure any async operations complete
+          }, 200); // Increased delay for tab-based auth
         }).catch(error => {
-          console.error('❌ [EBAY-OAUTH] Error processing URL tokens in popstate:', error);
+          console.error('❌ [EBAY-OAUTH] Error processing URL/beacon tokens:', error);
         });
       }
     };
 
+    // BroadcastChannel listener for tab-based communication
+    let broadcastChannel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        broadcastChannel = new BroadcastChannel('ebay-oauth-success');
+        broadcastChannel.addEventListener('message', (event) => {
+          console.log('📡 [EBAY-OAUTH] BroadcastChannel message received:', event.data);
+          
+          if (event.data.type === 'EBAY_OAUTH_SUCCESS' && event.data.tokens) {
+            console.log('🎉 [EBAY-OAUTH] Processing tokens from BroadcastChannel');
+            
+            this.storeTokens(event.data.tokens).then(() => {
+              const isAuth = this.isAuthenticated();
+              console.log('📡 [EBAY-OAUTH] Auth status after BroadcastChannel tokens:', isAuth);
+              callback(isAuth);
+            }).catch(error => {
+              console.error('❌ [EBAY-OAUTH] Error storing BroadcastChannel tokens:', error);
+            });
+          }
+        });
+        console.log('📡 [EBAY-OAUTH] BroadcastChannel listener setup for tab-based auth');
+      } catch (error) {
+        console.warn('⚠️ [EBAY-OAUTH] BroadcastChannel not available:', error);
+      }
+    }
+
+    // Add event listeners
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('ebayAuthChanged', handleCustomEvent);
     window.addEventListener('focus', handleFocus);
     window.addEventListener('popstate', handlePopstate);
+    window.addEventListener('visibilitychange', handleFocus); // Also check on visibility change
 
-    // Also check immediately when watcher is set up
-    setTimeout(() => {
-      const isAuth = this.isAuthenticated();
-      console.log('📡 [EBAY-OAUTH] Initial auth status when setting up watcher:', isAuth);
-      callback(isAuth);
-    }, 100);
+    // Periodic beacon checking for tab-based auth reliability
+    const beaconCheckInterval = setInterval(() => {
+      const beaconFound = this.checkForSuccessBeacon();
+      if (beaconFound) {
+        console.log('🎯 [EBAY-OAUTH] Periodic beacon check found tokens');
+        setTimeout(() => callback(this.isAuthenticated()), 100);
+      }
+    }, 2000); // Check every 2 seconds
 
+    // Cleanup function
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('ebayAuthChanged', handleCustomEvent);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('popstate', handlePopstate);
+      window.removeEventListener('visibilitychange', handleFocus);
+      
+      if (broadcastChannel) {
+        broadcastChannel.close();
+      }
+      
+      if (beaconCheckInterval) {
+        clearInterval(beaconCheckInterval);
+      }
     };
+  }
+
+  /**
+   * Perform initial authentication checks when watcher is set up
+   */
+  private async performInitialAuthChecks(callback: (authenticated: boolean) => void): Promise<void> {
+    // Check 1: Process URL tokens immediately
+    try {
+      const hasUrlTokens = await this.processUrlTokens();
+      if (hasUrlTokens) {
+        console.log('🎉 [EBAY-OAUTH] URL tokens found and processed on watcher setup');
+        setTimeout(() => callback(true), 100);
+        return;
+      }
+    } catch (error) {
+      console.error('❌ [EBAY-OAUTH] Error processing URL tokens on setup:', error);
+    }
+    
+    // Check 2: Look for success beacons
+    const beaconFound = this.checkForSuccessBeacon();
+    if (beaconFound) {
+      console.log('🎯 [EBAY-OAUTH] Success beacon found on watcher setup');
+      setTimeout(() => callback(true), 150);
+      return;
+    }
+    
+    // Check 3: Standard authentication check
+    setTimeout(() => {
+      const isAuth = this.isAuthenticated();
+      console.log('📡 [EBAY-OAUTH] Initial auth status when setting up watcher:', isAuth);
+      callback(isAuth);
+    }, 100);
   }
 
   /**
@@ -1380,57 +1479,84 @@ class EbayOAuthService {
   }
 
   /**
-   * Check for success beacon from callback page
+   * Check for success beacon from callback page (enhanced for tab-based auth)
    */
   private checkForSuccessBeacon(): boolean {
     try {
       console.log('🎯 [EBAY-OAUTH] Checking for success beacon...');
       this.debugConsole?.log('🎯 Checking for success beacon...', 'info', 'beacon-check');
       
-      const beacon = localStorage.getItem('ebay_oauth_beacon');
-      if (beacon) {
-        const beaconData = JSON.parse(beacon);
-        
-        // Check if beacon is fresh (within last 5 minutes)
-        if (beaconData.timestamp && (Date.now() - beaconData.timestamp) < 300000) {
-          console.log('🎯 [EBAY-OAUTH] Success beacon found!', beaconData);
-          this.debugConsole?.log('🎯 Success beacon detected! Processing...', 'success', 'beacon-found');
-          
-          // Clean up beacon
-          localStorage.removeItem('ebay_oauth_beacon');
-          
-          // Store tokens if they're in the beacon
-          if (beaconData.tokens) {
-            console.log('💾 [EBAY-OAUTH] Extracting tokens from beacon...');
-            this.debugConsole?.log('💾 Extracting tokens from beacon...', 'info', 'beacon-extract');
+      // Check multiple beacon locations
+      const beaconKeys = [
+        'ebay_oauth_beacon',
+        'ebay_oauth_success_beacon',
+        'oauth_success_beacon'
+      ];
+      
+      for (const beaconKey of beaconKeys) {
+        const beacon = localStorage.getItem(beaconKey);
+        if (beacon) {
+          try {
+            const beaconData = JSON.parse(beacon);
             
-            // Store tokens using the service's method
-            this.storeTokens(beaconData.tokens).then(() => {
-              console.log('✅ [EBAY-OAUTH] Tokens from beacon stored successfully');
-              this.debugConsole?.log('✅ Tokens from beacon stored!', 'success', 'beacon-store');
+            // Check if beacon is fresh (within last 10 minutes for tab-based auth)
+            const maxAge = 600000; // 10 minutes
+            if (beaconData.timestamp && (Date.now() - beaconData.timestamp) < maxAge) {
+              console.log(`🎯 [EBAY-OAUTH] Success beacon found in ${beaconKey}!`, beaconData);
+              this.debugConsole?.log(`🎯 Success beacon detected in ${beaconKey}!`, 'success', 'beacon-found');
               
-              // Dispatch auth event
-              this.dispatchAuthEvent('beacon_detection', 1);
-            }).catch(error => {
-              console.error('❌ [EBAY-OAUTH] Failed to store beacon tokens:', error);
-              this.debugConsole?.log('❌ Failed to store beacon tokens', 'error', 'beacon-error');
-            });
+              // Clean up beacon
+              localStorage.removeItem(beaconKey);
+              
+              // Store tokens if they're in the beacon
+              if (beaconData.tokens) {
+                console.log('💾 [EBAY-OAUTH] Extracting tokens from beacon...');
+                this.debugConsole?.log('💾 Extracting tokens from beacon...', 'info', 'beacon-extract');
+                
+                // Store tokens using the service's method
+                this.storeTokens(beaconData.tokens).then(() => {
+                  console.log('✅ [EBAY-OAUTH] Tokens from beacon stored successfully');
+                  this.debugConsole?.log('✅ Tokens from beacon stored!', 'success', 'beacon-store');
+                  
+                  // Dispatch auth event
+                  this.dispatchAuthEvent('beacon_detection', 1);
+                  this.forceAuthStateRefresh();
+                }).catch(error => {
+                  console.error('❌ [EBAY-OAUTH] Failed to store beacon tokens:', error);
+                  this.debugConsole?.log('❌ Failed to store beacon tokens', 'error', 'beacon-error');
+                });
+              }
+              
+              return true;
+            } else {
+              console.log(`⏰ [EBAY-OAUTH] Beacon in ${beaconKey} found but expired`);
+              this.debugConsole?.log(`⏰ Beacon in ${beaconKey} expired`, 'warning', 'beacon-expired');
+              localStorage.removeItem(beaconKey);
+            }
+          } catch (parseError) {
+            console.warn(`⚠️ [EBAY-OAUTH] Failed to parse beacon ${beaconKey}:`, parseError);
+            localStorage.removeItem(beaconKey);
           }
-          
-          return true;
-        } else {
-          console.log('⏰ [EBAY-OAUTH] Beacon found but expired');
-          this.debugConsole?.log('⏰ Beacon expired', 'warning', 'beacon-expired');
-          localStorage.removeItem('ebay_oauth_beacon');
         }
       }
       
       // Also check sessionStorage
-      const sessionBeacon = sessionStorage.getItem('ebay_oauth_beacon');
-      if (sessionBeacon) {
-        console.log('🎯 [EBAY-OAUTH] Beacon found in sessionStorage');
-        // Process similarly...
-        sessionStorage.removeItem('ebay_oauth_beacon');
+      for (const beaconKey of beaconKeys) {
+        const sessionBeacon = sessionStorage.getItem(beaconKey);
+        if (sessionBeacon) {
+          console.log(`🎯 [EBAY-OAUTH] Beacon found in sessionStorage: ${beaconKey}`);
+          try {
+            const beaconData = JSON.parse(sessionBeacon);
+            if (beaconData.tokens) {
+              this.storeTokens(beaconData.tokens);
+              this.forceAuthStateRefresh();
+            }
+          } catch (error) {
+            console.warn(`⚠️ [EBAY-OAUTH] Failed to parse session beacon:`, error);
+          }
+          sessionStorage.removeItem(beaconKey);
+          return true;
+        }
       }
       
       return false;

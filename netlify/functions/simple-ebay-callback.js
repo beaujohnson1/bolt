@@ -12,8 +12,15 @@ exports.handler = async (event, context) => {
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
     };
 
-    console.log('🔄 Simple eBay OAuth Callback Handler');
-    console.log('Query Parameters:', event.queryStringParameters);
+    const requestId = Math.random().toString(36).substring(7);
+    console.log(`🔄 [${requestId}] Simple eBay OAuth Callback Handler`);
+    console.log(`📋 [${requestId}] Event details:`, {
+        httpMethod: event.httpMethod,
+        path: event.path,
+        headers: Object.keys(event.headers),
+        hasBody: !!event.body
+    });
+    console.log(`📋 [${requestId}] Query Parameters:`, event.queryStringParameters);
 
     try {
         const { code, state, error, error_description } = event.queryStringParameters || {};
@@ -131,12 +138,19 @@ exports.handler = async (event, context) => {
                                 });
                                 
                                 const data = await response.json();
-                                console.log('🔧 Token exchange response:', {
+                                console.log(`🔧 [${requestId}] Token exchange response:`, {
                                     status: response.status,
                                     success: data.success,
                                     hasAccessToken: !!data.access_token,
+                                    hasRefreshToken: !!data.refresh_token,
+                                    tokenLength: data.access_token ? data.access_token.length : 0,
                                     error: data.error,
                                     details: data.details
+                                });
+                                
+                                console.log(`💾 [${requestId}] About to store tokens - Current localStorage status:`, {
+                                    canAccessLocalStorage: typeof localStorage !== 'undefined',
+                                    existingTokens: typeof localStorage !== 'undefined' ? !!localStorage.getItem('ebay_oauth_tokens') : 'N/A'
                                 });
                                 
                                 if (data.success && data.access_token) {
@@ -163,9 +177,28 @@ exports.handler = async (event, context) => {
                                     localStorage.setItem('ebay_token_expiry', String(tokenData.expires_at));
                                     localStorage.setItem('easyflip_ebay_token_expiry', String(tokenData.expires_at));
                                     localStorage.setItem('easyflip_ebay_token_scope', scopeString);
-                                    console.log('✅ Tokens stored successfully in current window');
                                     
-                                    // Also try to store in parent window if available
+                                    // Verify tokens were stored successfully
+                                    const storedTokens = localStorage.getItem('ebay_oauth_tokens');
+                                    const storedAccessToken = localStorage.getItem('easyflip_ebay_access_token');
+                                    console.log(`✅ [${requestId}] Tokens stored successfully in current window:`, {
+                                        oauthTokensStored: !!storedTokens,
+                                        accessTokenStored: !!storedAccessToken,
+                                        tokenLength: storedAccessToken ? storedAccessToken.length : 0
+                                    });
+                                    
+                                    // MODERN TAB-BASED AUTHENTICATION:
+                                    // Store success beacon for main app to detect
+                                    const successBeacon = {
+                                        success: true,
+                                        tokens: tokenData,
+                                        timestamp: Date.now(),
+                                        source: 'callback_page'
+                                    };
+                                    localStorage.setItem('ebay_oauth_success_beacon', JSON.stringify(successBeacon));
+                                    console.log('✅ Success beacon stored for tab-based auth detection');
+                                    
+                                    // Also try window.opener for popup compatibility
                                     if (window.opener && window.opener.localStorage) {
                                         try {
                                             // Store in ALL formats for maximum compatibility
@@ -179,16 +212,17 @@ exports.handler = async (event, context) => {
                                             window.opener.localStorage.setItem('ebay_token_expiry', String(tokenData.expires_at));
                                             window.opener.localStorage.setItem('easyflip_ebay_token_expiry', String(tokenData.expires_at));
                                             window.opener.localStorage.setItem('easyflip_ebay_token_scope', scopeString);
+                                            window.opener.localStorage.setItem('ebay_oauth_success_beacon', JSON.stringify(successBeacon));
                                         
                                             console.log('✅ Tokens also stored in parent window');
                                         } catch (e) {
-                                            console.log('⚠️ Could not access parent window, but tokens are saved in popup');
+                                            console.log('⚠️ Could not access parent window, using tab-based detection');
                                         }
                                         
-                                        // Multiple communication methods to ensure parent window gets notified
+                                        // ENHANCED COMMUNICATION: Multiple methods for tab-based + popup compatibility
                                         try {
-                                            // Method 1: Custom event
-                                            if (window.opener.dispatchEvent) {
+                                            // Method 1: Custom event (for popups)
+                                            if (window.opener && window.opener.dispatchEvent) {
                                                 window.opener.dispatchEvent(new CustomEvent('simpleEbayAuthSuccess', { 
                                                     detail: {
                                                         access_token: data.access_token,
@@ -201,35 +235,55 @@ exports.handler = async (event, context) => {
                                                 console.log('✅ Custom event dispatched to parent window');
                                             }
                                             
-                                            // Method 2: Direct postMessage
-                                            window.opener.postMessage({
-                                                type: 'EBAY_OAUTH_SUCCESS',
-                                                timestamp: Date.now(),
-                                                tokens: {
-                                                    access_token: data.access_token,
-                                                    refresh_token: data.refresh_token,
-                                                    expires_in: data.expires_in,
-                                                    expires_at: Date.now() + (data.expires_in * 1000),
-                                                    token_type: data.token_type || 'Bearer',
-                                                    scope: data.scope || ''
-                                                }
-                                            }, '*');
-                                            console.log('✅ PostMessage sent to parent window');
-                                            
-                                            // Method 3: Force parent window location refresh to trigger auth check
-                                            setTimeout(() => {
-                                                try {
-                                                    if (window.opener && !window.opener.closed) {
-                                                        window.opener.location.reload();
-                                                        console.log('✅ Parent window refreshed');
+                                            // Method 2: PostMessage (for popups)
+                                            if (window.opener) {
+                                                window.opener.postMessage({
+                                                    type: 'EBAY_OAUTH_SUCCESS',
+                                                    timestamp: Date.now(),
+                                                    tokens: {
+                                                        access_token: data.access_token,
+                                                        refresh_token: data.refresh_token,
+                                                        expires_in: data.expires_in,
+                                                        expires_at: Date.now() + (data.expires_in * 1000),
+                                                        token_type: data.token_type || 'Bearer',
+                                                        scope: data.scope || ''
                                                     }
-                                                } catch (error) {
-                                                    console.log('⚠️ Could not refresh parent window:', error.message);
+                                                }, '*');
+                                                console.log('✅ PostMessage sent to parent window');
+                                            }
+                                            
+                                            // Method 3: BroadcastChannel (for tab-based auth)
+                                            if (typeof BroadcastChannel !== 'undefined') {
+                                                try {
+                                                    const broadcastChannel = new BroadcastChannel('ebay-oauth-success');
+                                                    broadcastChannel.postMessage({
+                                                        type: 'EBAY_OAUTH_SUCCESS',
+                                                        timestamp: Date.now(),
+                                                        tokens: tokenData
+                                                    });
+                                                    broadcastChannel.close();
+                                                    console.log('✅ BroadcastChannel message sent for tab-based detection');
+                                                } catch (bcError) {
+                                                    console.log('⚠️ BroadcastChannel failed:', bcError.message);
                                                 }
-                                            }, 1000);
+                                            }
+                                            
+                                            // Method 4: URL redirect with success parameters (for tab-based auth)
+                                            const returnUrl = localStorage.getItem('ebay_oauth_return_url') || window.location.origin;
+                                            if (returnUrl && returnUrl !== window.location.href) {
+                                                console.log('🔄 Redirecting to return URL with success parameters...');
+                                                const redirectUrl = new URL(returnUrl);
+                                                redirectUrl.searchParams.set('ebay_connected', 'true');
+                                                redirectUrl.searchParams.set('timestamp', Date.now().toString());
+                                                
+                                                // Redirect after a short delay
+                                                setTimeout(() => {
+                                                    window.location.href = redirectUrl.toString();
+                                                }, 2000);
+                                            }
                                             
                                         } catch (error) {
-                                            console.error('❌ Error communicating with parent window:', error);
+                                            console.error('❌ Error in communication methods:', error);
                                         }
                                     } else {
                                         // Fallback: store in current window using ALL compatible formats
@@ -258,14 +312,27 @@ exports.handler = async (event, context) => {
                                     }
                                     
                                     document.getElementById('status').innerHTML = 
-                                        '<div style="color: #27ae60;"><strong>✅ Tokens stored successfully!</strong><br>You can close this window.</div>';
+                                        '<div style="color: #27ae60;"><strong>✅ Tokens stored successfully!</strong><br>' +
+                                        (window.opener ? 'You can close this window.' : 'Redirecting back to app...') + '</div>';
                                     
-                                    // Auto-close popup after 2 seconds
-                                    setTimeout(() => {
-                                        if (window.opener) {
+                                    // Handle window closing/redirect based on context
+                                    if (window.opener) {
+                                        // Popup mode - auto-close after 2 seconds
+                                        setTimeout(() => {
                                             window.close();
-                                        }
-                                    }, 2000);
+                                        }, 2000);
+                                    } else {
+                                        // Tab mode - redirect back to app
+                                        const returnUrl = localStorage.getItem('ebay_oauth_return_url') || window.location.origin;
+                                        console.log('🔄 Preparing redirect to:', returnUrl);
+                                        
+                                        setTimeout(() => {
+                                            const redirectUrl = new URL(returnUrl);
+                                            redirectUrl.searchParams.set('ebay_connected', 'true');
+                                            redirectUrl.searchParams.set('timestamp', Date.now().toString());
+                                            window.location.href = redirectUrl.toString();
+                                        }, 3000);
+                                    }
                                     
                                 } else {
                                     // Enhanced error handling for different failure types

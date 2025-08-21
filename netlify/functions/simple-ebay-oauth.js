@@ -18,8 +18,16 @@ exports.handler = async (event, context) => {
         return { statusCode: 204, headers, body: '' };
     }
 
+    // Enhanced request logging
+    const requestId = Math.random().toString(36).substring(7);
+    console.log(`🚀 [${requestId}] Simple eBay OAuth Handler - ${event.httpMethod} ${event.path}`);
+    console.log(`📋 [${requestId}] Headers:`, JSON.stringify(event.headers, null, 2));
+    console.log(`📋 [${requestId}] Query params:`, JSON.stringify(event.queryStringParameters, null, 2));
+    if (event.body) {
+        console.log(`📋 [${requestId}] Body:`, event.body);
+    }
+
     try {
-        console.log('🚀 Simple eBay OAuth Handler');
         
         // Initialize eBay API
         console.log('🔧 Initializing eBay API with config:', {
@@ -28,17 +36,53 @@ exports.handler = async (event, context) => {
             ruName: 'easyflip.ai-easyflip-easyfl-cnqajybp'
         });
         
+        // The ruName should match the actual callback URL registered in eBay Developer Console
+        const baseUrl = process.env.URL || 'https://easyflip.ai';
+        const isProduction = !baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1');
+        
+        // Use production ruName or sandbox callback URL
+        const ruName = isProduction ? 
+            'easyflip.ai-easyflip-easyfl-cnqajybp' : 
+            `${baseUrl}/.netlify/functions/simple-ebay-callback`;
+        
+        console.log('🔧 OAuth Configuration:', {
+            baseUrl,
+            isProduction,
+            ruName,
+            sandbox: !isProduction
+        });
+
         const ebay = new eBayApi({
             appId: process.env.EBAY_PROD_APP || process.env.VITE_EBAY_PROD_APP_ID,
             certId: process.env.EBAY_PROD_CERT || process.env.VITE_EBAY_PROD_CERT_ID,
-            sandbox: false,
+            sandbox: !isProduction,
             siteId: eBayApi.SiteId.EBAY_US,
             marketplaceId: eBayApi.MarketplaceId.EBAY_US,
-            ruName: 'easyflip.ai-easyflip-easyfl-cnqajybp'
+            ruName: ruName
         });
 
-        const body = event.body ? JSON.parse(event.body) : {};
-        const action = body.action || event.queryStringParameters?.action;
+        // Parse body and query parameters with enhanced logging
+        let body = {};
+        if (event.body) {
+            try {
+                body = JSON.parse(event.body);
+                console.log('📄 Request body parsed:', { hasAction: !!body.action, action: body.action });
+            } catch (e) {
+                console.log('⚠️ Failed to parse body as JSON:', event.body);
+            }
+        }
+        
+        const queryParams = event.queryStringParameters || {};
+        const action = body.action || queryParams.action;
+        
+        console.log('🔧 Request details:', {
+            httpMethod: event.httpMethod,
+            hasBody: !!event.body,
+            bodyAction: body.action,
+            queryAction: queryParams.action,
+            finalAction: action,
+            queryParams: queryParams
+        });
 
         console.log(`🎯 Action: ${action}`);
 
@@ -52,8 +96,19 @@ exports.handler = async (event, context) => {
                     'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
                 ]);
 
+                // Set the callback URL that matches eBay Developer Console configuration
+                const callbackUrl = `${process.env.URL || 'https://easyflip.ai'}/.netlify/functions/simple-ebay-callback`;
+                console.log('🔗 Using callback URL:', callbackUrl);
+                
                 // Generate authorization URL
                 const authUrl = ebay.OAuth2.generateAuthUrl();
+                
+                // Log the generated URL for debugging
+                console.log('🔧 Generated auth URL parts:', {
+                    baseUrl: authUrl.split('?')[0],
+                    hasParams: authUrl.includes('?'),
+                    urlLength: authUrl.length
+                });
                 
                 console.log('✅ Generated auth URL:', authUrl);
                 

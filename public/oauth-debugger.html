@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Flow Debugger - EasyFlip</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            font-weight: 300;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+
+        .section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            margin: 5px;
+            min-width: 120px;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+            color: #333;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.9em;
+            min-width: auto;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 500;
+            margin: 5px 0;
+        }
+
+        .status-waiting { background: #e9ecef; color: #6c757d; }
+        .status-running { background: #fff3cd; color: #856404; }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+        .status-info { background: #d1ecf1; color: #0c5460; }
+
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .test-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .test-card h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1em;
+        }
+
+        .test-card .test-status {
+            margin: 10px 0;
+        }
+
+        .console {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85em;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 15px 0;
+        }
+
+        .info-panel {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .info-panel h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 500;
+            color: #555;
+        }
+
+        .info-value {
+            color: #333;
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .token-display {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 0.85em;
+        }
+
+        .token-display.valid {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+
+        .token-display.invalid {
+            border-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .flow-tracker {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .flow-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 10px;
+            border-radius: 6px;
+            min-width: 80px;
+            text-align: center;
+            font-size: 0.85em;
+        }
+
+        .flow-step.pending {
+            background: #e9ecef;
+            color: #6c757d;
+        }
+
+        .flow-step.active {
+            background: #fff3cd;
+            color: #856404;
+            animation: pulse 1.5s ease-in-out infinite alternate;
+        }
+
+        .flow-step.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .flow-step.failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .flow-arrow {
+            font-size: 1.5em;
+            color: #6c757d;
+        }
+
+        @keyframes pulse {
+            from { opacity: 1; }
+            to { opacity: 0.5; }
+        }
+
+        .manual-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+        }
+
+        .manual-section h3 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+
+        .input-group {
+            margin: 10px 0;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .input-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+
+        .alert-danger {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                padding: 20px;
+            }
+            
+            .flow-tracker {
+                flex-wrap: wrap;
+            }
+            
+            .test-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 OAuth Flow Debugger</h1>
+            <p>Step-by-step debugging and validation of the OAuth authentication flow</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Left Column: Flow Control & Status -->
+            <div class="left-column">
+                <!-- Control Panel -->
+                <div class="section">
+                    <h2>🎮 Control Panel</h2>
+                    <div style="margin-bottom: 15px;">
+                        <button id="startFullTest" class="btn">🚀 Start Full Test</button>
+                        <button id="stepByStep" class="btn btn-warning">👣 Step-by-Step</button>
+                        <button id="clearAll" class="btn btn-danger">🧹 Clear All</button>
+                    </div>
+                    <div>
+                        <button id="testFunctions" class="btn btn-small">📋 Test Functions</button>
+                        <button id="checkStorage" class="btn btn-small">💾 Check Storage</button>
+                        <button id="monitorNetwork" class="btn btn-small">🌐 Monitor Network</button>
+                    </div>
+                </div>
+
+                <!-- Flow Tracker -->
+                <div class="section">
+                    <h2>🔄 OAuth Flow Tracker</h2>
+                    <div class="flow-tracker" id="flowTracker">
+                        <div class="flow-step pending" data-step="init">
+                            <span class="step-icon">🎯</span>
+                            <span class="step-name">Initialize</span>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step pending" data-step="auth-url">
+                            <span class="step-icon">🔗</span>
+                            <span class="step-name">Auth URL</span>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step pending" data-step="popup">
+                            <span class="step-icon">🪟</span>
+                            <span class="step-name">Popup</span>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step pending" data-step="callback">
+                            <span class="step-icon">🔄</span>
+                            <span class="step-name">Callback</span>
+                        </div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step pending" data-step="tokens">
+                            <span class="step-icon">🔑</span>
+                            <span class="step-name">Tokens</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="flowProgress"></div>
+                    </div>
+                </div>
+
+                <!-- Individual Tests -->
+                <div class="section">
+                    <h2>🧪 Individual Tests</h2>
+                    <div class="test-grid">
+                        <div class="test-card">
+                            <h3>Function Access</h3>
+                            <div class="test-status" id="status-functions">
+                                <span class="status-indicator status-waiting">⏳ Waiting</span>
+                            </div>
+                            <button class="btn btn-small" onclick="testOAuthFunctions()">Test</button>
+                        </div>
+                        <div class="test-card">
+                            <h3>Auth URL Generation</h3>
+                            <div class="test-status" id="status-auth-url">
+                                <span class="status-indicator status-waiting">⏳ Waiting</span>
+                            </div>
+                            <button class="btn btn-small" onclick="testAuthUrl()">Test</button>
+                        </div>
+                        <div class="test-card">
+                            <h3>Popup Blocking</h3>
+                            <div class="test-status" id="status-popup">
+                                <span class="status-indicator status-waiting">⏳ Waiting</span>
+                            </div>
+                            <button class="btn btn-small" onclick="testPopupBlocking()">Test</button>
+                        </div>
+                        <div class="test-card">
+                            <h3>Message Passing</h3>
+                            <div class="test-status" id="status-messages">
+                                <span class="status-indicator status-waiting">⏳ Waiting</span>
+                            </div>
+                            <button class="btn btn-small" onclick="testMessagePassing()">Test</button>
+                        </div>
+                        <div class="test-card">
+                            <h3>LocalStorage</h3>
+                            <div class="test-status" id="status-storage">
+                                <span class="status-indicator status-waiting">⏳ Waiting</span>
+                            </div>
+                            <button class="btn btn-small" onclick="testLocalStorage()">Test</button>
+                        </div>
+                        <div class="test-card">
+                            <h3>Token Exchange</h3>
+                            <div class="test-status" id="status-exchange">
+                                <span class="status-indicator status-waiting">⏳ Waiting</span>
+                            </div>
+                            <button class="btn btn-small" onclick="testTokenExchange()">Test</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Manual Token Exchange -->
+                <div class="section manual-section">
+                    <h3>🔄 Manual Token Exchange</h3>
+                    <p style="margin-bottom: 15px; color: #856404;">
+                        Manually exchange authorization codes for testing
+                    </p>
+                    <div class="input-group">
+                        <label for="authCode">Authorization Code:</label>
+                        <input type="text" id="authCode" placeholder="Paste authorization code here...">
+                    </div>
+                    <div class="input-group">
+                        <label for="redirectUri">Redirect URI:</label>
+                        <input type="text" id="redirectUri" value="https://easyflip.ai/.netlify/functions/auth-ebay-callback">
+                    </div>
+                    <button class="btn btn-warning" onclick="exchangeManualCode()">💱 Exchange Code</button>
+                </div>
+            </div>
+
+            <!-- Right Column: Monitoring & Results -->
+            <div class="right-column">
+                <!-- Current Status -->
+                <div class="section">
+                    <h2>📊 Current Status</h2>
+                    <div class="info-panel">
+                        <h3>Authentication State</h3>
+                        <div class="info-item">
+                            <span class="info-label">Status:</span>
+                            <span class="info-value" id="authStatus">Unknown</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Access Token:</span>
+                            <span class="info-value" id="accessTokenStatus">Not found</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Refresh Token:</span>
+                            <span class="info-value" id="refreshTokenStatus">Not found</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Token Expiry:</span>
+                            <span class="info-value" id="tokenExpiry">N/A</span>
+                        </div>
+                    </div>
+
+                    <div class="info-panel">
+                        <h3>Storage Contents</h3>
+                        <div class="info-item">
+                            <span class="info-label">OAuth Tokens:</span>
+                            <span class="info-value" id="oauthTokensCount">0 keys</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Manual Token:</span>
+                            <span class="info-value" id="manualTokenPresent">No</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">OAuth State:</span>
+                            <span class="info-value" id="oauthState">None</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Total eBay Keys:</span>
+                            <span class="info-value" id="ebayKeysCount">0</span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-small" onclick="refreshStatus()">🔄 Refresh Status</button>
+                    <button class="btn btn-small btn-danger" onclick="clearTokens()">🗑️ Clear Tokens</button>
+                </div>
+
+                <!-- Token Display -->
+                <div class="section">
+                    <h2>🔑 Token Display</h2>
+                    <div id="tokenDisplay" class="token-display">
+                        No tokens found
+                    </div>
+                    <button class="btn btn-small" onclick="showTokens()">👁️ Show Tokens</button>
+                    <button class="btn btn-small" onclick="hideTokens()">🙈 Hide Tokens</button>
+                    <button class="btn btn-small" onclick="validateTokens()">✅ Validate</button>
+                </div>
+
+                <!-- Network Monitor -->
+                <div class="section">
+                    <h2>🌐 Network Monitor</h2>
+                    <div class="info-panel">
+                        <h3>OAuth Requests</h3>
+                        <div class="info-item">
+                            <span class="info-label">Auth URL Requests:</span>
+                            <span class="info-value" id="authUrlRequests">0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Token Exchange Requests:</span>
+                            <span class="info-value" id="tokenExchangeRequests">0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Last Request:</span>
+                            <span class="info-value" id="lastRequestTime">None</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Last Response:</span>
+                            <span class="info-value" id="lastResponseStatus">None</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-small" onclick="startNetworkMonitoring()">📡 Start Monitoring</button>
+                    <button class="btn btn-small" onclick="stopNetworkMonitoring()">⏹️ Stop</button>
+                </div>
+
+                <!-- Console Output -->
+                <div class="section">
+                    <h2>🖥️ Debug Console</h2>
+                    <div class="console" id="debugConsole">OAuth Debugger initialized. Ready for testing...</div>
+                    <button class="btn btn-small" onclick="clearConsole()">🧹 Clear</button>
+                    <button class="btn btn-small" onclick="exportLogs()">📄 Export Logs</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts Container -->
+        <div id="alertsContainer" style="position: fixed; top: 20px; right: 20px; z-index: 1000; max-width: 400px;"></div>
+    </div>
+
+    <script>
+        class OAuthDebugger {
+            constructor() {
+                this.networkRequests = [];
+                this.currentStep = 0;
+                this.steps = ['init', 'auth-url', 'popup', 'callback', 'tokens'];
+                this.logs = [];
+                this.isMonitoring = false;
+                this.tokenData = null;
+                
+                this.init();
+            }
+
+            init() {
+                this.log('🔍 OAuth Debugger initialized', 'info');
+                this.setupEventListeners();
+                this.interceptNetworkRequests();
+                this.monitorLocalStorage();
+                this.refreshStatus();
+            }
+
+            setupEventListeners() {
+                document.getElementById('startFullTest').addEventListener('click', () => this.startFullTest());
+                document.getElementById('stepByStep').addEventListener('click', () => this.startStepByStep());
+                document.getElementById('clearAll').addEventListener('click', () => this.clearAll());
+                document.getElementById('testFunctions').addEventListener('click', () => this.testOAuthFunctions());
+                document.getElementById('checkStorage').addEventListener('click', () => this.refreshStatus());
+                document.getElementById('monitorNetwork').addEventListener('click', () => this.toggleNetworkMonitoring());
+
+                // Listen for OAuth events
+                window.addEventListener('ebayAuthChanged', (e) => {
+                    this.log(`🎉 OAuth event received: ${JSON.stringify(e.detail)}`, 'success');
+                    this.updateFlowStep('tokens', 'completed');
+                    this.refreshStatus();
+                });
+
+                window.addEventListener('storage', (e) => {
+                    if (e.key && e.key.includes('ebay')) {
+                        this.log(`💾 Storage changed: ${e.key}`, 'info');
+                        this.refreshStatus();
+                    }
+                });
+
+                // Listen for messages from popup windows
+                window.addEventListener('message', (e) => {
+                    this.log(`📨 Message received from: ${e.origin}, data: ${JSON.stringify(e.data)}`, 'info');
+                });
+            }
+
+            interceptNetworkRequests() {
+                const originalFetch = window.fetch;
+                window.fetch = (...args) => {
+                    const [url, options] = args;
+                    
+                    if (url.includes('oauth') || url.includes('ebay')) {
+                        this.networkRequests.push({
+                            url: url,
+                            method: options?.method || 'GET',
+                            timestamp: new Date().toISOString(),
+                            type: 'request'
+                        });
+                        
+                        this.log(`🌐 Network request: ${options?.method || 'GET'} ${url}`, 'info');
+                        this.updateNetworkStats();
+                    }
+                    
+                    return originalFetch.apply(this, args).then(response => {
+                        if (url.includes('oauth') || url.includes('ebay')) {
+                            this.networkRequests.push({
+                                url: url,
+                                status: response.status,
+                                statusText: response.statusText,
+                                timestamp: new Date().toISOString(),
+                                type: 'response'
+                            });
+                            
+                            this.log(`📡 Network response: ${response.status} ${response.statusText}`, 
+                                response.ok ? 'success' : 'error');
+                            this.updateNetworkStats();
+                        }
+                        return response;
+                    }).catch(error => {
+                        if (url.includes('oauth') || url.includes('ebay')) {
+                            this.log(`❌ Network error: ${error.message}`, 'error');
+                        }
+                        throw error;
+                    });
+                };
+            }
+
+            monitorLocalStorage() {
+                // Check for storage changes every second
+                setInterval(() => {
+                    if (this.isMonitoring) {
+                        this.refreshStatus();
+                    }
+                }, 1000);
+            }
+
+            async startFullTest() {
+                this.log('🚀 Starting full OAuth test...', 'info');
+                this.clearAll();
+                
+                try {
+                    // Step 1: Test function access
+                    this.updateFlowStep('init', 'active');
+                    await this.testOAuthFunctions();
+                    this.updateFlowStep('init', 'completed');
+                    
+                    // Step 2: Test auth URL generation
+                    this.updateFlowStep('auth-url', 'active');
+                    await this.testAuthUrl();
+                    this.updateFlowStep('auth-url', 'completed');
+                    
+                    // Step 3: Test popup
+                    this.updateFlowStep('popup', 'active');
+                    await this.testPopupBlocking();
+                    
+                    // Step 4: Attempt actual OAuth flow
+                    this.log('🔗 Attempting actual OAuth flow...', 'info');
+                    await this.attemptOAuthFlow();
+                    
+                } catch (error) {
+                    this.log(`❌ Full test failed: ${error.message}`, 'error');
+                    this.updateCurrentStepAsFailed();
+                }
+            }
+
+            async startStepByStep() {
+                this.log('👣 Starting step-by-step test...', 'info');
+                this.currentStep = 0;
+                await this.executeNextStep();
+            }
+
+            async executeNextStep() {
+                if (this.currentStep >= this.steps.length) {
+                    this.log('✅ All steps completed!', 'success');
+                    return;
+                }
+
+                const step = this.steps[this.currentStep];
+                this.updateFlowStep(step, 'active');
+                
+                try {
+                    switch (step) {
+                        case 'init':
+                            await this.testOAuthFunctions();
+                            break;
+                        case 'auth-url':
+                            await this.testAuthUrl();
+                            break;
+                        case 'popup':
+                            await this.testPopupBlocking();
+                            break;
+                        case 'callback':
+                            await this.testMessagePassing();
+                            break;
+                        case 'tokens':
+                            await this.testLocalStorage();
+                            break;
+                    }
+                    
+                    this.updateFlowStep(step, 'completed');
+                    this.currentStep++;
+                    
+                    setTimeout(() => this.executeNextStep(), 1000);
+                    
+                } catch (error) {
+                    this.log(`❌ Step ${step} failed: ${error.message}`, 'error');
+                    this.updateFlowStep(step, 'failed');
+                }
+            }
+
+            async testOAuthFunctions() {
+                this.log('🧪 Testing OAuth function access...', 'info');
+                
+                try {
+                    // Test if eBay OAuth service is available
+                    if (typeof window.ebayOAuth === 'undefined') {
+                        throw new Error('eBay OAuth service not found');
+                    }
+                    
+                    // Test basic methods
+                    const methods = ['isAuthenticated', 'getValidAccessToken', 'initiateOAuthFlow'];
+                    for (const method of methods) {
+                        if (typeof window.ebayOAuth[method] !== 'function') {
+                            throw new Error(`Method ${method} not found`);
+                        }
+                    }
+                    
+                    this.updateTestStatus('functions', 'success', '✅ All functions accessible');
+                    this.log('✅ OAuth functions test passed', 'success');
+                    
+                } catch (error) {
+                    this.updateTestStatus('functions', 'error', '❌ ' + error.message);
+                    this.log(`❌ OAuth functions test failed: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            async testAuthUrl() {
+                this.log('🔗 Testing auth URL generation...', 'info');
+                
+                try {
+                    const response = await fetch('/.netlify/functions/ebay-oauth?action=get-auth-url');
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (!data.authUrl) {
+                        throw new Error('No auth URL in response');
+                    }
+                    
+                    // Validate URL structure
+                    const url = new URL(data.authUrl);
+                    if (!url.searchParams.get('client_id')) {
+                        throw new Error('Missing client_id in auth URL');
+                    }
+                    
+                    this.updateTestStatus('auth-url', 'success', '✅ Valid auth URL generated');
+                    this.log(`✅ Auth URL test passed: ${data.authUrl.substring(0, 50)}...`, 'success');
+                    
+                } catch (error) {
+                    this.updateTestStatus('auth-url', 'error', '❌ ' + error.message);
+                    this.log(`❌ Auth URL test failed: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            async testPopupBlocking() {
+                this.log('🪟 Testing popup blocking...', 'info');
+                
+                try {
+                    // Test popup capability
+                    const testPopup = window.open('', 'test-popup', 'width=1,height=1');
+                    
+                    if (!testPopup) {
+                        throw new Error('Popup blocked by browser');
+                    }
+                    
+                    testPopup.close();
+                    
+                    this.updateTestStatus('popup', 'success', '✅ Popups allowed');
+                    this.log('✅ Popup test passed', 'success');
+                    
+                } catch (error) {
+                    this.updateTestStatus('popup', 'error', '❌ ' + error.message);
+                    this.log(`❌ Popup test failed: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            async testMessagePassing() {
+                this.log('📨 Testing message passing...', 'info');
+                
+                try {
+                    // Create a test popup and try message passing
+                    const testPopup = window.open('data:text/html,<script>window.opener.postMessage({test: true, timestamp: Date.now()}, "*"); window.close();</script>', 'test-messages');
+                    
+                    return new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => {
+                            reject(new Error('Message passing timeout'));
+                        }, 5000);
+                        
+                        const handleMessage = (e) => {
+                            if (e.data && e.data.test) {
+                                clearTimeout(timeout);
+                                window.removeEventListener('message', handleMessage);
+                                
+                                this.updateTestStatus('messages', 'success', '✅ Messages working');
+                                this.log('✅ Message passing test passed', 'success');
+                                resolve();
+                            }
+                        };
+                        
+                        window.addEventListener('message', handleMessage);
+                    });
+                    
+                } catch (error) {
+                    this.updateTestStatus('messages', 'error', '❌ ' + error.message);
+                    this.log(`❌ Message passing test failed: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            async testLocalStorage() {
+                this.log('💾 Testing localStorage...', 'info');
+                
+                try {
+                    // Test localStorage read/write
+                    const testKey = 'oauth-debugger-test';
+                    const testValue = 'test-' + Date.now();
+                    
+                    localStorage.setItem(testKey, testValue);
+                    const retrieved = localStorage.getItem(testKey);
+                    
+                    if (retrieved !== testValue) {
+                        throw new Error('localStorage read/write failed');
+                    }
+                    
+                    localStorage.removeItem(testKey);
+                    
+                    // Check for existing eBay tokens
+                    const ebayKeys = Object.keys(localStorage).filter(key => key.includes('ebay'));
+                    
+                    this.updateTestStatus('storage', 'success', `✅ Storage OK (${ebayKeys.length} eBay keys)`);
+                    this.log(`✅ localStorage test passed (${ebayKeys.length} eBay keys found)`, 'success');
+                    
+                } catch (error) {
+                    this.updateTestStatus('storage', 'error', '❌ ' + error.message);
+                    this.log(`❌ localStorage test failed: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            async testTokenExchange() {
+                this.log('🔄 Testing token exchange endpoint...', 'info');
+                
+                try {
+                    const response = await fetch('/.netlify/functions/ebay-oauth', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'exchange-code',
+                            code: 'test-code',
+                            redirect_uri: 'test-uri'
+                        })
+                    });
+                    
+                    // We expect this to fail with invalid code, but endpoint should be accessible
+                    const data = await response.json();
+                    
+                    if (response.status === 400 && data.error) {
+                        // Expected failure due to invalid test code
+                        this.updateTestStatus('exchange', 'success', '✅ Endpoint accessible');
+                        this.log('✅ Token exchange endpoint test passed (expected auth failure)', 'success');
+                    } else if (response.ok) {
+                        this.updateTestStatus('exchange', 'success', '✅ Endpoint working');
+                        this.log('✅ Token exchange endpoint test passed', 'success');
+                    } else {
+                        throw new Error(`Unexpected response: ${response.status}`);
+                    }
+                    
+                } catch (error) {
+                    this.updateTestStatus('exchange', 'error', '❌ ' + error.message);
+                    this.log(`❌ Token exchange test failed: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            async attemptOAuthFlow() {
+                this.log('🔗 Attempting real OAuth flow...', 'info');
+                
+                try {
+                    if (typeof window.ebayOAuth === 'undefined') {
+                        // Try to load from globals or create mock
+                        this.log('⚠️ eBay OAuth service not found, creating test instance', 'warning');
+                        await this.createTestOAuthService();
+                    }
+                    
+                    this.updateFlowStep('popup', 'active');
+                    
+                    // Start OAuth flow
+                    await window.ebayOAuth.initiateOAuthFlow();
+                    
+                    this.log('🔗 OAuth flow initiated successfully', 'success');
+                    
+                } catch (error) {
+                    this.log(`❌ OAuth flow failed: ${error.message}`, 'error');
+                    this.updateFlowStep('popup', 'failed');
+                    throw error;
+                }
+            }
+
+            async createTestOAuthService() {
+                // Create a minimal OAuth service for testing
+                window.ebayOAuth = {
+                    async initiateOAuthFlow() {
+                        const response = await fetch('/.netlify/functions/ebay-oauth?action=get-auth-url');
+                        const data = await response.json();
+                        
+                        if (!data.authUrl) {
+                            throw new Error('Failed to get auth URL');
+                        }
+                        
+                        const popup = window.open(data.authUrl, 'ebay-oauth-test', 'width=600,height=700');
+                        
+                        if (!popup) {
+                            throw new Error('Popup blocked');
+                        }
+                        
+                        return new Promise((resolve, reject) => {
+                            const checkClosed = setInterval(() => {
+                                if (popup.closed) {
+                                    clearInterval(checkClosed);
+                                    resolve();
+                                }
+                            }, 1000);
+                            
+                            setTimeout(() => {
+                                clearInterval(checkClosed);
+                                if (!popup.closed) popup.close();
+                                resolve();
+                            }, 30000);
+                        });
+                    },
+                    
+                    isAuthenticated() {
+                        return !!(localStorage.getItem('ebay_oauth_tokens') || localStorage.getItem('ebay_manual_token'));
+                    },
+                    
+                    async getValidAccessToken() {
+                        const tokens = localStorage.getItem('ebay_oauth_tokens');
+                        if (tokens) {
+                            const parsed = JSON.parse(tokens);
+                            return parsed.access_token;
+                        }
+                        return localStorage.getItem('ebay_manual_token');
+                    }
+                };
+            }
+
+            async exchangeManualCode() {
+                const code = document.getElementById('authCode').value.trim();
+                const redirectUri = document.getElementById('redirectUri').value.trim();
+                
+                if (!code) {
+                    this.showAlert('Please enter an authorization code', 'warning');
+                    return;
+                }
+                
+                this.log(`🔄 Exchanging manual code: ${code.substring(0, 20)}...`, 'info');
+                
+                try {
+                    const response = await fetch('/.netlify/functions/ebay-oauth', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'exchange-code',
+                            code: code,
+                            redirect_uri: redirectUri
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || `HTTP ${response.status}`);
+                    }
+                    
+                    const tokens = await response.json();
+                    
+                    // Store tokens
+                    localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokens));
+                    localStorage.setItem('ebay_manual_token', tokens.access_token);
+                    
+                    this.log('✅ Manual token exchange successful!', 'success');
+                    this.showAlert('Token exchange successful!', 'success');
+                    this.refreshStatus();
+                    this.updateFlowStep('tokens', 'completed');
+                    
+                    // Clear the input
+                    document.getElementById('authCode').value = '';
+                    
+                } catch (error) {
+                    this.log(`❌ Manual token exchange failed: ${error.message}`, 'error');
+                    this.showAlert(`Token exchange failed: ${error.message}`, 'danger');
+                }
+            }
+
+            refreshStatus() {
+                // Check authentication status
+                const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+                const manualToken = localStorage.getItem('ebay_manual_token');
+                const oauthState = localStorage.getItem('ebay_oauth_state');
+                const ebayKeys = Object.keys(localStorage).filter(key => key.includes('ebay'));
+                
+                // Update auth status
+                const isAuthenticated = !!(oauthTokens || manualToken);
+                document.getElementById('authStatus').textContent = isAuthenticated ? 'Authenticated' : 'Not Authenticated';
+                document.getElementById('authStatus').style.color = isAuthenticated ? '#28a745' : '#dc3545';
+                
+                // Parse OAuth tokens if available
+                let parsedTokens = null;
+                if (oauthTokens) {
+                    try {
+                        parsedTokens = JSON.parse(oauthTokens);
+                    } catch (e) {
+                        this.log('⚠️ Failed to parse OAuth tokens', 'warning');
+                    }
+                }
+                
+                // Update token status
+                document.getElementById('accessTokenStatus').textContent = 
+                    parsedTokens?.access_token ? `Present (${parsedTokens.access_token.length} chars)` : 
+                    manualToken ? `Manual (${manualToken.length} chars)` : 'Not found';
+                    
+                document.getElementById('refreshTokenStatus').textContent = 
+                    parsedTokens?.refresh_token ? `Present (${parsedTokens.refresh_token.length} chars)` : 'Not found';
+                    
+                document.getElementById('tokenExpiry').textContent = 
+                    parsedTokens?.expires_at ? new Date(parsedTokens.expires_at).toLocaleString() : 'N/A';
+                
+                // Update storage info
+                document.getElementById('oauthTokensCount').textContent = oauthTokens ? '1 set' : '0 sets';
+                document.getElementById('manualTokenPresent').textContent = manualToken ? 'Yes' : 'No';
+                document.getElementById('oauthState').textContent = oauthState || 'None';
+                document.getElementById('ebayKeysCount').textContent = ebayKeys.length;
+                
+                // Store current token data
+                this.tokenData = {
+                    oauth: parsedTokens,
+                    manual: manualToken,
+                    state: oauthState,
+                    ebayKeys: ebayKeys
+                };
+                
+                this.log(`📊 Status refreshed: ${isAuthenticated ? 'Authenticated' : 'Not authenticated'} (${ebayKeys.length} eBay keys)`, 'info');
+            }
+
+            showTokens() {
+                const display = document.getElementById('tokenDisplay');
+                
+                if (!this.tokenData || (!this.tokenData.oauth && !this.tokenData.manual)) {
+                    display.textContent = 'No tokens found';
+                    display.className = 'token-display';
+                    return;
+                }
+                
+                let content = '';
+                
+                if (this.tokenData.oauth) {
+                    content += `OAuth Tokens:\n${JSON.stringify(this.tokenData.oauth, null, 2)}\n\n`;
+                }
+                
+                if (this.tokenData.manual) {
+                    content += `Manual Token:\n${this.tokenData.manual}\n\n`;
+                }
+                
+                if (this.tokenData.ebayKeys.length > 0) {
+                    content += `All eBay Keys:\n${this.tokenData.ebayKeys.join('\n')}`;
+                }
+                
+                display.textContent = content;
+                display.className = 'token-display valid';
+            }
+
+            hideTokens() {
+                const display = document.getElementById('tokenDisplay');
+                display.textContent = 'Tokens hidden for security';
+                display.className = 'token-display';
+            }
+
+            validateTokens() {
+                if (!this.tokenData || (!this.tokenData.oauth && !this.tokenData.manual)) {
+                    this.showAlert('No tokens to validate', 'warning');
+                    return;
+                }
+                
+                let isValid = true;
+                let issues = [];
+                
+                if (this.tokenData.oauth) {
+                    if (!this.tokenData.oauth.access_token) {
+                        issues.push('Missing access token');
+                        isValid = false;
+                    }
+                    
+                    if (this.tokenData.oauth.expires_at && Date.now() >= this.tokenData.oauth.expires_at) {
+                        issues.push('Token expired');
+                        isValid = false;
+                    }
+                    
+                    if (!this.tokenData.oauth.token_type || this.tokenData.oauth.token_type !== 'Bearer') {
+                        issues.push('Invalid token type');
+                        isValid = false;
+                    }
+                }
+                
+                const display = document.getElementById('tokenDisplay');
+                if (isValid) {
+                    display.className = 'token-display valid';
+                    this.showAlert('Tokens are valid!', 'success');
+                    this.log('✅ Token validation passed', 'success');
+                } else {
+                    display.className = 'token-display invalid';
+                    this.showAlert(`Token validation failed: ${issues.join(', ')}`, 'danger');
+                    this.log(`❌ Token validation failed: ${issues.join(', ')}`, 'error');
+                }
+            }
+
+            clearTokens() {
+                if (!confirm('Are you sure you want to clear all eBay tokens?')) {
+                    return;
+                }
+                
+                const ebayKeys = Object.keys(localStorage).filter(key => key.includes('ebay'));
+                ebayKeys.forEach(key => localStorage.removeItem(key));
+                
+                this.log(`🗑️ Cleared ${ebayKeys.length} eBay tokens`, 'info');
+                this.showAlert(`Cleared ${ebayKeys.length} tokens`, 'info');
+                this.refreshStatus();
+                
+                // Reset flow
+                this.steps.forEach(step => {
+                    this.updateFlowStep(step, 'pending');
+                });
+                this.updateProgress(0);
+            }
+
+            clearAll() {
+                this.clearTokens();
+                this.clearConsole();
+                this.networkRequests = [];
+                this.updateNetworkStats();
+                
+                // Reset all test statuses
+                ['functions', 'auth-url', 'popup', 'messages', 'storage', 'exchange'].forEach(test => {
+                    this.updateTestStatus(test, 'waiting', '⏳ Waiting');
+                });
+                
+                this.log('🧹 All data cleared', 'info');
+            }
+
+            startNetworkMonitoring() {
+                this.isMonitoring = true;
+                this.log('📡 Network monitoring started', 'info');
+                this.showAlert('Network monitoring started', 'info');
+            }
+
+            stopNetworkMonitoring() {
+                this.isMonitoring = false;
+                this.log('⏹️ Network monitoring stopped', 'info');
+            }
+
+            toggleNetworkMonitoring() {
+                if (this.isMonitoring) {
+                    this.stopNetworkMonitoring();
+                } else {
+                    this.startNetworkMonitoring();
+                }
+            }
+
+            updateNetworkStats() {
+                const authUrlRequests = this.networkRequests.filter(r => 
+                    r.type === 'request' && r.url.includes('get-auth-url')).length;
+                const tokenExchangeRequests = this.networkRequests.filter(r => 
+                    r.type === 'request' && r.url.includes('exchange-code')).length;
+                
+                const lastRequest = this.networkRequests.filter(r => r.type === 'request').pop();
+                const lastResponse = this.networkRequests.filter(r => r.type === 'response').pop();
+                
+                document.getElementById('authUrlRequests').textContent = authUrlRequests;
+                document.getElementById('tokenExchangeRequests').textContent = tokenExchangeRequests;
+                document.getElementById('lastRequestTime').textContent = 
+                    lastRequest ? new Date(lastRequest.timestamp).toLocaleTimeString() : 'None';
+                document.getElementById('lastResponseStatus').textContent = 
+                    lastResponse ? `${lastResponse.status} ${lastResponse.statusText}` : 'None';
+            }
+
+            updateFlowStep(step, status) {
+                const stepElement = document.querySelector(`[data-step="${step}"]`);
+                if (stepElement) {
+                    stepElement.className = `flow-step ${status}`;
+                }
+                
+                // Update progress
+                const completedSteps = document.querySelectorAll('.flow-step.completed').length;
+                const totalSteps = this.steps.length;
+                this.updateProgress((completedSteps / totalSteps) * 100);
+            }
+
+            updateCurrentStepAsFailed() {
+                if (this.currentStep < this.steps.length) {
+                    this.updateFlowStep(this.steps[this.currentStep], 'failed');
+                }
+            }
+
+            updateProgress(percentage) {
+                document.getElementById('flowProgress').style.width = `${percentage}%`;
+            }
+
+            updateTestStatus(testName, status, message) {
+                const statusElement = document.getElementById(`status-${testName}`);
+                if (statusElement) {
+                    const statusClasses = {
+                        'waiting': 'status-waiting',
+                        'running': 'status-running',
+                        'success': 'status-success',
+                        'error': 'status-error',
+                        'info': 'status-info'
+                    };
+                    
+                    statusElement.innerHTML = `<span class="status-indicator ${statusClasses[status]}">${message}</span>`;
+                }
+            }
+
+            log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const logEntry = { timestamp, message, type };
+                this.logs.push(logEntry);
+                
+                const console = document.getElementById('debugConsole');
+                const colors = {
+                    info: '#e2e8f0',
+                    success: '#68d391',
+                    error: '#fc8181',
+                    warning: '#f6e05e'
+                };
+                
+                console.innerHTML += `<span style="color: ${colors[type]};">[${timestamp}] ${message}</span>\n`;
+                console.scrollTop = console.scrollHeight;
+            }
+
+            clearConsole() {
+                document.getElementById('debugConsole').innerHTML = 'Console cleared.\n';
+                this.logs = [];
+            }
+
+            exportLogs() {
+                const logText = this.logs.map(log => `[${log.timestamp}] ${log.type.toUpperCase()}: ${log.message}`).join('\n');
+                const blob = new Blob([logText], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `oauth-debug-logs-${new Date().toISOString().split('T')[0]}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            showAlert(message, type = 'info') {
+                const alertsContainer = document.getElementById('alertsContainer');
+                const alertId = 'alert-' + Date.now();
+                
+                const alertColors = {
+                    info: 'alert-info',
+                    success: 'alert-success',
+                    warning: 'alert-warning',
+                    danger: 'alert-danger'
+                };
+                
+                const alertHtml = `
+                    <div id="${alertId}" class="alert ${alertColors[type]}" style="margin-bottom: 10px;">
+                        <strong>${type.charAt(0).toUpperCase() + type.slice(1)}:</strong> ${message}
+                        <button onclick="document.getElementById('${alertId}').remove()" style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">&times;</button>
+                    </div>
+                `;
+                
+                alertsContainer.insertAdjacentHTML('beforeend', alertHtml);
+                
+                // Auto-remove after 5 seconds
+                setTimeout(() => {
+                    const alertElement = document.getElementById(alertId);
+                    if (alertElement) {
+                        alertElement.remove();
+                    }
+                }, 5000);
+            }
+        }
+
+        // Global functions for button events
+        window.testOAuthFunctions = () => window.oauthDebugger.testOAuthFunctions();
+        window.testAuthUrl = () => window.oauthDebugger.testAuthUrl();
+        window.testPopupBlocking = () => window.oauthDebugger.testPopupBlocking();
+        window.testMessagePassing = () => window.oauthDebugger.testMessagePassing();
+        window.testLocalStorage = () => window.oauthDebugger.testLocalStorage();
+        window.testTokenExchange = () => window.oauthDebugger.testTokenExchange();
+        window.exchangeManualCode = () => window.oauthDebugger.exchangeManualCode();
+        window.refreshStatus = () => window.oauthDebugger.refreshStatus();
+        window.clearTokens = () => window.oauthDebugger.clearTokens();
+        window.showTokens = () => window.oauthDebugger.showTokens();
+        window.hideTokens = () => window.oauthDebugger.hideTokens();
+        window.validateTokens = () => window.oauthDebugger.validateTokens();
+        window.clearConsole = () => window.oauthDebugger.clearConsole();
+        window.exportLogs = () => window.oauthDebugger.exportLogs();
+        window.startNetworkMonitoring = () => window.oauthDebugger.startNetworkMonitoring();
+        window.stopNetworkMonitoring = () => window.oauthDebugger.stopNetworkMonitoring();
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            window.oauthDebugger = new OAuthDebugger();
+            console.log('🔍 OAuth Debugger initialized and ready!');
+        });
+    </script>
+</body>
+</html>

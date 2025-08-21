@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manual eBay OAuth</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .step {
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .step h2 {
+            color: #007bff;
+            margin-top: 0;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            width: 100%;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #218838;
+        }
+        .auth-url {
+            background: #343a40;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            word-break: break-all;
+            font-family: monospace;
+            margin: 15px 0;
+            cursor: pointer;
+        }
+        .auth-url:hover {
+            background: #495057;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .token-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Manual eBay OAuth Authentication</h1>
+        
+        <div class="status info">
+            This bypasses the app's OAuth flow to avoid crashes
+        </div>
+
+        <div class="step">
+            <h2>Step 1: Generate Auth URL</h2>
+            <button onclick="generateAuthUrl()">🔗 Generate eBay Auth URL</button>
+            <div id="authUrlContainer"></div>
+        </div>
+
+        <div class="step">
+            <h2>Step 2: Check Current Tokens</h2>
+            <button onclick="checkTokens()">🔍 Check Token Status</button>
+            <div id="tokenStatus"></div>
+        </div>
+
+        <div class="step">
+            <h2>Step 3: Manual Token Entry (Emergency)</h2>
+            <p>If automatic OAuth fails, paste your token here:</p>
+            <textarea id="manualToken" placeholder="Paste access token here..." style="width: 100%; height: 100px;"></textarea>
+            <button onclick="saveManualToken()">💾 Save Manual Token</button>
+        </div>
+
+        <div id="statusMessage"></div>
+    </div>
+
+    <script>
+        async function generateAuthUrl() {
+            const container = document.getElementById('authUrlContainer');
+            const status = document.getElementById('statusMessage');
+            
+            container.innerHTML = '<div class="status info">Generating auth URL...</div>';
+            
+            try {
+                // Use GET request with query parameter for better compatibility
+                const response = await fetch('/.netlify/functions/simple-ebay-oauth?action=generate-auth-url', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('Auth URL response status:', response.status);
+                const data = await response.json();
+                console.log('Auth URL response data:', data);
+                
+                if (data.success && data.authUrl) {
+                    container.innerHTML = `
+                        <div class="status success">✅ Auth URL Generated!</div>
+                        <div class="auth-url" onclick="window.open('${data.authUrl}', '_self')" title="Click to authenticate">
+                            ${data.authUrl}
+                        </div>
+                        <button onclick="window.open('${data.authUrl}', '_self')">🚀 Go to eBay Auth Page</button>
+                        <p><small>Click the URL or button above to authenticate with eBay</small></p>
+                    `;
+                    
+                    // Store the state for verification
+                    const urlParams = new URL(data.authUrl).searchParams;
+                    const state = urlParams.get('state');
+                    if (state) {
+                        localStorage.setItem('ebay_oauth_state', state);
+                        console.log('OAuth state stored:', state);
+                    }
+                } else {
+                    container.innerHTML = `<div class="status error">❌ Failed to generate auth URL: ${data.error || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+        
+        function checkTokens() {
+            const status = document.getElementById('tokenStatus');
+            const tokens = localStorage.getItem('ebay_oauth_tokens');
+            const accessToken = localStorage.getItem('easyflip_ebay_access_token');
+            const scope = localStorage.getItem('easyflip_ebay_token_scope');
+            
+            let html = '<h3>Current Token Status:</h3>';
+            
+            if (tokens) {
+                try {
+                    const parsed = JSON.parse(tokens);
+                    html += '<div class="status success">✅ OAuth tokens found</div>';
+                    html += '<div class="token-display">';
+                    html += `Access Token: ${parsed.access_token ? parsed.access_token.substring(0, 50) + '...' : 'None'}<br>`;
+                    html += `Has Refresh Token: ${!!parsed.refresh_token}<br>`;
+                    html += `Has Scope: ${!!parsed.scope}<br>`;
+                    if (parsed.scope) {
+                        html += `Scope includes sell.account: ${parsed.scope.includes('sell.account') ? '✅' : '❌'}<br>`;
+                    }
+                    html += '</div>';
+                } catch (e) {
+                    html += '<div class="status error">❌ Token data is corrupted</div>';
+                }
+            } else if (accessToken) {
+                html += '<div class="status info">Found individual access token</div>';
+                html += '<div class="token-display">';
+                html += `Access Token: ${accessToken.substring(0, 50)}...<br>`;
+                html += `Token Length: ${accessToken.length} characters<br>`;
+                if (scope) {
+                    html += `Scope: ${scope}<br>`;
+                    html += `Has sell.account: ${scope.includes('sell.account') ? '✅' : '❌'}<br>`;
+                }
+                html += '</div>';
+            } else {
+                html += '<div class="status error">❌ No tokens found</div>';
+                html += '<p>You need to authenticate with eBay first</p>';
+            }
+            
+            status.innerHTML = html;
+        }
+        
+        function saveManualToken() {
+            const token = document.getElementById('manualToken').value.trim();
+            const status = document.getElementById('statusMessage');
+            
+            if (!token) {
+                status.innerHTML = '<div class="status error">❌ Please enter a token</div>';
+                return;
+            }
+            
+            // Save token in all formats
+            const tokenData = {
+                access_token: token,
+                refresh_token: '',
+                expires_in: 7200,
+                expires_at: Date.now() + (7200 * 1000),
+                token_type: 'Bearer',
+                scope: 'https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
+            };
+            
+            localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+            localStorage.setItem('easyflip_ebay_access_token', token);
+            localStorage.setItem('easyflip_ebay_token_scope', tokenData.scope);
+            localStorage.setItem('easyflip_ebay_token_expiry', String(tokenData.expires_at));
+            
+            status.innerHTML = '<div class="status success">✅ Manual token saved successfully!</div>';
+            
+            // Check tokens after saving
+            setTimeout(checkTokens, 500);
+        }
+        
+        // Check for OAuth callback parameters
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            
+            if (code) {
+                const status = document.getElementById('statusMessage');
+                status.innerHTML = '<div class="status success">✅ OAuth callback detected! Processing...</div>';
+                
+                // The callback script should handle this, but let's also store it
+                console.log('OAuth callback received:', { code, state });
+                
+                // Check if tokens were stored
+                setTimeout(() => {
+                    checkTokens();
+                    const tokens = localStorage.getItem('ebay_oauth_tokens');
+                    if (tokens) {
+                        status.innerHTML = '<div class="status success">✅ Authentication successful! Tokens stored.</div>';
+                    } else {
+                        status.innerHTML = '<div class="status error">❌ Tokens not stored. Check the callback page.</div>';
+                    }
+                }, 2000);
+            }
+            
+            // Auto-check tokens on load
+            checkTokens();
+        };
+    </script>
+</body>
+</html>
