@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Exchange Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007cba;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #005a87;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .response {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .log-entry {
+            padding: 5px;
+            margin: 2px 0;
+            border-left: 3px solid #007cba;
+            background-color: #f8f9fa;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .info { border-left-color: #007cba; }
+        .warn { border-left-color: #ffc107; }
+        .error-log { border-left-color: #dc3545; }
+        .success-log { border-left-color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Token Exchange Testing Tool</h1>
+        <p>This tool helps isolate and test the OAuth token exchange process independently.</p>
+
+        <!-- Manual Token Exchange Section -->
+        <div class="section">
+            <h3>1. Manual Token Exchange Test</h3>
+            <p>Enter an authorization code manually to test the token exchange endpoint:</p>
+            
+            <label for="authCode">Authorization Code:</label>
+            <input type="text" id="authCode" placeholder="Enter authorization code here...">
+            
+            <label for="state">State (optional):</label>
+            <input type="text" id="state" placeholder="Enter state parameter if available...">
+            
+            <button id="testExchange" onclick="testTokenExchange()">Test Token Exchange</button>
+            
+            <h4>Response:</h4>
+            <div id="exchangeResponse" class="response"></div>
+        </div>
+
+        <!-- Token Storage Test Section -->
+        <div class="section">
+            <h3>2. Token Storage Test</h3>
+            <p>Test localStorage functionality for token storage:</p>
+            
+            <button onclick="testLocalStorage()">Test localStorage Access</button>
+            <button onclick="clearTokens()">Clear Stored Tokens</button>
+            <button onclick="showStoredTokens()">Show Stored Tokens</button>
+            
+            <h4>Storage Test Results:</h4>
+            <div id="storageResponse" class="response"></div>
+        </div>
+
+        <!-- Environment Information Section -->
+        <div class="section">
+            <h3>3. Environment Information</h3>
+            <button onclick="showEnvironmentInfo()">Show Environment Details</button>
+            
+            <h4>Environment Details:</h4>
+            <div id="envResponse" class="response"></div>
+        </div>
+
+        <!-- OAuth Flow Simulation Section -->
+        <div class="section">
+            <h3>4. OAuth Flow Simulation</h3>
+            <p>Simulate the complete OAuth flow:</p>
+            
+            <button onclick="startOAuthFlow()">Start OAuth Flow</button>
+            <button onclick="simulateCallback()">Simulate Callback Processing</button>
+            
+            <h4>Flow Results:</h4>
+            <div id="flowResponse" class="response"></div>
+        </div>
+
+        <!-- Debug Log Section -->
+        <div class="section">
+            <h3>5. Debug Log</h3>
+            <button onclick="clearLog()">Clear Log</button>
+            <div id="debugLog"></div>
+        </div>
+    </div>
+
+    <script>
+        // Debug logging function
+        function logDebug(message, type = 'info') {
+            const log = document.getElementById('debugLog');
+            const timestamp = new Date().toISOString().substr(11, 12);
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('debugLog').innerHTML = '';
+        }
+
+        // Test token exchange endpoint
+        async function testTokenExchange() {
+            const authCode = document.getElementById('authCode').value.trim();
+            const state = document.getElementById('state').value.trim();
+            const responseDiv = document.getElementById('exchangeResponse');
+            const button = document.getElementById('testExchange');
+
+            if (!authCode) {
+                responseDiv.textContent = 'Please enter an authorization code';
+                responseDiv.className = 'response error';
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = 'Testing...';
+            responseDiv.textContent = 'Sending request...';
+            responseDiv.className = 'response';
+
+            logDebug(`Starting token exchange test with code: ${authCode.substring(0, 10)}...`);
+
+            try {
+                const requestBody = {
+                    code: authCode,
+                    ...(state && { state })
+                };
+
+                logDebug(`Request URL: ${window.location.origin}/api/auth/callback`);
+                logDebug(`Request body: ${JSON.stringify(requestBody, null, 2)}`);
+
+                const response = await fetch('/api/auth/callback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody),
+                    credentials: 'same-origin'
+                });
+
+                logDebug(`Response status: ${response.status} ${response.statusText}`);
+                logDebug(`Response headers: ${JSON.stringify([...response.headers.entries()])}`);
+
+                const responseText = await response.text();
+                logDebug(`Raw response: ${responseText}`);
+
+                let responseData;
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (e) {
+                    responseData = { raw: responseText, parseError: e.message };
+                }
+
+                const formattedResponse = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: Object.fromEntries(response.headers.entries()),
+                    data: responseData
+                };
+
+                responseDiv.textContent = JSON.stringify(formattedResponse, null, 2);
+                responseDiv.className = response.ok ? 'response success' : 'response error';
+
+                if (response.ok && responseData.accessToken) {
+                    logDebug('Token exchange successful, attempting to store tokens', 'success');
+                    await testTokenStorage(responseData);
+                } else {
+                    logDebug(`Token exchange failed: ${JSON.stringify(responseData)}`, 'error');
+                }
+
+            } catch (error) {
+                const errorMessage = `Network error: ${error.message}`;
+                responseDiv.textContent = errorMessage;
+                responseDiv.className = 'response error';
+                logDebug(errorMessage, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Test Token Exchange';
+            }
+        }
+
+        // Test token storage
+        async function testTokenStorage(tokens) {
+            try {
+                if (tokens && tokens.accessToken) {
+                    localStorage.setItem('accessToken', tokens.accessToken);
+                    localStorage.setItem('refreshToken', tokens.refreshToken || '');
+                    localStorage.setItem('tokenExpiry', tokens.expiresAt || '');
+                    logDebug('Tokens stored successfully in localStorage', 'success');
+                } else {
+                    logDebug('No tokens provided for storage', 'warn');
+                }
+            } catch (error) {
+                logDebug(`Failed to store tokens: ${error.message}`, 'error');
+            }
+        }
+
+        // Test localStorage functionality
+        function testLocalStorage() {
+            const responseDiv = document.getElementById('storageResponse');
+            
+            try {
+                logDebug('Testing localStorage functionality...');
+                
+                // Test write
+                const testKey = 'oauth_test_' + Date.now();
+                const testValue = 'test_value_' + Math.random();
+                localStorage.setItem(testKey, testValue);
+                logDebug(`Wrote test value: ${testKey} = ${testValue}`);
+                
+                // Test read
+                const readValue = localStorage.getItem(testKey);
+                const writeReadMatch = readValue === testValue;
+                logDebug(`Read test value: ${readValue}, Match: ${writeReadMatch}`);
+                
+                // Test delete
+                localStorage.removeItem(testKey);
+                const deletedValue = localStorage.getItem(testKey);
+                const deletedSuccessfully = deletedValue === null;
+                logDebug(`After deletion: ${deletedValue}, Deleted: ${deletedSuccessfully}`);
+                
+                const results = {
+                    available: typeof(Storage) !== "undefined",
+                    writeTest: true,
+                    readTest: writeReadMatch,
+                    deleteTest: deletedSuccessfully,
+                    storageLength: localStorage.length,
+                    domain: window.location.hostname,
+                    protocol: window.location.protocol,
+                    isSecure: window.location.protocol === 'https:',
+                    userAgent: navigator.userAgent
+                };
+                
+                responseDiv.textContent = JSON.stringify(results, null, 2);
+                responseDiv.className = 'response success';
+                logDebug('localStorage test completed successfully', 'success');
+                
+            } catch (error) {
+                const errorInfo = {
+                    error: error.message,
+                    stack: error.stack,
+                    name: error.name
+                };
+                responseDiv.textContent = JSON.stringify(errorInfo, null, 2);
+                responseDiv.className = 'response error';
+                logDebug(`localStorage test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Clear stored tokens
+        function clearTokens() {
+            try {
+                const tokenKeys = ['accessToken', 'refreshToken', 'tokenExpiry', 'userProfile'];
+                let clearedCount = 0;
+                
+                tokenKeys.forEach(key => {
+                    if (localStorage.getItem(key)) {
+                        localStorage.removeItem(key);
+                        clearedCount++;
+                    }
+                });
+                
+                const responseDiv = document.getElementById('storageResponse');
+                responseDiv.textContent = `Cleared ${clearedCount} token entries`;
+                responseDiv.className = 'response success';
+                logDebug(`Cleared ${clearedCount} tokens from localStorage`, 'success');
+                
+            } catch (error) {
+                logDebug(`Failed to clear tokens: ${error.message}`, 'error');
+            }
+        }
+
+        // Show stored tokens
+        function showStoredTokens() {
+            const responseDiv = document.getElementById('storageResponse');
+            
+            try {
+                const tokens = {
+                    accessToken: localStorage.getItem('accessToken'),
+                    refreshToken: localStorage.getItem('refreshToken'),
+                    tokenExpiry: localStorage.getItem('tokenExpiry'),
+                    userProfile: localStorage.getItem('userProfile')
+                };
+                
+                // Mask sensitive data for display
+                const maskedTokens = Object.entries(tokens).reduce((acc, [key, value]) => {
+                    if (value) {
+                        acc[key] = key.includes('Token') ? 
+                            value.substring(0, 10) + '...' + value.substring(value.length - 10) :
+                            value;
+                    } else {
+                        acc[key] = null;
+                    }
+                    return acc;
+                }, {});
+                
+                responseDiv.textContent = JSON.stringify(maskedTokens, null, 2);
+                responseDiv.className = 'response';
+                logDebug('Displayed stored tokens (masked)');
+                
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+                responseDiv.className = 'response error';
+                logDebug(`Failed to show tokens: ${error.message}`, 'error');
+            }
+        }
+
+        // Show environment information
+        function showEnvironmentInfo() {
+            const responseDiv = document.getElementById('envResponse');
+            
+            try {
+                const envInfo = {
+                    url: window.location.href,
+                    origin: window.location.origin,
+                    hostname: window.location.hostname,
+                    port: window.location.port,
+                    protocol: window.location.protocol,
+                    pathname: window.location.pathname,
+                    search: window.location.search,
+                    hash: window.location.hash,
+                    userAgent: navigator.userAgent,
+                    cookieEnabled: navigator.cookieEnabled,
+                    language: navigator.language,
+                    onLine: navigator.onLine,
+                    platform: navigator.platform,
+                    referrer: document.referrer,
+                    title: document.title,
+                    readyState: document.readyState,
+                    contentType: document.contentType,
+                    characterSet: document.characterSet,
+                    localStorage: typeof(Storage) !== "undefined",
+                    sessionStorage: typeof(sessionStorage) !== "undefined",
+                    indexedDB: typeof(indexedDB) !== "undefined",
+                    fetch: typeof(fetch) !== "undefined",
+                    isSecureContext: window.isSecureContext,
+                    crossOriginIsolated: window.crossOriginIsolated
+                };
+                
+                responseDiv.textContent = JSON.stringify(envInfo, null, 2);
+                responseDiv.className = 'response';
+                logDebug('Environment information displayed');
+                
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+                responseDiv.className = 'response error';
+                logDebug(`Failed to get environment info: ${error.message}`, 'error');
+            }
+        }
+
+        // Start OAuth flow
+        function startOAuthFlow() {
+            const responseDiv = document.getElementById('flowResponse');
+            
+            try {
+                logDebug('Starting OAuth flow simulation...');
+                
+                // Simulate the OAuth URL construction
+                const clientId = 'your-linkedin-client-id'; // This would be loaded from config
+                const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/callback`);
+                const state = 'oauth_' + Math.random().toString(36).substr(2, 9);
+                const scope = encodeURIComponent('openid profile email');
+                
+                const oauthUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+                    `response_type=code&` +
+                    `client_id=${clientId}&` +
+                    `redirect_uri=${redirectUri}&` +
+                    `state=${state}&` +
+                    `scope=${scope}`;
+                
+                const flowInfo = {
+                    step: 'OAuth URL Generation',
+                    clientId,
+                    redirectUri: decodeURIComponent(redirectUri),
+                    state,
+                    scope: decodeURIComponent(scope),
+                    fullUrl: oauthUrl,
+                    note: 'This URL would normally redirect to LinkedIn for authorization'
+                };
+                
+                responseDiv.textContent = JSON.stringify(flowInfo, null, 2);
+                responseDiv.className = 'response';
+                logDebug('OAuth flow URL generated successfully');
+                
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+                responseDiv.className = 'response error';
+                logDebug(`OAuth flow simulation failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Simulate callback processing
+        function simulateCallback() {
+            const responseDiv = document.getElementById('flowResponse');
+            
+            try {
+                logDebug('Simulating OAuth callback processing...');
+                
+                // Simulate URL parameters that would come from LinkedIn
+                const simulatedParams = {
+                    code: 'simulated_auth_code_' + Math.random().toString(36).substr(2, 20),
+                    state: 'oauth_' + Math.random().toString(36).substr(2, 9)
+                };
+                
+                // Simulate the callback processing steps
+                const callbackSimulation = {
+                    step: 'Callback Processing Simulation',
+                    receivedParams: simulatedParams,
+                    currentUrl: window.location.href,
+                    callbackUrl: `${window.location.origin}/oauth/callback`,
+                    nextSteps: [
+                        '1. Extract code and state from URL parameters',
+                        '2. Validate state parameter',
+                        '3. Exchange code for tokens via POST to /api/auth/callback',
+                        '4. Store tokens in localStorage',
+                        '5. Redirect to dashboard or home page'
+                    ],
+                    note: 'Use the Manual Token Exchange section above to test with a real authorization code'
+                };
+                
+                responseDiv.textContent = JSON.stringify(callbackSimulation, null, 2);
+                responseDiv.className = 'response';
+                logDebug('Callback simulation completed');
+                
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+                responseDiv.className = 'response error';
+                logDebug(`Callback simulation failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            logDebug('Token Exchange Test page loaded', 'success');
+            showEnvironmentInfo();
+        });
+
+        // Log any global errors
+        window.addEventListener('error', function(event) {
+            logDebug(`Global error: ${event.error.message} at ${event.filename}:${event.lineno}`, 'error');
+        });
+
+        // Log unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(event) {
+            logDebug(`Unhandled promise rejection: ${event.reason}`, 'error');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple OAuth Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .token-display {
+            text-align: left;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Simple OAuth Test</h1>
+        <p>This test will help isolate OAuth flow issues by testing each component independently.</p>
+        
+        <div id="status" class="status info">
+            Ready to test OAuth flow
+        </div>
+        
+        <div>
+            <button onclick="startOAuth()">Start eBay OAuth</button>
+            <button onclick="testLocalStorage()">Test localStorage</button>
+            <button onclick="checkTokens()">Check Stored Tokens</button>
+            <button onclick="clearTokens()">Clear Tokens</button>
+        </div>
+        
+        <div id="tokenDisplay" class="token-display" style="display: none;"></div>
+        
+        <div style="margin-top: 30px; text-align: left;">
+            <h3>Test Steps:</h3>
+            <ol>
+                <li>Click "Test localStorage" to verify localStorage works</li>
+                <li>Click "Start eBay OAuth" to begin OAuth flow</li>
+                <li>Complete OAuth on eBay's site</li>
+                <li>You'll be redirected to the callback page</li>
+                <li>Return here to check if tokens were stored</li>
+            </ol>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: left;">
+            <h3>Console Logs:</h3>
+            <div id="consoleLogs" style="background-color: #000; color: #0f0; padding: 10px; border-radius: 4px; font-family: monospace; height: 200px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced logging
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logMessage = `[${timestamp}] ${message}`;
+            console.log(logMessage);
+            
+            const logsDiv = document.getElementById('consoleLogs');
+            const logElement = document.createElement('div');
+            logElement.textContent = logMessage;
+            logElement.style.color = type === 'error' ? '#f00' : type === 'success' ? '#0f0' : '#fff';
+            logsDiv.appendChild(logElement);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        // Monitor localStorage changes
+        function monitorLocalStorage() {
+            log('Starting localStorage monitoring...');
+            
+            const originalSetItem = localStorage.setItem;
+            localStorage.setItem = function(key, value) {
+                log(`localStorage.setItem: ${key} = ${value.substring(0, 100)}...`, 'success');
+                originalSetItem.apply(this, arguments);
+                
+                if (key.includes('token') || key.includes('ebay')) {
+                    updateStatus('Token detected in localStorage!', 'success');
+                    checkTokens();
+                }
+            };
+            
+            log('localStorage monitoring active');
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            log(`Status: ${message}`, type);
+        }
+
+        function startOAuth() {
+            log('Starting OAuth flow...');
+            updateStatus('Redirecting to eBay OAuth...', 'info');
+            
+            // eBay OAuth URL (using environment variables would be better, but keeping it simple)
+            const clientId = 'BeauPres-BeausBol-SBX-0b5dfaf3e-a9b9063c'; // This should match your actual client ID
+            const redirectUri = encodeURIComponent(window.location.origin + '/simple-ebay-callback');
+            const scope = encodeURIComponent('https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.marketing.readonly https://api.ebay.com/oauth/api_scope/sell.marketing https://api.ebay.com/oauth/api_scope/sell.inventory.readonly https://api.ebay.com/oauth/api_scope/sell.inventory');
+            const state = 'simple-test-' + Math.random().toString(36).substring(7);
+            
+            const oauthUrl = `https://auth.sandbox.ebay.com/oauth2/authorize?` +
+                `client_id=${clientId}&` +
+                `response_type=code&` +
+                `redirect_uri=${redirectUri}&` +
+                `scope=${scope}&` +
+                `state=${state}`;
+            
+            log(`OAuth URL: ${oauthUrl}`);
+            log(`Redirect URI: ${decodeURIComponent(redirectUri)}`);
+            
+            // Store state for verification
+            localStorage.setItem('oauth_state', state);
+            log(`Stored OAuth state: ${state}`);
+            
+            // Open OAuth in current window
+            window.location.href = oauthUrl;
+        }
+
+        function testLocalStorage() {
+            log('Testing localStorage functionality...');
+            
+            try {
+                // Test basic localStorage operations
+                const testKey = 'test_' + Date.now();
+                const testValue = 'test_value_' + Math.random();
+                
+                localStorage.setItem(testKey, testValue);
+                const retrieved = localStorage.getItem(testKey);
+                
+                if (retrieved === testValue) {
+                    updateStatus('localStorage test PASSED', 'success');
+                    log('localStorage is working correctly', 'success');
+                } else {
+                    updateStatus('localStorage test FAILED - retrieval mismatch', 'error');
+                    log('localStorage retrieval failed', 'error');
+                }
+                
+                localStorage.removeItem(testKey);
+                log('Test cleanup completed');
+                
+            } catch (error) {
+                updateStatus('localStorage test FAILED - ' + error.message, 'error');
+                log('localStorage error: ' + error.message, 'error');
+            }
+        }
+
+        function checkTokens() {
+            log('Checking for stored tokens...');
+            
+            const tokenDisplay = document.getElementById('tokenDisplay');
+            const tokens = {};
+            let foundTokens = false;
+            
+            // Check for various token keys
+            const possibleKeys = [
+                'access_token',
+                'refresh_token',
+                'ebay_access_token',
+                'ebay_refresh_token',
+                'oauth_token',
+                'oauth_state'
+            ];
+            
+            possibleKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    tokens[key] = value;
+                    foundTokens = true;
+                    log(`Found token: ${key}`, 'success');
+                }
+            });
+            
+            // Check all localStorage keys for anything that might be a token
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('token') || key.includes('ebay') || key.includes('oauth'))) {
+                    if (!tokens[key]) {
+                        tokens[key] = localStorage.getItem(key);
+                        foundTokens = true;
+                        log(`Found additional token: ${key}`, 'success');
+                    }
+                }
+            }
+            
+            if (foundTokens) {
+                updateStatus(`Found ${Object.keys(tokens).length} token(s)`, 'success');
+                tokenDisplay.style.display = 'block';
+                tokenDisplay.textContent = JSON.stringify(tokens, null, 2);
+            } else {
+                updateStatus('No tokens found in localStorage', 'info');
+                tokenDisplay.style.display = 'none';
+                log('No tokens found in localStorage');
+            }
+        }
+
+        function clearTokens() {
+            log('Clearing all tokens...');
+            
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('token') || key.includes('ebay') || key.includes('oauth'))) {
+                    keysToRemove.push(key);
+                }
+            }
+            
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+                log(`Removed: ${key}`);
+            });
+            
+            updateStatus(`Cleared ${keysToRemove.length} token(s)`, 'info');
+            document.getElementById('tokenDisplay').style.display = 'none';
+        }
+
+        // Initialize monitoring when page loads
+        window.addEventListener('load', function() {
+            log('Simple OAuth Test page loaded');
+            monitorLocalStorage();
+            checkTokens(); // Check for existing tokens
+        });
+
+        // Monitor storage events from other windows/tabs
+        window.addEventListener('storage', function(e) {
+            log(`Storage event: ${e.key} changed from ${e.oldValue} to ${e.newValue}`, 'success');
+            if (e.key && (e.key.includes('token') || e.key.includes('ebay'))) {
+                updateStatus('Token change detected from another tab!', 'success');
+                checkTokens();
+            }
+        });
+    </script>
+</body>
+</html>

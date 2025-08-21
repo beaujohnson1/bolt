@@ -5,6 +5,14 @@
 
 const eBayApi = require('ebay-api');
 
+// Load environment variables for local development
+try {
+    require('dotenv').config({ path: '.env.local' });
+} catch (e) {
+    // dotenv not available in production, use Netlify environment variables
+    console.log('Using Netlify environment variables');
+}
+
 exports.handler = async (event, context) => {
     // CORS headers for all responses
     const headers = {

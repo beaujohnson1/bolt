@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Callback Rendering Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { border-color: #28a745; background-color: #d4edda; }
+        .error { border-color: #dc3545; background-color: #f8d7da; }
+        .warning { border-color: #ffc107; background-color: #fff3cd; }
+        .info { border-color: #17a2b8; background-color: #d1ecf1; }
+        
+        button {
+            background-color: #007cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #005a87; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        .code-block {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        
+        .log-entry {
+            padding: 5px;
+            margin: 2px 0;
+            border-left: 3px solid #007cba;
+            background-color: #f8f9fa;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-info { border-left-color: #007cba; }
+        .log-warn { border-left-color: #ffc107; }
+        .log-error { border-left-color: #dc3545; }
+        .log-success { border-left-color: #28a745; }
+        
+        iframe {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-pending { background-color: #ffc107; }
+        .status-success { background-color: #28a745; }
+        .status-error { background-color: #dc3545; }
+        .status-running { background-color: #007cba; animation: pulse 1s infinite; }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OAuth Callback Rendering Test Suite</h1>
+        <p>This tool tests if OAuth callback pages render properly and if there are any JavaScript errors or CORS issues affecting the token exchange process.</p>
+        
+        <!-- Test Status Overview -->
+        <div class="test-section info">
+            <h3>Test Status Overview</h3>
+            <div id="testStatus">
+                <div><span class="status-indicator status-pending"></span>Initial Setup - <span id="status-setup">Pending</span></div>
+                <div><span class="status-indicator status-pending"></span>LocalStorage Test - <span id="status-localstorage">Pending</span></div>
+                <div><span class="status-indicator status-pending"></span>Fetch API Test - <span id="status-fetch">Pending</span></div>
+                <div><span class="status-indicator status-pending"></span>CORS Test - <span id="status-cors">Pending</span></div>
+                <div><span class="status-indicator status-pending"></span>CSP Test - <span id="status-csp">Pending</span></div>
+                <div><span class="status-indicator status-pending"></span>Callback Simulation - <span id="status-callback">Pending</span></div>
+            </div>
+        </div>
+
+        <!-- Manual Callback Simulation -->
+        <div class="test-section">
+            <h3>1. Simulate OAuth Callback URL</h3>
+            <p>Test how the application would handle a real OAuth callback:</p>
+            
+            <label for="callbackUrl">Callback URL with Parameters:</label>
+            <input type="text" id="callbackUrl" style="width: 100%; padding: 8px; margin: 5px 0;" 
+                   placeholder="https://your-domain.com/auth/callback?code=ABC123&state=xyz789" 
+                   value="">
+            
+            <div>
+                <button onclick="simulateCallback()">Simulate Callback</button>
+                <button onclick="generateTestUrl()">Generate Test URL</button>
+                <button onclick="clearResults()">Clear Results</button>
+            </div>
+            
+            <div id="callbackResults" class="code-block" style="display: none;"></div>
+        </div>
+
+        <!-- CORS and CSP Testing -->
+        <div class="test-section">
+            <h3>2. CORS and Security Policy Testing</h3>
+            <button onclick="testCORS()">Test CORS Headers</button>
+            <button onclick="testCSP()">Test Content Security Policy</button>
+            <button onclick="testSecurityHeaders()">Test All Security Headers</button>
+            
+            <div id="corsResults" class="code-block" style="display: none;"></div>
+        </div>
+
+        <!-- JavaScript Execution Test -->
+        <div class="test-section">
+            <h3>3. JavaScript Execution Environment</h3>
+            <button onclick="testJavaScriptExecution()">Test JavaScript Capabilities</button>
+            <button onclick="testModuleLoading()">Test Module Loading</button>
+            <button onclick="testErrorHandling()">Test Error Handling</button>
+            
+            <div id="jsResults" class="code-block" style="display: none;"></div>
+        </div>
+
+        <!-- Token Exchange Endpoint Test -->
+        <div class="test-section">
+            <h3>4. Token Exchange Endpoint Test</h3>
+            <button onclick="testTokenEndpoint()">Test /api/auth/callback Endpoint</button>
+            <button onclick="testNetlifyFunction()">Test Netlify Function</button>
+            <button onclick="testEndpointReachability()">Test Endpoint Reachability</button>
+            
+            <div id="tokenResults" class="code-block" style="display: none;"></div>
+        </div>
+
+        <!-- Real Callback Page Test -->
+        <div class="test-section">
+            <h3>5. Real Callback Page Rendering</h3>
+            <p>Test if the actual callback page loads and renders correctly:</p>
+            <button onclick="loadCallbackPage()">Load Callback Page in IFrame</button>
+            <button onclick="testDirectCallback()">Test Direct Callback Navigation</button>
+            
+            <div id="iframeContainer" style="display: none; margin-top: 10px;">
+                <iframe id="callbackFrame" src="about:blank"></iframe>
+            </div>
+            
+            <div id="renderResults" class="code-block" style="display: none;"></div>
+        </div>
+
+        <!-- Network Monitoring -->
+        <div class="test-section">
+            <h3>6. Network Request Monitoring</h3>
+            <button onclick="startNetworkMonitoring()">Start Monitoring</button>
+            <button onclick="stopNetworkMonitoring()">Stop Monitoring</button>
+            <button onclick="clearNetworkLog()">Clear Log</button>
+            
+            <div id="networkResults" class="code-block" style="display: none;"></div>
+        </div>
+
+        <!-- Debug Log -->
+        <div class="test-section">
+            <h3>7. Debug Log</h3>
+            <button onclick="clearDebugLog()">Clear Log</button>
+            <button onclick="exportResults()">Export Results</button>
+            
+            <div id="debugLog"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let networkMonitoring = false;
+        let originalFetch = window.fetch;
+        let networkRequests = [];
+
+        // Logging functions
+        function logDebug(message, type = 'info') {
+            const log = document.getElementById('debugLog');
+            const timestamp = new Date().toISOString().substr(11, 12);
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function updateTestStatus(testName, status, message = '') {
+            const statusElement = document.getElementById(`status-${testName}`);
+            const indicator = statusElement.parentElement.querySelector('.status-indicator');
+            
+            statusElement.textContent = status + (message ? ` - ${message}` : '');
+            
+            indicator.className = 'status-indicator';
+            if (status === 'Running') indicator.classList.add('status-running');
+            else if (status === 'Passed') indicator.classList.add('status-success');
+            else if (status === 'Failed') indicator.classList.add('status-error');
+            else indicator.classList.add('status-pending');
+        }
+
+        function clearResults() {
+            const resultDivs = ['callbackResults', 'corsResults', 'jsResults', 'tokenResults', 'renderResults', 'networkResults'];
+            resultDivs.forEach(id => {
+                const div = document.getElementById(id);
+                div.style.display = 'none';
+                div.textContent = '';
+            });
+            logDebug('Results cleared', 'info');
+        }
+
+        function clearDebugLog() {
+            document.getElementById('debugLog').innerHTML = '';
+        }
+
+        // 1. Callback Simulation
+        function generateTestUrl() {
+            const baseUrl = window.location.origin;
+            const code = 'test_auth_code_' + Math.random().toString(36).substr(2, 20);
+            const state = 'test_state_' + Math.random().toString(36).substr(2, 10);
+            const testUrl = `${baseUrl}/auth/ebay/callback?code=${code}&state=${state}`;
+            
+            document.getElementById('callbackUrl').value = testUrl;
+            logDebug(`Generated test URL: ${testUrl}`, 'info');
+        }
+
+        async function simulateCallback() {
+            updateTestStatus('callback', 'Running');
+            const callbackUrl = document.getElementById('callbackUrl').value.trim();
+            const resultsDiv = document.getElementById('callbackResults');
+            
+            if (!callbackUrl) {
+                resultsDiv.textContent = 'Please enter a callback URL';
+                resultsDiv.style.display = 'block';
+                updateTestStatus('callback', 'Failed', 'No URL provided');
+                return;
+            }
+
+            try {
+                logDebug(`Simulating callback with URL: ${callbackUrl}`, 'info');
+                
+                // Parse URL parameters
+                const url = new URL(callbackUrl);
+                const params = {};
+                url.searchParams.forEach((value, key) => {
+                    params[key] = value;
+                });
+
+                // Simulate callback processing
+                const simulation = {
+                    url: callbackUrl,
+                    origin: url.origin,
+                    pathname: url.pathname,
+                    parameters: params,
+                    currentOrigin: window.location.origin,
+                    originMatch: url.origin === window.location.origin,
+                    hasCode: !!params.code,
+                    hasState: !!params.state,
+                    timestamp: new Date().toISOString(),
+                    simulation: {
+                        step1: 'Extract parameters from URL',
+                        step2: 'Validate origin and state',
+                        step3: 'Exchange code for tokens',
+                        step4: 'Store tokens in localStorage',
+                        step5: 'Redirect to dashboard',
+                        nextAction: params.code ? 'Would call token exchange endpoint' : 'Missing authorization code'
+                    }
+                };
+
+                resultsDiv.textContent = JSON.stringify(simulation, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                updateTestStatus('callback', 'Passed', 'Simulation completed');
+                logDebug('Callback simulation completed successfully', 'success');
+
+            } catch (error) {
+                resultsDiv.textContent = `Error: ${error.message}`;
+                resultsDiv.style.display = 'block';
+                updateTestStatus('callback', 'Failed', error.message);
+                logDebug(`Callback simulation failed: ${error.message}`, 'error');
+            }
+        }
+
+        // 2. CORS Testing
+        async function testCORS() {
+            updateTestStatus('cors', 'Running');
+            const resultsDiv = document.getElementById('corsResults');
+            
+            try {
+                logDebug('Testing CORS configuration...', 'info');
+                
+                // Test various endpoints for CORS headers
+                const endpoints = [
+                    '/api/auth/callback',
+                    '/.netlify/functions/ebay-oauth',
+                    '/.netlify/functions/simple-ebay-callback'
+                ];
+
+                const corsTests = [];
+
+                for (const endpoint of endpoints) {
+                    try {
+                        const response = await fetch(endpoint, {
+                            method: 'OPTIONS',
+                            headers: {
+                                'Access-Control-Request-Method': 'POST',
+                                'Access-Control-Request-Headers': 'Content-Type',
+                            }
+                        });
+
+                        corsTests.push({
+                            endpoint,
+                            status: response.status,
+                            headers: Object.fromEntries(response.headers.entries()),
+                            corsEnabled: response.headers.has('access-control-allow-origin'),
+                            allowsOrigin: response.headers.get('access-control-allow-origin'),
+                            allowsMethods: response.headers.get('access-control-allow-methods'),
+                            allowsHeaders: response.headers.get('access-control-allow-headers')
+                        });
+
+                    } catch (error) {
+                        corsTests.push({
+                            endpoint,
+                            error: error.message,
+                            status: 'Network Error'
+                        });
+                    }
+                }
+
+                const corsResults = {
+                    currentOrigin: window.location.origin,
+                    testTimestamp: new Date().toISOString(),
+                    endpoints: corsTests,
+                    summary: {
+                        testedEndpoints: endpoints.length,
+                        workingEndpoints: corsTests.filter(t => !t.error).length,
+                        corsEnabledEndpoints: corsTests.filter(t => t.corsEnabled).length
+                    }
+                };
+
+                resultsDiv.textContent = JSON.stringify(corsResults, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                const hasWorkingCors = corsTests.some(t => t.corsEnabled);
+                updateTestStatus('cors', hasWorkingCors ? 'Passed' : 'Failed', 
+                    hasWorkingCors ? 'CORS headers found' : 'No CORS headers detected');
+                logDebug(`CORS test completed: ${hasWorkingCors ? 'PASS' : 'FAIL'}`, hasWorkingCors ? 'success' : 'warn');
+
+            } catch (error) {
+                resultsDiv.textContent = `CORS test error: ${error.message}`;
+                resultsDiv.style.display = 'block';
+                updateTestStatus('cors', 'Failed', error.message);
+                logDebug(`CORS test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCSP() {
+            updateTestStatus('csp', 'Running');
+            const resultsDiv = document.getElementById('corsResults');
+            
+            try {
+                logDebug('Testing Content Security Policy...', 'info');
+                
+                const cspTests = {
+                    scriptsAllowed: true,
+                    inlineScriptsAllowed: true,
+                    fetchAllowed: true,
+                    localStorageAllowed: true,
+                    cspHeader: null,
+                    violations: []
+                };
+
+                // Check if CSP header exists
+                try {
+                    const response = await fetch(window.location.href);
+                    cspTests.cspHeader = response.headers.get('content-security-policy');
+                } catch (error) {
+                    cspTests.fetchError = error.message;
+                }
+
+                // Test script execution
+                try {
+                    eval('1+1');
+                } catch (error) {
+                    cspTests.scriptsAllowed = false;
+                    cspTests.violations.push('Script execution blocked');
+                }
+
+                // Test localStorage
+                try {
+                    localStorage.setItem('csp_test', 'test');
+                    localStorage.removeItem('csp_test');
+                } catch (error) {
+                    cspTests.localStorageAllowed = false;
+                    cspTests.violations.push('localStorage blocked');
+                }
+
+                // Test fetch
+                try {
+                    await fetch('/api/test', { method: 'HEAD' });
+                } catch (error) {
+                    if (error.message.includes('Content Security Policy')) {
+                        cspTests.fetchAllowed = false;
+                        cspTests.violations.push('Fetch blocked by CSP');
+                    }
+                }
+
+                const cspResults = {
+                    cspHeader: cspTests.cspHeader,
+                    tests: cspTests,
+                    recommendation: cspTests.violations.length > 0 ? 
+                        'CSP may be too restrictive for OAuth flow' : 
+                        'CSP appears compatible with OAuth flow'
+                };
+
+                resultsDiv.textContent = JSON.stringify(cspResults, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                const cspOk = cspTests.violations.length === 0;
+                updateTestStatus('csp', cspOk ? 'Passed' : 'Failed', 
+                    cspOk ? 'CSP allows required operations' : `${cspTests.violations.length} violations`);
+                logDebug(`CSP test completed: ${cspOk ? 'PASS' : 'FAIL'}`, cspOk ? 'success' : 'warn');
+
+            } catch (error) {
+                resultsDiv.textContent = `CSP test error: ${error.message}`;
+                resultsDiv.style.display = 'block';
+                updateTestStatus('csp', 'Failed', error.message);
+                logDebug(`CSP test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSecurityHeaders() {
+            try {
+                logDebug('Testing all security headers...', 'info');
+                
+                const response = await fetch(window.location.href);
+                const securityHeaders = {
+                    'content-security-policy': response.headers.get('content-security-policy'),
+                    'x-frame-options': response.headers.get('x-frame-options'),
+                    'x-content-type-options': response.headers.get('x-content-type-options'),
+                    'strict-transport-security': response.headers.get('strict-transport-security'),
+                    'referrer-policy': response.headers.get('referrer-policy'),
+                    'permissions-policy': response.headers.get('permissions-policy'),
+                    'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+                    'access-control-allow-credentials': response.headers.get('access-control-allow-credentials')
+                };
+
+                const resultsDiv = document.getElementById('corsResults');
+                resultsDiv.textContent = JSON.stringify(securityHeaders, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                logDebug('Security headers test completed', 'success');
+
+            } catch (error) {
+                logDebug(`Security headers test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // 3. JavaScript Execution Testing
+        async function testJavaScriptExecution() {
+            updateTestStatus('setup', 'Running');
+            const resultsDiv = document.getElementById('jsResults');
+            
+            try {
+                logDebug('Testing JavaScript execution environment...', 'info');
+                
+                const jsTests = {
+                    basicExecution: true,
+                    asyncAwait: true,
+                    fetch: typeof fetch !== 'undefined',
+                    localStorage: typeof localStorage !== 'undefined',
+                    sessionStorage: typeof sessionStorage !== 'undefined',
+                    location: typeof location !== 'undefined',
+                    history: typeof history !== 'undefined',
+                    urlSearchParams: typeof URLSearchParams !== 'undefined',
+                    promises: typeof Promise !== 'undefined',
+                    jsonParse: true,
+                    errors: []
+                };
+
+                // Test basic execution
+                try {
+                    const test = () => 'test';
+                    jsTests.basicExecution = test() === 'test';
+                } catch (error) {
+                    jsTests.basicExecution = false;
+                    jsTests.errors.push(`Basic execution: ${error.message}`);
+                }
+
+                // Test async/await
+                try {
+                    await (async () => 'async test')();
+                } catch (error) {
+                    jsTests.asyncAwait = false;
+                    jsTests.errors.push(`Async/await: ${error.message}`);
+                }
+
+                // Test JSON parsing
+                try {
+                    JSON.parse('{"test": true}');
+                } catch (error) {
+                    jsTests.jsonParse = false;
+                    jsTests.errors.push(`JSON parsing: ${error.message}`);
+                }
+
+                const executionResults = {
+                    environment: {
+                        userAgent: navigator.userAgent,
+                        platform: navigator.platform,
+                        language: navigator.language,
+                        cookieEnabled: navigator.cookieEnabled
+                    },
+                    tests: jsTests,
+                    summary: {
+                        allTestsPassed: jsTests.errors.length === 0,
+                        criticalFeaturesAvailable: jsTests.fetch && jsTests.localStorage && jsTests.promises
+                    }
+                };
+
+                resultsDiv.textContent = JSON.stringify(executionResults, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                const allGood = jsTests.errors.length === 0 && jsTests.criticalFeaturesAvailable;
+                updateTestStatus('setup', allGood ? 'Passed' : 'Failed', 
+                    allGood ? 'All features available' : `${jsTests.errors.length} issues found`);
+                logDebug(`JavaScript execution test: ${allGood ? 'PASS' : 'FAIL'}`, allGood ? 'success' : 'error');
+
+            } catch (error) {
+                resultsDiv.textContent = `JavaScript test error: ${error.message}`;
+                resultsDiv.style.display = 'block';
+                updateTestStatus('setup', 'Failed', error.message);
+                logDebug(`JavaScript execution test failed: ${error.message}`, 'error');
+            }
+        }
+
+        function testModuleLoading() {
+            try {
+                logDebug('Testing module loading capabilities...', 'info');
+                
+                // Test if modules can be dynamically imported
+                const moduleTests = {
+                    dynamicImport: typeof import !== 'undefined',
+                    esModules: 'modules' in document.createElement('script'),
+                    webComponents: 'customElements' in window,
+                    shadowDOM: 'attachShadow' in Element.prototype
+                };
+
+                const resultsDiv = document.getElementById('jsResults');
+                resultsDiv.textContent = JSON.stringify(moduleTests, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                logDebug('Module loading test completed', 'success');
+
+            } catch (error) {
+                logDebug(`Module loading test failed: ${error.message}`, 'error');
+            }
+        }
+
+        function testErrorHandling() {
+            try {
+                logDebug('Testing error handling...', 'info');
+                
+                const errorTests = {
+                    windowErrorHandler: typeof window.onerror === 'object',
+                    unhandledRejectionHandler: typeof window.onunhandledrejection === 'object',
+                    consoleAvailable: typeof console !== 'undefined',
+                    errorStack: true
+                };
+
+                // Test error stack traces
+                try {
+                    throw new Error('Test error');
+                } catch (error) {
+                    errorTests.errorStack = !!error.stack;
+                }
+
+                const resultsDiv = document.getElementById('jsResults');
+                resultsDiv.textContent = JSON.stringify(errorTests, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                logDebug('Error handling test completed', 'success');
+
+            } catch (error) {
+                logDebug(`Error handling test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // 4. Token Exchange Testing
+        async function testTokenEndpoint() {
+            updateTestStatus('fetch', 'Running');
+            const resultsDiv = document.getElementById('tokenResults');
+            
+            try {
+                logDebug('Testing token exchange endpoint...', 'info');
+                
+                const testData = {
+                    code: 'test_authorization_code',
+                    state: 'test_state_value'
+                };
+
+                const response = await fetch('/api/auth/callback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                const responseData = {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: Object.fromEntries(response.headers.entries()),
+                    ok: response.ok,
+                    url: response.url
+                };
+
+                try {
+                    responseData.body = await response.text();
+                    if (responseData.body) {
+                        try {
+                            responseData.json = JSON.parse(responseData.body);
+                        } catch (e) {
+                            responseData.bodyType = 'text';
+                        }
+                    }
+                } catch (e) {
+                    responseData.bodyError = e.message;
+                }
+
+                resultsDiv.textContent = JSON.stringify(responseData, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                const endpointReachable = response.status !== 404;
+                updateTestStatus('fetch', endpointReachable ? 'Passed' : 'Failed', 
+                    endpointReachable ? `Status: ${response.status}` : 'Endpoint not found');
+                logDebug(`Token endpoint test: ${endpointReachable ? 'REACHABLE' : 'NOT FOUND'}`, endpointReachable ? 'success' : 'error');
+
+            } catch (error) {
+                resultsDiv.textContent = `Token endpoint test error: ${error.message}`;
+                resultsDiv.style.display = 'block';
+                updateTestStatus('fetch', 'Failed', error.message);
+                logDebug(`Token endpoint test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testNetlifyFunction() {
+            try {
+                logDebug('Testing Netlify function endpoints...', 'info');
+                
+                const functions = [
+                    '/.netlify/functions/ebay-oauth',
+                    '/.netlify/functions/simple-ebay-callback',
+                    '/.netlify/functions/modern-ebay-callback'
+                ];
+
+                const functionTests = [];
+
+                for (const func of functions) {
+                    try {
+                        const response = await fetch(func, { method: 'HEAD' });
+                        functionTests.push({
+                            function: func,
+                            status: response.status,
+                            reachable: true
+                        });
+                    } catch (error) {
+                        functionTests.push({
+                            function: func,
+                            error: error.message,
+                            reachable: false
+                        });
+                    }
+                }
+
+                const resultsDiv = document.getElementById('tokenResults');
+                resultsDiv.textContent = JSON.stringify(functionTests, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                logDebug('Netlify function test completed', 'success');
+
+            } catch (error) {
+                logDebug(`Netlify function test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testEndpointReachability() {
+            try {
+                logDebug('Testing endpoint reachability...', 'info');
+                
+                const endpoints = [
+                    { url: '/api/auth/callback', method: 'POST' },
+                    { url: '/api/auth/status', method: 'GET' },
+                    { url: '/.netlify/functions/ebay-oauth', method: 'GET' },
+                    { url: '/auth/ebay/callback', method: 'GET' }
+                ];
+
+                const reachabilityTests = [];
+
+                for (const endpoint of endpoints) {
+                    try {
+                        const response = await fetch(endpoint.url, { 
+                            method: endpoint.method === 'POST' ? 'OPTIONS' : 'HEAD',
+                            signal: AbortSignal.timeout(5000) // 5 second timeout
+                        });
+                        
+                        reachabilityTests.push({
+                            ...endpoint,
+                            status: response.status,
+                            reachable: true,
+                            responseTime: Date.now()
+                        });
+                    } catch (error) {
+                        reachabilityTests.push({
+                            ...endpoint,
+                            error: error.message,
+                            reachable: false
+                        });
+                    }
+                }
+
+                const resultsDiv = document.getElementById('tokenResults');
+                resultsDiv.textContent = JSON.stringify(reachabilityTests, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                logDebug('Endpoint reachability test completed', 'success');
+
+            } catch (error) {
+                logDebug(`Endpoint reachability test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // 5. Callback Page Rendering
+        function loadCallbackPage() {
+            try {
+                logDebug('Loading callback page in iframe...', 'info');
+                
+                const container = document.getElementById('iframeContainer');
+                const iframe = document.getElementById('callbackFrame');
+                
+                // Generate a test callback URL
+                const testUrl = `/auth/ebay/callback?code=test_code_${Date.now()}&state=test_state`;
+                
+                iframe.src = testUrl;
+                container.style.display = 'block';
+                
+                // Monitor iframe loading
+                iframe.onload = () => {
+                    logDebug('Callback page loaded in iframe', 'success');
+                    
+                    try {
+                        // Try to access iframe content (will fail if cross-origin)
+                        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                        const title = iframeDoc.title;
+                        logDebug(`Iframe content accessible, title: "${title}"`, 'success');
+                    } catch (error) {
+                        logDebug(`Iframe content not accessible (expected for cross-origin): ${error.message}`, 'warn');
+                    }
+                };
+                
+                iframe.onerror = (error) => {
+                    logDebug(`Iframe failed to load: ${error}`, 'error');
+                };
+
+            } catch (error) {
+                logDebug(`Failed to load callback page: ${error.message}`, 'error');
+            }
+        }
+
+        function testDirectCallback() {
+            try {
+                logDebug('Testing direct callback navigation...', 'info');
+                
+                const testUrl = `/auth/ebay/callback?code=test_code_${Date.now()}&state=test_state&test=true`;
+                
+                const results = {
+                    testUrl,
+                    action: 'Would navigate to callback page',
+                    warning: 'This would actually navigate away from this test page',
+                    suggestion: 'Use the iframe test above or the manual token exchange page instead'
+                };
+
+                const resultsDiv = document.getElementById('renderResults');
+                resultsDiv.textContent = JSON.stringify(results, null, 2);
+                resultsDiv.style.display = 'block';
+                
+                logDebug('Direct callback test prepared (not executed to avoid navigation)', 'info');
+
+            } catch (error) {
+                logDebug(`Direct callback test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // 6. Network Monitoring
+        function startNetworkMonitoring() {
+            if (networkMonitoring) {
+                logDebug('Network monitoring already active', 'warn');
+                return;
+            }
+
+            logDebug('Starting network request monitoring...', 'info');
+            networkMonitoring = true;
+            networkRequests = [];
+
+            // Override fetch to monitor requests
+            window.fetch = async (...args) => {
+                const startTime = Date.now();
+                const url = args[0];
+                const options = args[1] || {};
+
+                try {
+                    const response = await originalFetch(...args);
+                    const endTime = Date.now();
+
+                    networkRequests.push({
+                        url,
+                        method: options.method || 'GET',
+                        status: response.status,
+                        statusText: response.statusText,
+                        duration: endTime - startTime,
+                        timestamp: new Date().toISOString(),
+                        headers: Object.fromEntries(response.headers.entries()),
+                        success: true
+                    });
+
+                    updateNetworkDisplay();
+                    return response;
+
+                } catch (error) {
+                    const endTime = Date.now();
+
+                    networkRequests.push({
+                        url,
+                        method: options.method || 'GET',
+                        error: error.message,
+                        duration: endTime - startTime,
+                        timestamp: new Date().toISOString(),
+                        success: false
+                    });
+
+                    updateNetworkDisplay();
+                    throw error;
+                }
+            };
+
+            logDebug('Network monitoring started', 'success');
+        }
+
+        function stopNetworkMonitoring() {
+            if (!networkMonitoring) {
+                logDebug('Network monitoring not active', 'warn');
+                return;
+            }
+
+            logDebug('Stopping network request monitoring...', 'info');
+            networkMonitoring = false;
+
+            // Restore original fetch
+            window.fetch = originalFetch;
+
+            logDebug('Network monitoring stopped', 'success');
+        }
+
+        function updateNetworkDisplay() {
+            const resultsDiv = document.getElementById('networkResults');
+            resultsDiv.textContent = JSON.stringify(networkRequests, null, 2);
+            resultsDiv.style.display = 'block';
+        }
+
+        function clearNetworkLog() {
+            networkRequests = [];
+            const resultsDiv = document.getElementById('networkResults');
+            resultsDiv.textContent = '';
+            resultsDiv.style.display = 'none';
+            logDebug('Network log cleared', 'info');
+        }
+
+        // 7. Export Results
+        function exportResults() {
+            try {
+                const results = {
+                    testSuite: 'OAuth Callback Rendering Test',
+                    timestamp: new Date().toISOString(),
+                    url: window.location.href,
+                    userAgent: navigator.userAgent,
+                    results: {
+                        callbackSimulation: document.getElementById('callbackResults').textContent,
+                        corsTest: document.getElementById('corsResults').textContent,
+                        jsTest: document.getElementById('jsResults').textContent,
+                        tokenTest: document.getElementById('tokenResults').textContent,
+                        renderTest: document.getElementById('renderResults').textContent,
+                        networkTest: document.getElementById('networkResults').textContent
+                    },
+                    debugLog: document.getElementById('debugLog').textContent
+                };
+
+                const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `oauth-callback-test-results-${Date.now()}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                logDebug('Test results exported successfully', 'success');
+
+            } catch (error) {
+                logDebug(`Failed to export results: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            logDebug('OAuth Callback Rendering Test Suite loaded', 'success');
+            
+            // Auto-generate a test URL
+            generateTestUrl();
+            
+            // Run initial tests
+            setTimeout(() => {
+                testJavaScriptExecution();
+            }, 500);
+            
+            setTimeout(() => {
+                updateTestStatus('localstorage', 'Running');
+                try {
+                    localStorage.setItem('test', 'test');
+                    localStorage.removeItem('test');
+                    updateTestStatus('localstorage', 'Passed', 'LocalStorage accessible');
+                } catch (error) {
+                    updateTestStatus('localstorage', 'Failed', error.message);
+                }
+            }, 1000);
+        });
+
+        // Global error handling
+        window.addEventListener('error', function(event) {
+            logDebug(`Global JavaScript error: ${event.error.message} at ${event.filename}:${event.lineno}`, 'error');
+        });
+
+        window.addEventListener('unhandledrejection', function(event) {
+            logDebug(`Unhandled promise rejection: ${event.reason}`, 'error');
+        });
+    </script>
+</body>
+</html>

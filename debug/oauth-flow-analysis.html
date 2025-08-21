@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🔍 OAuth Flow Root Cause Analysis</title>
+    <style>
+        body { font-family: monospace; background: #1a1a1a; color: #00ff00; padding: 20px; }
+        .step { border: 1px solid #333; margin: 10px 0; padding: 15px; background: #2a2a2a; }
+        .error { color: #ff4444; }
+        .success { color: #44ff44; }
+        .warning { color: #ffaa44; }
+        .info { color: #4444ff; }
+        button { background: #444; color: #fff; border: 1px solid #666; padding: 10px; margin: 5px; cursor: pointer; }
+        button:hover { background: #555; }
+        #results { border: 1px solid #444; padding: 10px; margin: 10px 0; background: #222; max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 OAuth Flow Root Cause Analysis</h1>
+    <p>This tool will trace the exact point where tokens fail to be stored in localStorage.</p>
+    
+    <div class="step">
+        <h3>Step 1: Environment Check</h3>
+        <button onclick="checkEnvironment()">Check Browser Environment</button>
+        <div id="env-results"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 2: Simulate OAuth Callback</h3>
+        <button onclick="simulateCallbackFlow()">Simulate Full Callback Flow</button>
+        <div id="callback-results"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 3: Test Token Exchange API</h3>
+        <button onclick="testTokenExchange()">Test Token Exchange Directly</button>
+        <div id="exchange-results"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 4: Test localStorage Operations</h3>
+        <button onclick="testLocalStorage()">Test localStorage Directly</button>
+        <div id="storage-results"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 5: Check Current State</h3>
+        <button onclick="checkCurrentTokens()">Check Current Token State</button>
+        <div id="token-results"></div>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const color = {
+                error: '#ff4444',
+                success: '#44ff44', 
+                warning: '#ffaa44',
+                info: '#4444ff'
+            }[type] || '#ffffff';
+            
+            const results = document.getElementById('results');
+            results.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            results.scrollTop = results.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function checkEnvironment() {
+            const envDiv = document.getElementById('env-results');
+            let html = '<h4>Environment Analysis:</h4>';
+            
+            try {
+                // Basic browser capabilities
+                html += `<div class="success">✅ localStorage available: ${typeof localStorage !== 'undefined'}</div>`;
+                html += `<div class="success">✅ window.location available: ${typeof window.location !== 'undefined'}</div>`;
+                html += `<div class="success">✅ fetch available: ${typeof fetch !== 'undefined'}</div>`;
+                html += `<div class="success">✅ JSON available: ${typeof JSON !== 'undefined'}</div>`;
+                
+                // Check current URL context
+                html += `<div class="info">📍 Current URL: ${window.location.href}</div>`;
+                html += `<div class="info">📍 Origin: ${window.location.origin}</div>`;
+                html += `<div class="info">📍 Is popup: ${window.opener ? 'YES' : 'NO'}</div>`;
+                
+                // Check for any existing OAuth data
+                const existingTokens = localStorage.getItem('ebay_oauth_tokens');
+                html += `<div class="${existingTokens ? 'warning' : 'info'}">🔍 Existing tokens: ${existingTokens ? 'FOUND' : 'NONE'}</div>`;
+                
+                log('Environment check completed - all prerequisites available', 'success');
+                
+            } catch (error) {
+                html += `<div class="error">❌ Environment error: ${error.message}</div>`;
+                log(`Environment check failed: ${error.message}`, 'error');
+            }
+            
+            envDiv.innerHTML = html;
+        }
+
+        async function simulateCallbackFlow() {
+            const callbackDiv = document.getElementById('callback-results');
+            let html = '<h4>Simulating OAuth Callback Flow:</h4>';
+            
+            try {
+                // Step 1: Simulate having an authorization code (like eBay would send)
+                const mockCode = 'v^1.1#i^1#r^1#p^1#I^3#f^0#t^H4sIAAAAAAAEAJ1Wa0wTVxQ...'; // Truncated for display
+                html += `<div class="info">📋 Mock auth code: ${mockCode.substring(0, 50)}...</div>`;
+                
+                // Step 2: Test the fetch call that should happen in callback
+                log('Testing token exchange fetch call...', 'info');
+                
+                const baseUrl = window.location.origin;
+                html += `<div class="info">🔗 Using baseUrl: ${baseUrl}</div>`;
+                
+                // This is the EXACT call made in simple-ebay-callback.js line 129
+                const requestBody = {
+                    action: 'exchange-code',
+                    code: mockCode
+                };
+                
+                html += `<div class="info">📤 Request body: ${JSON.stringify(requestBody, null, 2)}</div>`;
+                
+                log('Making fetch request to token exchange endpoint...', 'info');
+                
+                // Test the network call
+                const response = await fetch(`${baseUrl}/.netlify/functions/simple-ebay-oauth`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                html += `<div class="${response.ok ? 'success' : 'error'}">📡 Response status: ${response.status} ${response.statusText}</div>`;
+                
+                const responseText = await response.text();
+                let responseData;
+                
+                try {
+                    responseData = JSON.parse(responseText);
+                    html += `<div class="info">📥 Response data: ${JSON.stringify(responseData, null, 2)}</div>`;
+                } catch (parseError) {
+                    html += `<div class="error">❌ Failed to parse response as JSON</div>`;
+                    html += `<div class="error">Raw response: ${responseText.substring(0, 500)}...</div>`;
+                    responseData = null;
+                }
+                
+                if (responseData && responseData.success && responseData.access_token) {
+                    // Test localStorage storage (the critical part)
+                    log('Testing localStorage storage operations...', 'info');
+                    
+                    const tokenData = {
+                        access_token: responseData.access_token,
+                        refresh_token: responseData.refresh_token,
+                        expires_in: responseData.expires_in,
+                        expires_at: Date.now() + (responseData.expires_in * 1000),
+                        token_type: responseData.token_type || 'Bearer',
+                        scope: responseData.scope
+                    };
+                    
+                    // This is the EXACT storage code from simple-ebay-callback.js line 170
+                    localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                    localStorage.setItem('oauth_tokens', JSON.stringify(tokenData));
+                    localStorage.setItem('ebay_manual_token', responseData.access_token);
+                    localStorage.setItem('ebay_access_token', responseData.access_token);
+                    localStorage.setItem('easyflip_ebay_access_token', responseData.access_token);
+                    localStorage.setItem('ebay_refresh_token', responseData.refresh_token);
+                    localStorage.setItem('easyflip_ebay_refresh_token', responseData.refresh_token);
+                    
+                    // Verify storage worked
+                    const storedTokens = localStorage.getItem('ebay_oauth_tokens');
+                    const storedAccessToken = localStorage.getItem('easyflip_ebay_access_token');
+                    
+                    html += `<div class="${storedTokens ? 'success' : 'error'}">💾 Tokens stored: ${!!storedTokens}</div>`;
+                    html += `<div class="${storedAccessToken ? 'success' : 'error'}">💾 Access token stored: ${!!storedAccessToken}</div>`;
+                    
+                    if (storedTokens) {
+                        log('✅ localStorage operations successful', 'success');
+                    } else {
+                        log('❌ localStorage operations failed', 'error');
+                    }
+                    
+                } else if (responseData && !responseData.success) {
+                    html += `<div class="error">❌ Token exchange failed: ${responseData.error}</div>`;
+                    log(`Token exchange failed: ${responseData.error}`, 'error');
+                } else {
+                    html += `<div class="error">❌ Unexpected response format</div>`;
+                    log('Unexpected response format from token exchange', 'error');
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ Callback simulation error: ${error.message}</div>`;
+                log(`Callback simulation failed: ${error.message}`, 'error');
+            }
+            
+            callbackDiv.innerHTML = html;
+        }
+
+        async function testTokenExchange() {
+            const exchangeDiv = document.getElementById('exchange-results');
+            let html = '<h4>Testing Token Exchange API:</h4>';
+            
+            try {
+                const baseUrl = window.location.origin;
+                
+                // Test if the endpoint is even reachable
+                log('Testing endpoint availability...', 'info');
+                
+                const healthResponse = await fetch(`${baseUrl}/.netlify/functions/simple-ebay-oauth`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'invalid-test' })
+                });
+                
+                html += `<div class="${healthResponse.ok ? 'success' : 'error'}">🏥 Endpoint health: ${healthResponse.status}</div>`;
+                
+                const healthData = await healthResponse.text();
+                log(`Endpoint response: ${healthData.substring(0, 200)}`, 'info');
+                
+            } catch (error) {
+                html += `<div class="error">❌ Endpoint test error: ${error.message}</div>`;
+                log(`Endpoint test failed: ${error.message}`, 'error');
+            }
+            
+            exchangeDiv.innerHTML = html;
+        }
+
+        function testLocalStorage() {
+            const storageDiv = document.getElementById('storage-results');
+            let html = '<h4>Testing localStorage Operations:</h4>';
+            
+            try {
+                // Test basic localStorage operations
+                const testKey = 'oauth_test_' + Date.now();
+                const testValue = 'test_value_' + Math.random();
+                
+                log('Testing basic localStorage write/read...', 'info');
+                
+                localStorage.setItem(testKey, testValue);
+                const retrieved = localStorage.getItem(testKey);
+                
+                html += `<div class="${retrieved === testValue ? 'success' : 'error'}">📝 Write/Read test: ${retrieved === testValue ? 'PASS' : 'FAIL'}</div>`;
+                
+                // Test JSON storage
+                const testObject = { token: 'test_token', expires: Date.now() };
+                const testObjectKey = 'oauth_object_test_' + Date.now();
+                
+                localStorage.setItem(testObjectKey, JSON.stringify(testObject));
+                const retrievedObject = JSON.parse(localStorage.getItem(testObjectKey) || '{}');
+                
+                html += `<div class="${retrievedObject.token === testObject.token ? 'success' : 'error'}">📋 JSON storage test: ${retrievedObject.token === testObject.token ? 'PASS' : 'FAIL'}</div>`;
+                
+                // Cleanup
+                localStorage.removeItem(testKey);
+                localStorage.removeItem(testObjectKey);
+                
+                // Check available space
+                let totalStorage = 0;
+                for (let key in localStorage) {
+                    if (localStorage.hasOwnProperty(key)) {
+                        totalStorage += localStorage[key].length + key.length;
+                    }
+                }
+                
+                html += `<div class="info">💾 Current localStorage usage: ~${Math.round(totalStorage / 1024)}KB</div>`;
+                
+                log('localStorage tests completed successfully', 'success');
+                
+            } catch (error) {
+                html += `<div class="error">❌ localStorage test error: ${error.message}</div>`;
+                log(`localStorage test failed: ${error.message}`, 'error');
+            }
+            
+            storageDiv.innerHTML = html;
+        }
+
+        function checkCurrentTokens() {
+            const tokenDiv = document.getElementById('token-results');
+            let html = '<h4>Current Token State:</h4>';
+            
+            try {
+                const tokenKeys = [
+                    'ebay_oauth_tokens',
+                    'oauth_tokens', 
+                    'ebay_manual_token',
+                    'ebay_access_token',
+                    'easyflip_ebay_access_token',
+                    'ebay_refresh_token',
+                    'easyflip_ebay_refresh_token',
+                    'ebay_token_expiry',
+                    'easyflip_ebay_token_expiry',
+                    'easyflip_ebay_token_scope'
+                ];
+                
+                let foundTokens = 0;
+                
+                tokenKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    if (value) {
+                        foundTokens++;
+                        html += `<div class="success">✅ ${key}: ${value.length > 50 ? value.substring(0, 50) + '...' : value}</div>`;
+                    } else {
+                        html += `<div class="warning">⚠️ ${key}: NOT FOUND</div>`;
+                    }
+                });
+                
+                html += `<div class="${foundTokens > 0 ? 'success' : 'error'}">📊 Total tokens found: ${foundTokens}/${tokenKeys.length}</div>`;
+                
+                if (foundTokens === 0) {
+                    log('❌ No OAuth tokens found in localStorage', 'error');
+                } else {
+                    log(`✅ Found ${foundTokens} OAuth tokens in localStorage`, 'success');
+                }
+                
+            } catch (error) {
+                html += `<div class="error">❌ Token check error: ${error.message}</div>`;
+                log(`Token check failed: ${error.message}`, 'error');
+            }
+            
+            tokenDiv.innerHTML = html;
+        }
+
+        // Auto-run environment check on load
+        window.addEventListener('load', () => {
+            log('🚀 OAuth Flow Analysis Tool loaded', 'info');
+            setTimeout(checkEnvironment, 500);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct eBay OAuth Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border-left: 4px solid #007bff;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #218838;
+        }
+        .log {
+            background: #343a40;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin: 15px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Direct eBay OAuth Test</h1>
+        
+        <div class="section">
+            <h2>Step 1: Generate Auth URL</h2>
+            <button onclick="generateAuthUrl()">🔗 Generate Auth URL</button>
+            <div id="authUrlDisplay"></div>
+        </div>
+
+        <div class="section">
+            <h2>Step 2: Manual Code Exchange</h2>
+            <p>After authorizing with eBay, paste the authorization code here:</p>
+            <input type="text" id="authCode" placeholder="Paste authorization code from URL">
+            <button onclick="exchangeCode()">💱 Exchange for Tokens</button>
+            <div id="exchangeResult"></div>
+        </div>
+
+        <div class="section">
+            <h2>Step 3: Check Stored Tokens</h2>
+            <button onclick="checkTokens()">🔍 Check localStorage</button>
+            <button onclick="clearTokens()">🗑️ Clear All Tokens</button>
+            <div id="tokenDisplay"></div>
+        </div>
+
+        <div class="section">
+            <h2>Console Log</h2>
+            <div id="console" class="log">Ready...</div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const consoleDiv = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : '📋';
+            consoleDiv.textContent += `\n${timestamp} ${icon} ${message}`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            console.log(`${icon} ${message}`);
+        }
+
+        async function generateAuthUrl() {
+            log('Generating eBay auth URL...');
+            const display = document.getElementById('authUrlDisplay');
+            
+            try {
+                // Use GET request with query parameter
+                const response = await fetch('/.netlify/functions/simple-ebay-oauth?action=generate-auth-url');
+                const data = await response.json();
+                
+                if (data.success && data.authUrl) {
+                    log('Auth URL generated successfully', 'success');
+                    display.innerHTML = `
+                        <div class="status success">✅ Auth URL Generated!</div>
+                        <div class="log" style="cursor: pointer;" onclick="window.open('${data.authUrl}', '_blank')">
+                            ${data.authUrl}
+                        </div>
+                        <button onclick="window.open('${data.authUrl}', '_blank')">🚀 Open in New Tab</button>
+                    `;
+                } else {
+                    throw new Error(data.error || 'Failed to generate auth URL');
+                }
+            } catch (error) {
+                log(`Failed to generate auth URL: ${error.message}`, 'error');
+                display.innerHTML = `<div class="status error">❌ ${error.message}</div>`;
+            }
+        }
+
+        async function exchangeCode() {
+            const code = document.getElementById('authCode').value.trim();
+            const display = document.getElementById('exchangeResult');
+            
+            if (!code) {
+                log('Please enter an authorization code', 'error');
+                return;
+            }
+            
+            log(`Exchanging code: ${code.substring(0, 30)}...`);
+            
+            try {
+                // Direct POST to the function
+                const response = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'exchange-code',
+                        code: code
+                    })
+                });
+                
+                const data = await response.json();
+                log(`Exchange response: ${JSON.stringify(data, null, 2)}`);
+                
+                if (data.success && data.access_token) {
+                    log('Token exchange successful!', 'success');
+                    
+                    // Store tokens in localStorage
+                    const tokenData = {
+                        access_token: data.access_token,
+                        refresh_token: data.refresh_token,
+                        expires_in: data.expires_in,
+                        expires_at: Date.now() + (data.expires_in * 1000),
+                        token_type: data.token_type || 'Bearer',
+                        scope: data.scope || ''
+                    };
+                    
+                    // Store in multiple formats
+                    localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                    localStorage.setItem('easyflip_ebay_access_token', data.access_token);
+                    localStorage.setItem('easyflip_ebay_refresh_token', data.refresh_token || '');
+                    localStorage.setItem('easyflip_ebay_token_scope', data.scope || '');
+                    localStorage.setItem('easyflip_ebay_token_expiry', String(tokenData.expires_at));
+                    
+                    log('Tokens stored in localStorage', 'success');
+                    
+                    display.innerHTML = `
+                        <div class="status success">
+                            ✅ Token Exchange Successful!<br>
+                            Access Token: ${data.access_token.substring(0, 50)}...<br>
+                            Refresh Token: ${data.refresh_token ? 'Yes' : 'No'}<br>
+                            Expires In: ${data.expires_in} seconds
+                        </div>
+                    `;
+                    
+                    // Auto-check tokens
+                    setTimeout(checkTokens, 500);
+                } else {
+                    throw new Error(data.error || 'Token exchange failed');
+                }
+            } catch (error) {
+                log(`Token exchange failed: ${error.message}`, 'error');
+                display.innerHTML = `<div class="status error">❌ ${error.message}</div>`;
+            }
+        }
+
+        function checkTokens() {
+            log('Checking localStorage for tokens...');
+            const display = document.getElementById('tokenDisplay');
+            
+            const tokens = localStorage.getItem('ebay_oauth_tokens');
+            const accessToken = localStorage.getItem('easyflip_ebay_access_token');
+            const scope = localStorage.getItem('easyflip_ebay_token_scope');
+            
+            let html = '<h3>Token Status:</h3>';
+            
+            if (tokens) {
+                try {
+                    const parsed = JSON.parse(tokens);
+                    log('Found ebay_oauth_tokens', 'success');
+                    html += `
+                        <div class="status success">
+                            ✅ OAuth tokens found<br>
+                            Access Token: ${parsed.access_token ? parsed.access_token.substring(0, 50) + '...' : 'None'}<br>
+                            Has Refresh Token: ${!!parsed.refresh_token}<br>
+                            Scope: ${parsed.scope ? 'Yes' : 'No'}
+                        </div>
+                    `;
+                } catch (e) {
+                    log('Token data is corrupted', 'error');
+                    html += '<div class="status error">❌ Token data is corrupted</div>';
+                }
+            } else if (accessToken) {
+                log('Found individual access token', 'success');
+                html += `
+                    <div class="status info">
+                        Found access token<br>
+                        Token: ${accessToken.substring(0, 50)}...<br>
+                        Scope: ${scope || 'Not set'}
+                    </div>
+                `;
+            } else {
+                log('No tokens found', 'error');
+                html += '<div class="status error">❌ No tokens found</div>';
+            }
+            
+            display.innerHTML = html;
+        }
+
+        function clearTokens() {
+            log('Clearing all eBay tokens...');
+            
+            const keys = Object.keys(localStorage).filter(key => 
+                key.includes('ebay') || key.includes('oauth') || key.includes('token') || key.includes('easyflip')
+            );
+            
+            keys.forEach(key => {
+                localStorage.removeItem(key);
+                log(`Removed: ${key}`);
+            });
+            
+            log(`Cleared ${keys.length} items`, 'success');
+            checkTokens();
+        }
+
+        // Check tokens on load
+        window.addEventListener('load', () => {
+            log('Direct OAuth Test ready');
+            
+            // Check if we're returning from OAuth
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            
+            if (code) {
+                log('OAuth callback detected!', 'success');
+                document.getElementById('authCode').value = code;
+                log('Authorization code auto-filled. Click "Exchange for Tokens" to continue.');
+            }
+            
+            checkTokens();
+        });
+    </script>
+</body>
+</html>

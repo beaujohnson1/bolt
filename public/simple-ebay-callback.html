@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple OAuth Callback Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f8f9fa;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .processing {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .details {
+            text-align: left;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .console-log {
+            background-color: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            height: 200px;
+            overflow-y: auto;
+            text-align: left;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 2s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Simple OAuth Callback Test</h1>
+        
+        <div id="status" class="status processing">
+            <div class="spinner"></div>
+            Processing OAuth callback...
+        </div>
+        
+        <div id="details" class="details" style="display: none;"></div>
+        
+        <div>
+            <button onclick="testDummyTokens()" id="dummyBtn">Test Dummy Tokens</button>
+            <button onclick="goBackToTest()">Back to OAuth Test</button>
+            <button onclick="checkLocalStorage()">Check localStorage</button>
+        </div>
+        
+        <div id="consoleLogs" class="console-log"></div>
+    </div>
+
+    <script>
+        // Enhanced logging
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logMessage = `[${timestamp}] ${message}`;
+            console.log(logMessage);
+            
+            const logsDiv = document.getElementById('consoleLogs');
+            const logElement = document.createElement('div');
+            logElement.textContent = logMessage;
+            logElement.style.color = type === 'error' ? '#f00' : type === 'success' ? '#0f0' : '#fff';
+            logsDiv.appendChild(logElement);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        function updateStatus(message, type = 'info', showSpinner = false) {
+            const statusDiv = document.getElementById('status');
+            const spinnerHtml = showSpinner ? '<div class="spinner"></div>' : '';
+            statusDiv.innerHTML = spinnerHtml + message;
+            statusDiv.className = `status ${type}`;
+            log(`Status: ${message}`, type);
+        }
+
+        function showDetails(data) {
+            const detailsDiv = document.getElementById('details');
+            detailsDiv.style.display = 'block';
+            detailsDiv.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        }
+
+        function testDummyTokens() {
+            log('Testing dummy token storage...');
+            updateStatus('Storing dummy tokens...', 'processing', true);
+            
+            try {
+                // Store dummy tokens to test localStorage functionality
+                const dummyTokens = {
+                    access_token: 'dummy_access_token_' + Date.now(),
+                    refresh_token: 'dummy_refresh_token_' + Date.now(),
+                    token_type: 'Bearer',
+                    expires_in: 3600,
+                    scope: 'test_scope'
+                };
+                
+                Object.entries(dummyTokens).forEach(([key, value]) => {
+                    localStorage.setItem(key, value);
+                    log(`Stored dummy ${key}: ${value}`, 'success');
+                });
+                
+                updateStatus('Dummy tokens stored successfully!', 'success');
+                showDetails(dummyTokens);
+                
+                // Verify storage
+                setTimeout(() => {
+                    checkLocalStorage();
+                }, 1000);
+                
+            } catch (error) {
+                updateStatus('Failed to store dummy tokens: ' + error.message, 'error');
+                log('Dummy token storage error: ' + error.message, 'error');
+            }
+        }
+
+        function checkLocalStorage() {
+            log('Checking localStorage contents...');
+            
+            const allItems = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                allItems[key] = value;
+            }
+            
+            log(`Found ${Object.keys(allItems).length} items in localStorage`);
+            showDetails(allItems);
+            
+            if (Object.keys(allItems).length > 0) {
+                updateStatus(`Found ${Object.keys(allItems).length} items in localStorage`, 'info');
+            } else {
+                updateStatus('localStorage is empty', 'info');
+            }
+        }
+
+        function goBackToTest() {
+            window.location.href = '/simple-oauth-test.html';
+        }
+
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const urlParams = {};
+            for (const [key, value] of params) {
+                urlParams[key] = value;
+            }
+            return urlParams;
+        }
+
+        function processRealCallback() {
+            log('Processing real OAuth callback...');
+            
+            const urlParams = getUrlParams();
+            log('URL parameters received:');
+            Object.entries(urlParams).forEach(([key, value]) => {
+                log(`  ${key}: ${value}`);
+            });
+            
+            showDetails('URL Parameters:\n' + JSON.stringify(urlParams, null, 2));
+            
+            if (urlParams.error) {
+                updateStatus('OAuth Error: ' + urlParams.error, 'error');
+                log('OAuth error: ' + urlParams.error_description || urlParams.error, 'error');
+                return;
+            }
+            
+            if (urlParams.code) {
+                log('Authorization code received: ' + urlParams.code, 'success');
+                updateStatus('Authorization code received! Attempting token exchange...', 'processing', true);
+                
+                // Attempt to exchange code for tokens
+                exchangeCodeForTokens(urlParams.code, urlParams.state);
+            } else {
+                updateStatus('No authorization code found in callback', 'error');
+                log('No authorization code in URL parameters', 'error');
+            }
+        }
+
+        async function exchangeCodeForTokens(code, state) {
+            log('Attempting token exchange...');
+            
+            try {
+                // Check state parameter
+                const storedState = localStorage.getItem('oauth_state');
+                if (state && storedState && state !== storedState) {
+                    throw new Error('State parameter mismatch - possible CSRF attack');
+                }
+                
+                log('Making token exchange request...');
+                
+                const response = await fetch('/api/auth/ebay/callback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ code, state })
+                });
+                
+                log(`Token exchange response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Token exchange failed: ${response.status} ${errorText}`);
+                }
+                
+                const tokens = await response.json();
+                log('Token exchange successful!', 'success');
+                log('Received tokens:', 'success');
+                Object.keys(tokens).forEach(key => {
+                    if (key.includes('token')) {
+                        log(`  ${key}: ${tokens[key].substring(0, 20)}...`, 'success');
+                    } else {
+                        log(`  ${key}: ${tokens[key]}`, 'success');
+                    }
+                });
+                
+                // Store tokens in localStorage
+                Object.entries(tokens).forEach(([key, value]) => {
+                    localStorage.setItem(key, value);
+                    log(`Stored ${key} in localStorage`, 'success');
+                });
+                
+                updateStatus('OAuth completed successfully! Tokens stored.', 'success');
+                showDetails('Tokens received and stored:\n' + JSON.stringify(tokens, null, 2));
+                
+                // Clean up state
+                localStorage.removeItem('oauth_state');
+                
+            } catch (error) {
+                log('Token exchange error: ' + error.message, 'error');
+                updateStatus('Token exchange failed: ' + error.message, 'error');
+            }
+        }
+
+        // Initialize callback processing
+        window.addEventListener('load', function() {
+            log('Simple OAuth Callback page loaded');
+            log('Current URL: ' + window.location.href);
+            
+            // Check if this is a real callback (has URL parameters) or just a test
+            const urlParams = getUrlParams();
+            
+            if (Object.keys(urlParams).length > 0) {
+                log('URL parameters detected - processing real callback');
+                processRealCallback();
+            } else {
+                log('No URL parameters - test mode');
+                updateStatus('Ready for OAuth callback testing', 'info');
+            }
+            
+            // Also check localStorage immediately
+            checkLocalStorage();
+        });
+    </script>
+</body>
+</html>
