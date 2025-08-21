@@ -453,42 +453,42 @@
                             <div class="test-status" id="status-functions">
                                 <span class="status-indicator status-waiting">⏳ Waiting</span>
                             </div>
-                            <button class="btn btn-small" onclick="testOAuthFunctions()">Test</button>
+                            <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.testOAuthFunctions()">Test</button>
                         </div>
                         <div class="test-card">
                             <h3>Auth URL Generation</h3>
                             <div class="test-status" id="status-auth-url">
                                 <span class="status-indicator status-waiting">⏳ Waiting</span>
                             </div>
-                            <button class="btn btn-small" onclick="testAuthUrl()">Test</button>
+                            <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.testAuthUrl()">Test</button>
                         </div>
                         <div class="test-card">
                             <h3>Popup Blocking</h3>
                             <div class="test-status" id="status-popup">
                                 <span class="status-indicator status-waiting">⏳ Waiting</span>
                             </div>
-                            <button class="btn btn-small" onclick="testPopupBlocking()">Test</button>
+                            <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.testPopupBlocking()">Test</button>
                         </div>
                         <div class="test-card">
                             <h3>Message Passing</h3>
                             <div class="test-status" id="status-messages">
                                 <span class="status-indicator status-waiting">⏳ Waiting</span>
                             </div>
-                            <button class="btn btn-small" onclick="testMessagePassing()">Test</button>
+                            <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.testMessagePassing()">Test</button>
                         </div>
                         <div class="test-card">
                             <h3>LocalStorage</h3>
                             <div class="test-status" id="status-storage">
                                 <span class="status-indicator status-waiting">⏳ Waiting</span>
                             </div>
-                            <button class="btn btn-small" onclick="testLocalStorage()">Test</button>
+                            <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.testLocalStorage()">Test</button>
                         </div>
                         <div class="test-card">
                             <h3>Token Exchange</h3>
                             <div class="test-status" id="status-exchange">
                                 <span class="status-indicator status-waiting">⏳ Waiting</span>
                             </div>
-                            <button class="btn btn-small" onclick="testTokenExchange()">Test</button>
+                            <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.testTokenExchange()">Test</button>
                         </div>
                     </div>
                 </div>
@@ -507,7 +507,7 @@
                         <label for="redirectUri">Redirect URI:</label>
                         <input type="text" id="redirectUri" value="https://easyflip.ai/.netlify/functions/auth-ebay-callback">
                     </div>
-                    <button class="btn btn-warning" onclick="exchangeManualCode()">💱 Exchange Code</button>
+                    <button class="btn btn-warning" onclick="window.oauthDebugger && window.oauthDebugger.exchangeManualCode()">💱 Exchange Code</button>
                 </div>
             </div>
 
@@ -556,8 +556,8 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-small" onclick="refreshStatus()">🔄 Refresh Status</button>
-                    <button class="btn btn-small btn-danger" onclick="clearTokens()">🗑️ Clear Tokens</button>
+                    <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.refreshStatus()">🔄 Refresh Status</button>
+                    <button class="btn btn-small btn-danger" onclick="window.oauthDebugger && window.oauthDebugger.clearTokens()">🗑️ Clear Tokens</button>
                 </div>
 
                 <!-- Token Display -->
@@ -566,9 +566,9 @@
                     <div id="tokenDisplay" class="token-display">
                         No tokens found
                     </div>
-                    <button class="btn btn-small" onclick="showTokens()">👁️ Show Tokens</button>
-                    <button class="btn btn-small" onclick="hideTokens()">🙈 Hide Tokens</button>
-                    <button class="btn btn-small" onclick="validateTokens()">✅ Validate</button>
+                    <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.showTokens()">👁️ Show Tokens</button>
+                    <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.hideTokens()">🙈 Hide Tokens</button>
+                    <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.validateTokens()">✅ Validate</button>
                 </div>
 
                 <!-- Network Monitor -->
@@ -593,16 +593,16 @@
                             <span class="info-value" id="lastResponseStatus">None</span>
                         </div>
                     </div>
-                    <button class="btn btn-small" onclick="startNetworkMonitoring()">📡 Start Monitoring</button>
-                    <button class="btn btn-small" onclick="stopNetworkMonitoring()">⏹️ Stop</button>
+                    <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.startNetworkMonitoring()">📡 Start Monitoring</button>
+                    <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.stopNetworkMonitoring()">⏹️ Stop</button>
                 </div>
 
                 <!-- Console Output -->
                 <div class="section">
                     <h2>🖥️ Debug Console</h2>
                     <div class="console" id="debugConsole">OAuth Debugger initialized. Ready for testing...</div>
-                    <button class="btn btn-small" onclick="clearConsole()">🧹 Clear</button>
-                    <button class="btn btn-small" onclick="exportLogs()">📄 Export Logs</button>
+                    <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.clearConsole()">🧹 Clear</button>
+                    <button class="btn btn-small" onclick="window.oauthDebugger && window.oauthDebugger.exportLogs()">📄 Export Logs</button>
                 </div>
             </div>
         </div>
@@ -1387,23 +1387,23 @@
             }
         }
 
-        // Global functions for button events
-        window.testOAuthFunctions = () => window.oauthDebugger.testOAuthFunctions();
-        window.testAuthUrl = () => window.oauthDebugger.testAuthUrl();
-        window.testPopupBlocking = () => window.oauthDebugger.testPopupBlocking();
-        window.testMessagePassing = () => window.oauthDebugger.testMessagePassing();
-        window.testLocalStorage = () => window.oauthDebugger.testLocalStorage();
-        window.testTokenExchange = () => window.oauthDebugger.testTokenExchange();
-        window.exchangeManualCode = () => window.oauthDebugger.exchangeManualCode();
-        window.refreshStatus = () => window.oauthDebugger.refreshStatus();
-        window.clearTokens = () => window.oauthDebugger.clearTokens();
-        window.showTokens = () => window.oauthDebugger.showTokens();
-        window.hideTokens = () => window.oauthDebugger.hideTokens();
-        window.validateTokens = () => window.oauthDebugger.validateTokens();
-        window.clearConsole = () => window.oauthDebugger.clearConsole();
-        window.exportLogs = () => window.oauthDebugger.exportLogs();
-        window.startNetworkMonitoring = () => window.oauthDebugger.startNetworkMonitoring();
-        window.stopNetworkMonitoring = () => window.oauthDebugger.stopNetworkMonitoring();
+        // Global functions for button events (with safety checks)
+        window.testOAuthFunctions = () => window.oauthDebugger && window.oauthDebugger.testOAuthFunctions();
+        window.testAuthUrl = () => window.oauthDebugger && window.oauthDebugger.testAuthUrl();
+        window.testPopupBlocking = () => window.oauthDebugger && window.oauthDebugger.testPopupBlocking();
+        window.testMessagePassing = () => window.oauthDebugger && window.oauthDebugger.testMessagePassing();
+        window.testLocalStorage = () => window.oauthDebugger && window.oauthDebugger.testLocalStorage();
+        window.testTokenExchange = () => window.oauthDebugger && window.oauthDebugger.testTokenExchange();
+        window.exchangeManualCode = () => window.oauthDebugger && window.oauthDebugger.exchangeManualCode();
+        window.refreshStatus = () => window.oauthDebugger && window.oauthDebugger.refreshStatus();
+        window.clearTokens = () => window.oauthDebugger && window.oauthDebugger.clearTokens();
+        window.showTokens = () => window.oauthDebugger && window.oauthDebugger.showTokens();
+        window.hideTokens = () => window.oauthDebugger && window.oauthDebugger.hideTokens();
+        window.validateTokens = () => window.oauthDebugger && window.oauthDebugger.validateTokens();
+        window.clearConsole = () => window.oauthDebugger && window.oauthDebugger.clearConsole();
+        window.exportLogs = () => window.oauthDebugger && window.oauthDebugger.exportLogs();
+        window.startNetworkMonitoring = () => window.oauthDebugger && window.oauthDebugger.startNetworkMonitoring();
+        window.stopNetworkMonitoring = () => window.oauthDebugger && window.oauthDebugger.stopNetworkMonitoring();
 
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', () => {
