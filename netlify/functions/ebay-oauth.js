@@ -258,11 +258,11 @@ async function exchangeCode(headers, credentials, tokenBase, body) {
       code: code
     });
     
-    // CRITICAL FIX: Token exchange must use the ACTUAL redirect URL, not RuName!
-    // eBay's token endpoint expects the same redirect_uri that it redirected to
+    // CRITICAL FIX: Token exchange must use the EXACT redirect URL from eBay settings!
+    // eBay auth accepted URL: https://easyflip.ai/.netlify/functions/auth-ebay-callback
     if (isProduction) {
-      // FIXED: Use the actual redirect URL that eBay redirects to (not the RuName)
-      const actualRedirectUri = 'https://easyflip.ai/app/api/ebay/callback-fixed';
+      // Use the EXACT URL configured in eBay Developer Console
+      const actualRedirectUri = 'https://easyflip.ai/.netlify/functions/auth-ebay-callback';
       tokenParams.append('redirect_uri', actualRedirectUri);
       console.log('🔄 [EBAY-OAUTH] Using production redirect URL for token exchange:', actualRedirectUri);
     } else {

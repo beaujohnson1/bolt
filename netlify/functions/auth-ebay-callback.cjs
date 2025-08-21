@@ -84,12 +84,12 @@ exports.handler = async (event, context) => {
     // Exchange code for access token using the existing OAuth function
     const baseUrl = process.env.URL || 'https://easyflip.ai';
     
-    // CRITICAL FIX: Token exchange must use the ACTUAL redirect URL, not RuName!
-    // eBay expects the same redirect_uri that it redirected to after authorization
+    // CRITICAL FIX: Token exchange must use the ACTUAL redirect URL from eBay settings!
+    // Your eBay auth accepted URL: https://easyflip.ai/.netlify/functions/auth-ebay-callback
     let redirectUri;
     if (isProduction) {
-      // FIXED: Use actual redirect URL for token exchange (not RuName)
-      redirectUri = 'https://easyflip.ai/app/api/ebay/callback-fixed';
+      // Use the EXACT URL configured in eBay Developer Console
+      redirectUri = 'https://easyflip.ai/.netlify/functions/auth-ebay-callback';
       console.log('🌍 [ENV-DEBUG] Using production redirect URL for token exchange:', redirectUri);
     } else {
       redirectUri = process.env.EBAY_SANDBOX_RUNAME || `${baseUrl}/.netlify/functions/auth-ebay-callback`;

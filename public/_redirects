@@ -1,10 +1,5 @@
 # Netlify redirects file
 
-# CRITICAL: eBay OAuth callback redirect - MUST BE FIRST
-# eBay is configured to redirect to /app/api/ebay/callback-fixed
-# But our actual handler is at /.netlify/functions/auth-ebay-callback
-/app/api/ebay/callback-fixed  /.netlify/functions/auth-ebay-callback  200!
-
 # Static HTML files - serve directly (including OAuth callback)
 /*.html  /:splat.html  200
 
