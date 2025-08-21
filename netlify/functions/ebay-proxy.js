@@ -481,8 +481,8 @@ exports.handler = async (event, context) => {
     console.error('❌ [EBAY-PROXY] Proxy error:', {
       error: error.message,
       stack: error.stack,
-      url: url || 'unknown',
-      method: method || 'unknown',
+      url: body?.url || 'unknown',
+      method: body?.method || 'unknown',
       code: error.code
     });
     
