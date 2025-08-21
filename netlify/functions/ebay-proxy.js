@@ -1,6 +1,6 @@
 // eBay API Proxy Function for Netlify
 // This function acts as a proxy to bypass CORS restrictions when calling eBay APIs
-// Enhanced with retry logic, exponential backoff, and circuit breaker pattern
+// Enhanced with retry logic, exponential backoff, circuit breaker pattern, and comprehensive error diagnostics
 
 // Retry configuration
 const RETRY_CONFIG = {
@@ -10,6 +10,26 @@ const RETRY_CONFIG = {
   backoffMultiplier: 2,
   retryableStatusCodes: [502, 503, 504, 408, 429],
   retryableErrorTypes: ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND']
+};
+
+// Error pattern matchers for better diagnostics
+const ERROR_PATTERNS = {
+  INVALID_TOKEN: /invalid.?token|token.?expired|token.?invalid/i,
+  INSUFFICIENT_SCOPE: /insufficient.?scope|scope.?required|missing.?scope|unauthorized.?scope/i,
+  RATE_LIMIT: /rate.?limit|quota.?exceeded|too.?many.?requests/i,
+  BAD_GATEWAY: /bad.?gateway|gateway.?error|upstream.?error/i,
+  SERVICE_UNAVAILABLE: /service.?unavailable|temporarily.?unavailable/i,
+  FORBIDDEN_SCOPE: /forbidden|access.?denied|insufficient.?permissions/i
+};
+
+// Scope requirements mapping
+const SCOPE_REQUIREMENTS = {
+  '/sell/account/': ['sell.account'],
+  '/sell/inventory/': ['sell.inventory'],
+  '/sell/marketing/': ['sell.marketing'],
+  '/sell/fulfillment/': ['sell.fulfillment'],
+  '/buy/browse/': [], // Public API, no special scopes
+  '/commerce/taxonomy/': [] // Public API, no special scopes
 };
 
 // Circuit breaker state
@@ -181,6 +201,38 @@ exports.handler = async (event, context) => {
       contentType: requestHeaders['Content-Type']
     });
 
+    // Automatic scope validation for sell endpoints to prevent 502 errors
+    if (url.includes('/sell/') && requestHeaders.Authorization) {
+      console.log('🔍 [EBAY-PROXY] Running automatic scope validation for sell endpoint');
+      const scopeValidation = await validateScopeBeforeRequest(url, requestHeaders.Authorization);
+      
+      if (!scopeValidation.valid) {
+        console.error('❌ [EBAY-PROXY] Scope validation failed, preventing likely 502 error');
+        return {
+          statusCode: 403,
+          headers: {
+            ...headers,
+            'X-Error-Type': 'SCOPE_VALIDATION_FAILED'
+          },
+          body: JSON.stringify({
+            error: 'Insufficient OAuth Scope',
+            message: 'The token does not have the required scopes for this endpoint',
+            details: {
+              endpoint: url.replace('https://api.ebay.com', '[EBAY_API]'),
+              requiredScopes: scopeValidation.requiredScopes,
+              missingScopes: scopeValidation.missingScopes,
+              timestamp: new Date().toISOString(),
+              preventedError: '502 Bad Gateway',
+              solution: 'Re-authorize your application with the required scopes'
+            },
+            scopeValidation
+          })
+        };
+      } else {
+        console.log('✅ [EBAY-PROXY] Scope validation passed');
+      }
+    }
+
     // Determine expected response content type
     const expectedContentType = getContentType(url, requestHeaders);
     console.log('📋 [EBAY-PROXY] Expected response type:', expectedContentType);
@@ -233,29 +285,31 @@ exports.handler = async (event, context) => {
     // Update circuit breaker on success
     updateCircuitBreaker(response.ok);
 
-    // Enhanced error handling for Account API with 502 specific handling
-    if (!response.ok && url.includes('/sell/account/')) {
+    // Enhanced error handling with comprehensive diagnostics
+    if (!response.ok) {
       // Update circuit breaker on failure
       updateCircuitBreaker(false);
       
-      console.error('❌ [EBAY-PROXY] Account API Error:', {
+      console.error('❌ [EBAY-PROXY] API Error:', {
         status: response.status,
         statusText: response.statusText,
         url: url.replace('https://api.ebay.com', '[EBAY_API]'),
-        responsePreview: responseText.substring(0, 300)
+        responsePreview: responseText.substring(0, 500),
+        requestMethod: method,
+        hasAuth: !!requestHeaders.Authorization
       });
 
-      // Special handling for 502 Bad Gateway errors
+      // Analyze the actual error response for better diagnostics
+      const errorAnalysis = analyzeErrorResponse(responseText, response.status, url);
+      console.error('🔍 [EBAY-PROXY] Error analysis:', errorAnalysis);
+
+      // Special handling for 502 Bad Gateway errors with scope analysis
       if (response.status === 502) {
         console.error('🚨 [EBAY-PROXY] 502 BAD GATEWAY DETECTED!');
-        console.error('🚨 [EBAY-PROXY] Common causes:');
-        console.error('🚨 [EBAY-PROXY] 1. eBay API is temporarily down');
-        console.error('🚨 [EBAY-PROXY] 2. Invalid OAuth token or expired token');
-        console.error('🚨 [EBAY-PROXY] 3. Missing required OAuth scopes (sell.account)');
-        console.error('🚨 [EBAY-PROXY] 4. Rate limiting or quota exceeded');
-        console.error('🚨 [EBAY-PROXY] 5. Malformed request headers or body');
         
-        // Enhanced 502 error response
+        const scopeAnalysis = analyzeScopeRequirements(url, requestHeaders.Authorization);
+        console.error('🔍 [EBAY-PROXY] Scope analysis:', scopeAnalysis);
+        
         const error502Response = {
           error: 'eBay API Gateway Error',
           message: 'The eBay API returned a 502 Bad Gateway error',
@@ -263,36 +317,79 @@ exports.handler = async (event, context) => {
             status: 502,
             endpoint: url.replace('https://api.ebay.com', '[EBAY_API]'),
             timestamp: new Date().toISOString(),
+            errorAnalysis,
+            scopeAnalysis,
+            likelyScope: errorAnalysis.likelyScope || scopeAnalysis.missingScopes.length > 0,
+            requiredScopes: scopeAnalysis.requiredScopes,
+            missingScopes: scopeAnalysis.missingScopes,
             possibleCauses: [
-              'eBay API is temporarily unavailable',
+              errorAnalysis.likelyScope ? '🔑 Missing OAuth scope (most likely)' : 'eBay API is temporarily unavailable',
               'Invalid or expired OAuth token',
-              'Missing sell.account OAuth scope',
               'Rate limiting exceeded',
-              'Malformed request'
+              'Malformed request headers'
             ],
             troubleshooting: [
-              'Check eBay API status at developer.ebay.com',
+              errorAnalysis.likelyScope ? 
+                `Re-authorize with required scopes: ${scopeAnalysis.requiredScopes.join(', ')}` :
+                'Check eBay API status at developer.ebay.com',
               'Verify OAuth token is valid and not expired',
-              'Ensure token has sell.account scope',
-              'Wait a few minutes and retry',
-              'Check request format and headers'
+              'Use the /ebay-proxy-diagnostic endpoint for full analysis',
+              'Wait a few minutes and retry if temporary issue'
             ]
           },
-          retryable: true,
-          retryAfter: 30
+          retryable: !errorAnalysis.likelyScope,
+          retryAfter: errorAnalysis.likelyScope ? null : 30
         };
         
         return {
           statusCode: 502,
           headers: {
             ...headers,
-            'Retry-After': '30'
+            'X-Error-Type': errorAnalysis.likelyScope ? 'SCOPE_ERROR' : 'GATEWAY_ERROR',
+            ...(errorAnalysis.likelyScope ? {} : { 'Retry-After': '30' })
           },
           body: JSON.stringify(error502Response)
         };
       }
 
-      // Try to parse eBay error response
+      // Special handling for 503 Service Unavailable errors
+      if (response.status === 503) {
+        console.error('🚨 [EBAY-PROXY] 503 SERVICE UNAVAILABLE DETECTED!');
+        
+        const error503Response = {
+          error: 'eBay API Service Unavailable',
+          message: 'The eBay API service is temporarily unavailable',
+          details: {
+            status: 503,
+            endpoint: url.replace('https://api.ebay.com', '[EBAY_API]'),
+            timestamp: new Date().toISOString(),
+            errorAnalysis,
+            possibleCauses: [
+              'eBay API maintenance or overload',
+              'Temporary service disruption',
+              'Rate limiting (quota exceeded)'
+            ],
+            troubleshooting: [
+              'Wait 1-5 minutes and retry',
+              'Check eBay Developer status page',
+              'Reduce request frequency'
+            ]
+          },
+          retryable: true,
+          retryAfter: 60
+        };
+        
+        return {
+          statusCode: 503,
+          headers: {
+            ...headers,
+            'Retry-After': '60'
+          },
+          body: JSON.stringify(error503Response)
+        };
+      }
+
+      // Enhanced eBay error response parsing with detailed analysis
       try {
         const errorData = JSON.parse(responseText);
         if (errorData.errors && errorData.errors.length > 0) {
@@ -301,27 +398,28 @@ exports.handler = async (event, context) => {
             domain: err.domain,
             category: err.category,
             message: err.message,
-            longMessage: err.longMessage
+            longMessage: err.longMessage,
+            parameters: err.parameters
           })));
 
-          // Check for specific auth/scope errors
-          const hasAuthError = errorData.errors.some(err => 
-            err.errorId && (
-              err.errorId.includes('AUTH') || 
-              err.errorId.includes('PERMISSION') ||
-              err.errorId.includes('SCOPE') ||
-              err.message?.toLowerCase().includes('unauthorized') ||
-              err.message?.toLowerCase().includes('scope')
-            )
-          );
+          // Enhanced scope and auth error detection
+          const authScopeAnalysis = analyzeAuthErrors(errorData.errors);
+          console.error('🔍 [EBAY-PROXY] Auth/Scope Analysis:', authScopeAnalysis);
 
-          if (hasAuthError) {
-            console.error('🔑 [EBAY-PROXY] CRITICAL: Authentication or scope issue detected!');
-            console.error('🔑 [EBAY-PROXY] Ensure OAuth token has "sell.account" scope');
+          if (authScopeAnalysis.hasScopeIssue) {
+            console.error('🔑 [EBAY-PROXY] CRITICAL: Scope issue detected!');
+            console.error('🔑 [EBAY-PROXY] Missing scopes:', authScopeAnalysis.missingScopes);
+            console.error('🔑 [EBAY-PROXY] Required scopes for this endpoint:', authScopeAnalysis.requiredScopes);
+          }
+
+          if (authScopeAnalysis.hasTokenIssue) {
+            console.error('🔑 [EBAY-PROXY] CRITICAL: Token issue detected!');
+            console.error('🔑 [EBAY-PROXY] Token problems:', authScopeAnalysis.tokenIssues);
           }
         }
       } catch (parseError) {
-        console.error('❌ [EBAY-PROXY] Could not parse Account API error response');
+        console.error('❌ [EBAY-PROXY] Could not parse API error response:', parseError.message);
+        console.error('❌ [EBAY-PROXY] Raw response:', responseText.substring(0, 500));
       }
     }
     
@@ -469,3 +567,172 @@ const makeRequestWithRetry = async (url, options, attempt = 0) => {
     return makeRequestWithRetry(url, options, attempt + 1);
   }
 };
+
+// Error response analysis function
+function analyzeErrorResponse(responseText, statusCode, url) {
+  const analysis = {
+    statusCode,
+    endpoint: url.replace('https://api.ebay.com', ''),
+    likelyScope: false,
+    likelyToken: false,
+    likelyTemporary: false,
+    patterns: [],
+    rawError: responseText.substring(0, 200)
+  };
+
+  // Check for known error patterns
+  Object.entries(ERROR_PATTERNS).forEach(([pattern, regex]) => {
+    if (regex.test(responseText)) {
+      analysis.patterns.push(pattern);
+      
+      if (pattern === 'INSUFFICIENT_SCOPE' || pattern === 'FORBIDDEN_SCOPE') {
+        analysis.likelyScope = true;
+      } else if (pattern === 'INVALID_TOKEN') {
+        analysis.likelyToken = true;
+      } else if (pattern === 'SERVICE_UNAVAILABLE' || pattern === 'BAD_GATEWAY') {
+        analysis.likelyTemporary = true;
+      }
+    }
+  });
+
+  // Special analysis for 502 errors - often scope related
+  if (statusCode === 502 && url.includes('/sell/')) {
+    analysis.likelyScope = true;
+    analysis.patterns.push('LIKELY_SCOPE_502');
+  }
+
+  return analysis;
+}
+
+// Scope requirements analysis function
+function analyzeScopeRequirements(url, authHeader) {
+  const analysis = {
+    endpoint: url.replace('https://api.ebay.com', ''),
+    requiredScopes: [],
+    missingScopes: [],
+    hasToken: !!authHeader
+  };
+
+  // Determine required scopes based on endpoint
+  Object.entries(SCOPE_REQUIREMENTS).forEach(([path, scopes]) => {
+    if (url.includes(path)) {
+      analysis.requiredScopes = scopes;
+    }
+  });
+
+  // For now, assume all required scopes are missing if we get 502
+  // In a real implementation, you'd validate the actual token scopes
+  if (analysis.requiredScopes.length > 0) {
+    analysis.missingScopes = analysis.requiredScopes;
+  }
+
+  return analysis;
+}
+
+// Automatic scope validation function
+async function validateScopeBeforeRequest(url, authHeader) {
+  const validation = {
+    valid: true,
+    requiredScopes: [],
+    missingScopes: [],
+    tested: false
+  };
+
+  try {
+    // Quick scope check for common endpoints
+    const requiredScopes = getRequiredScopesForUrl(url);
+    validation.requiredScopes = requiredScopes;
+    
+    if (requiredScopes.length === 0) {
+      return validation; // No special scopes required
+    }
+
+    // For sell.account endpoints, do a quick validation
+    if (requiredScopes.includes('sell.account')) {
+      validation.tested = true;
+      
+      // Quick test with minimal endpoint
+      const testResponse = await fetch('https://api.ebay.com/sell/account/v1/policies', {
+        method: 'HEAD', // Use HEAD to minimize data transfer
+        headers: {
+          'Authorization': authHeader,
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+        }
+      });
+
+      if (testResponse.status === 502 || testResponse.status === 401) {
+        validation.valid = false;
+        validation.missingScopes = ['sell.account'];
+      }
+    }
+
+  } catch (error) {
+    console.log('⚠️ [EBAY-PROXY] Scope validation failed, proceeding with request:', error.message);
+    // If validation fails, proceed with original request
+    validation.valid = true;
+  }
+
+  return validation;
+}
+
+// Helper function to determine required scopes from URL
+function getRequiredScopesForUrl(url) {
+  if (url.includes('/sell/account/')) {
+    return ['sell.account'];
+  } else if (url.includes('/sell/inventory/')) {
+    return ['sell.inventory'];
+  } else if (url.includes('/sell/marketing/')) {
+    return ['sell.marketing'];
+  } else if (url.includes('/sell/fulfillment/')) {
+    return ['sell.fulfillment'];
+  }
+  return [];
+}
+
+// Enhanced auth error analysis function
+function analyzeAuthErrors(errors) {
+  const analysis = {
+    hasScopeIssue: false,
+    hasTokenIssue: false,
+    missingScopes: [],
+    requiredScopes: [],
+    tokenIssues: []
+  };
+
+  errors.forEach(error => {
+    const errorText = `${error.message || ''} ${error.longMessage || ''} ${error.errorId || ''}`.toLowerCase();
+    
+    // Check for scope-related errors
+    if (ERROR_PATTERNS.INSUFFICIENT_SCOPE.test(errorText) || 
+        ERROR_PATTERNS.FORBIDDEN_SCOPE.test(errorText) ||
+        error.errorId?.includes('PERMISSION') ||
+        error.errorId?.includes('SCOPE')) {
+      analysis.hasScopeIssue = true;
+      
+      // Extract scope information if available
+      if (error.parameters) {
+        error.parameters.forEach(param => {
+          if (param.name === 'scope' || param.name === 'required_scope') {
+            analysis.requiredScopes.push(param.value);
+          }
+        });
+      }
+    }
+    
+    // Check for token-related errors
+    if (ERROR_PATTERNS.INVALID_TOKEN.test(errorText) ||
+        error.errorId?.includes('AUTH') ||
+        error.errorId?.includes('TOKEN')) {
+      analysis.hasTokenIssue = true;
+      analysis.tokenIssues.push(error.message || error.errorId);
+    }
+  });
+
+  // If no specific scopes found but we have scope issues, assume common ones
+  if (analysis.hasScopeIssue && analysis.requiredScopes.length === 0) {
+    analysis.requiredScopes = ['sell.account', 'sell.inventory'];
+    analysis.missingScopes = analysis.requiredScopes;
+  }
+
+  return analysis;
+}

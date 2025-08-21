@@ -16,6 +16,8 @@ export interface ScopeValidationResult {
   hasInventoryScope: boolean;
   hasFulfillmentScope: boolean;
   hasIdentityScope: boolean;
+  hasMarketingScope: boolean;
+  hasAnalyticsScope: boolean;
   missingScopes: string[];
   tokenExpired: boolean;
   recommendations: string[];
@@ -26,7 +28,9 @@ export class OAuthScopeValidator {
     account: 'https://api.ebay.com/oauth/api_scope/sell.account',
     inventory: 'https://api.ebay.com/oauth/api_scope/sell.inventory',
     fulfillment: 'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
-    identity: 'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
+    identity: 'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
+    marketing: 'https://api.ebay.com/oauth/api_scope/sell.marketing',
+    analytics: 'https://api.ebay.com/oauth/api_scope/sell.analytics.readonly'
   };
 
   /**
@@ -69,6 +73,8 @@ export class OAuthScopeValidator {
         hasInventoryScope: false,
         hasFulfillmentScope: false,
         hasIdentityScope: false,
+        hasMarketingScope: false,
+        hasAnalyticsScope: false,
         missingScopes: Object.values(this.REQUIRED_SCOPES),
         tokenExpired: true,
         recommendations: [
@@ -85,6 +91,8 @@ export class OAuthScopeValidator {
     const hasInventoryScope = tokenData.scope.includes(this.REQUIRED_SCOPES.inventory);
     const hasFulfillmentScope = tokenData.scope.includes(this.REQUIRED_SCOPES.fulfillment);
     const hasIdentityScope = tokenData.scope.includes(this.REQUIRED_SCOPES.identity);
+    const hasMarketingScope = tokenData.scope.includes(this.REQUIRED_SCOPES.marketing);
+    const hasAnalyticsScope = tokenData.scope.includes(this.REQUIRED_SCOPES.analytics);
 
     const missingScopes: string[] = [];
     const recommendations: string[] = [];
@@ -108,6 +116,16 @@ export class OAuthScopeValidator {
       missingScopes.push(this.REQUIRED_SCOPES.identity);
       recommendations.push('Add commerce.identity.readonly scope for user info');
     }
+    
+    if (!hasMarketingScope) {
+      missingScopes.push(this.REQUIRED_SCOPES.marketing);
+      recommendations.push('Add sell.marketing scope for promotional features');
+    }
+    
+    if (!hasAnalyticsScope) {
+      missingScopes.push(this.REQUIRED_SCOPES.analytics);
+      recommendations.push('Add sell.analytics.readonly scope for performance insights');
+    }
 
     if (tokenExpired) {
       recommendations.push('Token has expired - refresh or re-authenticate');
@@ -121,6 +139,8 @@ export class OAuthScopeValidator {
       hasInventoryScope,
       hasFulfillmentScope,
       hasIdentityScope,
+      hasMarketingScope,
+      hasAnalyticsScope,
       missingScopes,
       tokenExpired,
       recommendations
@@ -171,6 +191,8 @@ export class OAuthScopeValidator {
     console.log('📦 Has Inventory Scope:', validation.hasInventoryScope);
     console.log('🚚 Has Fulfillment Scope:', validation.hasFulfillmentScope);
     console.log('👤 Has Identity Scope:', validation.hasIdentityScope);
+    console.log('📊 Has Marketing Scope:', validation.hasMarketingScope);
+    console.log('📈 Has Analytics Scope:', validation.hasAnalyticsScope);
     console.log('⏰ Token Expired:', validation.tokenExpired);
     
     if (validation.missingScopes.length > 0) {

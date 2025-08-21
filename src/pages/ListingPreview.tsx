@@ -9,6 +9,7 @@ import EbayAuthButton from '../components/EbayAuthButton';
 import MockEbayAuth from '../components/MockEbayAuth';
 import ManualEbayAuth from '../components/ManualEbayAuth';
 import BusinessPolicySelector from '../components/BusinessPolicySelector';
+import { ReAuthenticateEbay } from '../components/ReAuthenticateEbay';
 
 
 const ListingPreview = () => {
@@ -492,6 +493,11 @@ const ListingPreview = () => {
 
           {/* Platform Selection and Business Policies */}
           <div className="space-y-6">
+            {/* OAuth Scope Check - Show if authenticated but policies fail */}
+            {isEbayAuthenticated && selectedPlatforms.includes('ebay') && (
+              <ReAuthenticateEbay />
+            )}
+            
             {/* Business Policy Selection for eBay */}
             {selectedPlatforms.includes('ebay') && isEbayAuthenticated && (
               <BusinessPolicySelector

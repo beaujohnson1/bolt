@@ -180,12 +180,14 @@ async function getAuthUrl(headers, credentials, oauthBase, queryParams, environm
     }
     console.log('🔗 [EBAY-OAUTH] Final callback URL:', callbackUrl);
     
-    // Add eBay scopes for selling - simplified for production approval
+    // Add eBay scopes for selling - ALL required scopes for business policies
     const scopes = [
       'https://api.ebay.com/oauth/api_scope/sell.inventory',
-      'https://api.ebay.com/oauth/api_scope/sell.account',
+      'https://api.ebay.com/oauth/api_scope/sell.account',          // CRITICAL for business policies
       'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
-      'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
+      'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
+      'https://api.ebay.com/oauth/api_scope/sell.marketing',
+      'https://api.ebay.com/oauth/api_scope/sell.analytics.readonly'
     ].join(' ');
     
     authUrl.searchParams.append('scope', scopes);
