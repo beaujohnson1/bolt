@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency OAuth Recovery</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button.danger {
+            background: #dc3545;
+        }
+        button.danger:hover {
+            background: #c82333;
+        }
+        button.success {
+            background: #28a745;
+        }
+        button.success:hover {
+            background: #218838;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚨 Emergency OAuth Recovery</h1>
+        
+        <div class="status warning">
+            <strong>⚠️ Use this page if the main app is crashing after OAuth authentication</strong>
+        </div>
+
+        <h2>Quick Actions</h2>
+        <div>
+            <button onclick="clearAllTokens()" class="danger">🗑️ Clear All Tokens</button>
+            <button onclick="checkTokens()">🔍 Check Token Status</button>
+            <button onclick="fixTokens()" class="success">🔧 Fix Tokens</button>
+            <button onclick="testConnection()">🧪 Test eBay Connection</button>
+        </div>
+
+        <h2>Manual OAuth (Safe Mode)</h2>
+        <div>
+            <button onclick="startSafeOAuth()">🔐 Start Safe OAuth Flow</button>
+            <p><small>This bypasses the app's OAuth flow to prevent crashes</small></p>
+        </div>
+
+        <h2>Recovery Log</h2>
+        <div id="log" class="log">Ready for recovery operations...</div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : '📋';
+            logDiv.innerHTML += `${timestamp} ${icon} ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearAllTokens() {
+            log('Clearing all OAuth tokens...', 'warning');
+            const keysToRemove = [];
+            
+            for (let key in localStorage) {
+                if (key.includes('ebay') || key.includes('oauth') || key.includes('token') || key.includes('easyflip')) {
+                    keysToRemove.push(key);
+                }
+            }
+            
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+                log(`Removed: ${key}`, 'info');
+            });
+            
+            log(`Cleared ${keysToRemove.length} OAuth-related items`, 'success');
+            log('You can now return to the main app and re-authenticate', 'success');
+        }
+
+        function checkTokens() {
+            log('Checking token status...', 'info');
+            
+            const tokens = localStorage.getItem('ebay_oauth_tokens');
+            const accessToken = localStorage.getItem('easyflip_ebay_access_token');
+            const scope = localStorage.getItem('easyflip_ebay_token_scope');
+            
+            if (!tokens && !accessToken) {
+                log('No tokens found - you need to authenticate', 'error');
+                return;
+            }
+            
+            if (tokens) {
+                try {
+                    const parsed = JSON.parse(tokens);
+                    log('Found ebay_oauth_tokens', 'success');
+                    log(`Has access_token: ${!!parsed.access_token}`, 'info');
+                    log(`Has scope: ${!!parsed.scope}`, 'info');
+                    
+                    if (parsed.access_token && parsed.access_token.length > 2000) {
+                        log('WARNING: Token appears corrupted (too long)', 'warning');
+                    }
+                } catch (e) {
+                    log('Token data is corrupted', 'error');
+                }
+            }
+            
+            if (accessToken) {
+                log(`Found individual access token (${accessToken.length} chars)`, 'info');
+            }
+            
+            if (scope) {
+                log(`Found scope: ${scope.includes('sell.account') ? '✅ Has sell.account' : '❌ Missing sell.account'}`, 'info');
+            }
+        }
+
+        function fixTokens() {
+            log('Attempting to fix tokens...', 'info');
+            
+            const correctScope = 'https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/commerce.identity.readonly';
+            
+            // Fix scope
+            localStorage.setItem('easyflip_ebay_token_scope', correctScope);
+            log('Set correct scope', 'success');
+            
+            // Fix token object if it exists
+            const tokens = localStorage.getItem('ebay_oauth_tokens');
+            if (tokens) {
+                try {
+                    const parsed = JSON.parse(tokens);
+                    parsed.scope = correctScope;
+                    localStorage.setItem('ebay_oauth_tokens', JSON.stringify(parsed));
+                    log('Updated token object with scope', 'success');
+                } catch (e) {
+                    log('Could not fix token object', 'error');
+                }
+            }
+            
+            log('Token fix complete - try the app again', 'success');
+        }
+
+        async function testConnection() {
+            log('Testing eBay connection...', 'info');
+            
+            const tokens = localStorage.getItem('ebay_oauth_tokens');
+            if (!tokens) {
+                log('No tokens found to test', 'error');
+                return;
+            }
+            
+            try {
+                const parsed = JSON.parse(tokens);
+                const response = await fetch('/.netlify/functions/ebay-proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: 'https://api.ebay.com/sell/account/v1/privilege',
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${parsed.access_token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    log('✅ eBay connection successful!', 'success');
+                } else if (response.status === 401) {
+                    log('Token expired - need to re-authenticate', 'error');
+                } else if (response.status === 403) {
+                    log('Token valid but missing scopes', 'warning');
+                } else {
+                    log(`Connection failed: ${response.status}`, 'error');
+                }
+            } catch (e) {
+                log(`Test failed: ${e.message}`, 'error');
+            }
+        }
+
+        function startSafeOAuth() {
+            log('Starting safe OAuth flow...', 'info');
+            
+            // Clear old tokens first
+            clearAllTokens();
+            
+            // Open OAuth in new tab instead of popup
+            log('Opening eBay OAuth in new tab...', 'info');
+            window.open('/.netlify/functions/simple-ebay-oauth?action=generate-auth-url', '_blank');
+            
+            log('Complete authentication in the new tab', 'info');
+            log('Then return here and click "Check Token Status"', 'info');
+        }
+
+        // Auto-check on load
+        window.onload = () => {
+            log('Emergency Recovery Page loaded', 'success');
+            checkTokens();
+        };
+    </script>
+</body>
+</html>

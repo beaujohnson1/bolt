@@ -552,8 +552,31 @@ class EbayOAuthService {
       let tokenCheckAttempts = 0;
       const maxTokenChecks = 300; // 30 seconds of checking
       
-      const enhancedPopupMonitor = setInterval(() => {
+      // Define checkClosed interval to monitor popup status
+      let enhancedPopupMonitor: any; // Declare here to avoid reference errors
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          console.log('🔄 [EBAY-OAUTH] Popup window closed');
+          clearInterval(checkClosed);
+          if (enhancedPopupMonitor) clearInterval(enhancedPopupMonitor);
+          window.removeEventListener('message', messageHandler);
+          channel?.close();
+        }
+      }, 1000);
+      
+      enhancedPopupMonitor = setInterval(() => {
         tokenCheckAttempts++;
+        
+        // Safety check to prevent infinite loops and page crashes
+        if (tokenCheckAttempts > maxTokenChecks) {
+          console.warn('⏰ [EBAY-OAUTH] Token check timeout - stopping monitoring to prevent crash');
+          clearInterval(enhancedPopupMonitor);
+          clearInterval(checkClosed);
+          window.removeEventListener('message', messageHandler);
+          channel?.close();
+          if (!popup.closed) popup.close();
+          return;
+        }
         
         // Check if popup is closed
         if (popup.closed) {
