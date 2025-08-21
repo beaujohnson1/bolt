@@ -478,11 +478,19 @@ exports.handler = async (event, context) => {
     // Update circuit breaker on error
     updateCircuitBreaker(false);
     
+    // Parse request data for error logging (if available)
+    let requestData = {};
+    try {
+      requestData = event.body ? JSON.parse(event.body) : {};
+    } catch (parseError) {
+      // Ignore parse errors in error handler
+    }
+    
     console.error('❌ [EBAY-PROXY] Proxy error:', {
       error: error.message,
       stack: error.stack,
-      url: body?.url || 'unknown',
-      method: body?.method || 'unknown',
+      url: requestData.url || 'unknown',
+      method: requestData.method || 'unknown',
       code: error.code
     });
     

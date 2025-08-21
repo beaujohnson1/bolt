@@ -142,13 +142,16 @@ exports.handler = async (event, context) => {
                                 if (data.success && data.access_token) {
                                     // Store tokens in parent window (if popup) using ALL compatible formats
                                     if (window.opener && window.opener.localStorage) {
+                                        // Ensure scope is properly formatted with all required scopes
+                                        const scopeString = data.scope || 'https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/commerce.identity.readonly';
+                                        
                                         const tokenData = {
                                             access_token: data.access_token,
                                             refresh_token: data.refresh_token,
                                             expires_in: data.expires_in,
                                             expires_at: Date.now() + (data.expires_in * 1000),
                                             token_type: data.token_type || 'Bearer',
-                                            scope: data.scope || ''
+                                            scope: scopeString  // Ensure scope is included in token data
                                         };
                                         
                                         // Store in ALL formats for maximum compatibility
@@ -158,7 +161,7 @@ exports.handler = async (event, context) => {
                                         window.opener.localStorage.setItem('ebay_access_token', data.access_token);
                                         window.opener.localStorage.setItem('ebay_refresh_token', data.refresh_token);
                                         window.opener.localStorage.setItem('ebay_token_expiry', String(tokenData.expires_at));
-                                        window.opener.localStorage.setItem('easyflip_ebay_token_scope', data.scope || '');
+                                        window.opener.localStorage.setItem('easyflip_ebay_token_scope', scopeString);
                                         
                                         console.log('✅ Tokens stored successfully in parent window');
                                         
@@ -210,13 +213,16 @@ exports.handler = async (event, context) => {
                                         }
                                     } else {
                                         // Fallback: store in current window using ALL compatible formats
+                                        // Ensure scope is properly formatted with all required scopes
+                                        const scopeString = data.scope || 'https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/commerce.identity.readonly';
+                                        
                                         const tokenData = {
                                             access_token: data.access_token,
                                             refresh_token: data.refresh_token,
                                             expires_in: data.expires_in,
                                             expires_at: Date.now() + (data.expires_in * 1000),
                                             token_type: data.token_type || 'Bearer',
-                                            scope: data.scope || ''
+                                            scope: scopeString  // Ensure scope is included in token data
                                         };
                                         
                                         // Store in ALL formats for maximum compatibility
@@ -226,7 +232,7 @@ exports.handler = async (event, context) => {
                                         localStorage.setItem('ebay_access_token', data.access_token);
                                         localStorage.setItem('ebay_refresh_token', data.refresh_token);
                                         localStorage.setItem('ebay_token_expiry', String(tokenData.expires_at));
-                                        localStorage.setItem('easyflip_ebay_token_scope', data.scope || '');
+                                        localStorage.setItem('easyflip_ebay_token_scope', scopeString);
                                         
                                         console.log('✅ Tokens stored in callback window localStorage');
                                     }

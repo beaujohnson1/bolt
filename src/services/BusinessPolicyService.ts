@@ -682,23 +682,54 @@ class BusinessPolicyService {
         return true;
       }
       
-      // Check localStorage for scope information
+      let scopes: string[] = [];
+      
+      // Check primary location first (ebay_oauth_tokens)
       const tokens = localStorage.getItem('ebay_oauth_tokens');
       if (tokens) {
-        const tokenData = JSON.parse(tokens);
-        const scopes = tokenData.scope?.split(' ') || [];
-        
-        if (!scopes.includes(requiredScope)) {
-          console.warn(`⚠️ [BUSINESS-POLICY] OAuth token missing required scope: ${requiredScope}`);
-          console.warn(`⚠️ [BUSINESS-POLICY] Current scopes: ${scopes.join(', ')}`);
-          return false;
+        try {
+          const tokenData = JSON.parse(tokens);
+          if (tokenData.scope) {
+            scopes = tokenData.scope.split(' ').filter(Boolean);
+            console.log('🔍 [BUSINESS-POLICY] Found scopes in ebay_oauth_tokens:', scopes);
+          }
+        } catch (e) {
+          console.warn('⚠️ [BUSINESS-POLICY] Failed to parse ebay_oauth_tokens:', e);
         }
       }
       
+      // Fallback to easyflip_ebay_token_scope if no scopes found
+      if (scopes.length === 0) {
+        const scopeString = localStorage.getItem('easyflip_ebay_token_scope');
+        if (scopeString) {
+          scopes = scopeString.split(' ').filter(Boolean);
+          console.log('🔍 [BUSINESS-POLICY] Found scopes in easyflip_ebay_token_scope:', scopes);
+        }
+      }
+      
+      // Check if we have any scopes
+      if (scopes.length === 0) {
+        console.warn('⚠️ [BUSINESS-POLICY] No OAuth scopes found in localStorage');
+        return false;
+      }
+      
+      // Check if required scope is present (handle both full URL and short form)
+      const hasScope = scopes.some(scope => 
+        scope.includes(requiredScope) || 
+        scope === `https://api.ebay.com/oauth/api_scope/${requiredScope}`
+      );
+      
+      if (!hasScope) {
+        console.warn(`⚠️ [BUSINESS-POLICY] OAuth token missing required scope: ${requiredScope}`);
+        console.warn(`⚠️ [BUSINESS-POLICY] Current scopes: ${scopes.join(', ')}`);
+        return false;
+      }
+      
+      console.log(`✅ [BUSINESS-POLICY] Scope ${requiredScope} validated successfully`);
       return true;
     } catch (error) {
       console.warn('⚠️ [BUSINESS-POLICY] Could not validate token scope:', error);
-      return true; // Assume valid if we can't validate
+      return false; // Fail safe - don't assume valid if we can't validate
     }
   }
 

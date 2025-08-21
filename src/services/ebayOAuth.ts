@@ -991,6 +991,7 @@ class EbayOAuthService {
         const accessToken = localStorage.getItem('ebay_access_token');
         const refreshToken = localStorage.getItem('ebay_refresh_token');
         const tokenExpiry = localStorage.getItem('ebay_token_expiry');
+        const tokenScope = localStorage.getItem('easyflip_ebay_token_scope');
         
         if (accessToken) {
           const expiryTime = tokenExpiry ? parseInt(tokenExpiry) : Date.now() + 3600000;
@@ -999,7 +1000,8 @@ class EbayOAuthService {
             refresh_token: refreshToken || '',
             expires_in: Math.max(0, Math.floor((expiryTime - Date.now()) / 1000)),
             expires_at: expiryTime,
-            token_type: 'Bearer'
+            token_type: 'Bearer',
+            scope: tokenScope || 'https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
           });
           storageType = 'individual_tokens';
           console.log('🔄 [EBAY-OAUTH] Reconstructed tokens from individual fields');
@@ -1051,7 +1053,9 @@ class EbayOAuthService {
         hasAccessToken: !!parsed.access_token,
         hasRefreshToken: !!parsed.refresh_token,
         expiresAt: parsed.expires_at,
-        isValid: !!(parsed.access_token && parsed.refresh_token)
+        isValid: !!(parsed.access_token && parsed.refresh_token),
+        scope: parsed.scope || 'NO SCOPE FOUND',
+        scopeArray: parsed.scope ? parsed.scope.split(' ') : []
       });
       
       return parsed;
