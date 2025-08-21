@@ -12,6 +12,7 @@ interface TokenDetectionResult {
 
 interface EmergencyState {
   isPolling: boolean;
+  isSyncing: boolean;
   detectionMethods: number;
   confirmations: number;
   lastSync: number;
@@ -23,6 +24,7 @@ export class EmergencyOAuthBridge {
   private pollingInterval: NodeJS.Timeout | null = null;
   private state: EmergencyState = {
     isPolling: false,
+    isSyncing: false,
     detectionMethods: 0,
     confirmations: 0,
     lastSync: 0,
@@ -230,6 +232,9 @@ export class EmergencyOAuthBridge {
   private triggerEmergencySync(token: string): void {
     console.log('[EmergencyOAuthBridge] Triggering emergency synchronization');
     
+    // Set syncing flag to prevent infinite loops
+    this.state.isSyncing = true;
+    
     try {
       // Sync across all storage methods
       localStorage.setItem('ebay_access_token', token);
@@ -251,6 +256,9 @@ export class EmergencyOAuthBridge {
     } catch (error) {
       console.error('[EmergencyOAuthBridge] Emergency sync failed:', error);
       throw error;
+    } finally {
+      // Reset syncing flag
+      this.state.isSyncing = false;
     }
   }
   
@@ -343,11 +351,25 @@ export class EmergencyOAuthBridge {
    * Handle storage change events
    */
   private handleStorageChange(event: StorageEvent): void {
+    // Prevent infinite loops - don't react to our own changes
+    if (this.state.isSyncing) {
+      return;
+    }
+    
     if (event.key?.includes('token') || event.key?.includes('oauth')) {
       console.log('[EmergencyOAuthBridge] Storage change detected:', event.key);
       
-      if (event.newValue && this.state.isPolling) {
-        this.triggerEmergencySync(event.newValue);
+      // Only sync if this is a legitimate token update from OAuth callback
+      if (event.newValue && this.state.isPolling && event.key === 'ebay_oauth_success_beacon') {
+        // Parse the beacon data properly
+        try {
+          const beaconData = JSON.parse(event.newValue);
+          if (beaconData.token && typeof beaconData.token === 'string') {
+            this.triggerEmergencySync(beaconData.token);
+          }
+        } catch (e) {
+          // Not valid beacon data, ignore
+        }
       }
     }
   }
