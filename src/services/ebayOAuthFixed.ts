@@ -27,9 +27,10 @@ export interface TokenStorage {
 
 export class EBayOAuthFixed {
   private static readonly STORAGE_KEY = 'ebay_oauth_tokens_v2';
-  private static readonly CLIENT_ID = import.meta.env.VITE_EBAY_CLIENT_ID;
+  private static readonly CLIENT_ID = import.meta.env.VITE_EBAY_CLIENT_ID || 'easyflip-easyflip-PRD-c645ded63-a17c4d94';
   private static readonly CLIENT_SECRET = import.meta.env.VITE_EBAY_CLIENT_SECRET;
-  private static readonly RU_NAME = 'https://easyflip.ai/app/api/ebay/callback-fixed';
+  // CRITICAL: RuName is NOT a URL - it's eBay's redirect identifier!
+  private static readonly RU_NAME = 'easyflip.ai-easyflip-easyfl-cnqajybp';
   private static readonly SANDBOX = import.meta.env.VITE_EBAY_SANDBOX === 'true';
   
   // Endpoints following Hendt pattern
@@ -84,7 +85,7 @@ export class EBayOAuthFixed {
 
     const params = new URLSearchParams({
       client_id: this.CLIENT_ID,
-      redirect_uri: this.RU_NAME, // Now points to https://easyflip.ai/app/api/ebay/callback-fixed
+      redirect_uri: this.RU_NAME, // Using eBay RuName identifier
       response_type: 'code',
       state: state,
       scope: this.DEFAULT_SCOPES.join(' ')
@@ -111,7 +112,7 @@ export class EBayOAuthFixed {
         body: new URLSearchParams({
           grant_type: 'authorization_code',
           code: decodeURIComponent(code),
-          redirect_uri: this.RU_NAME
+          redirect_uri: this.RU_NAME // Using eBay RuName for token exchange too
         })
       });
 
