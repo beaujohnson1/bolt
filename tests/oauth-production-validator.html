@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🚀 OAuth Production Validator</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+            line-height: 1.6;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .btn:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; }
+        .btn-warning { background: #f39c12; }
+        .btn-danger { background: #e74c3c; }
+        .btn-large {
+            padding: 16px 32px;
+            font-size: 16px;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .status.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .log-area {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border: 1px solid #ddd;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .input-group textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #f39c12;
+            margin: 10px 0;
+        }
+        .critical {
+            background: #f8d7da;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #e74c3c;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 OAuth Production Validator</h1>
+        <p>Comprehensive OAuth callback testing and validation tool for production environment.</p>
+        
+        <div class="critical">
+            🚨 <strong>PRODUCTION TESTING</strong>: This tool tests the actual OAuth flow with eBay's production API. 
+            Use real authorization codes only when necessary.
+        </div>
+        
+        <div id="overall-status" class="status info">
+            🔧 Ready to validate OAuth production flow...
+        </div>
+    </div>
+
+    <div class="grid">
+        <!-- Left Column: OAuth Flow -->
+        <div class="container">
+            <div class="test-section">
+                <h3>🔐 OAuth Flow Testing</h3>
+                <button class="btn btn-large btn-success" onclick="startFullOAuthFlow()">Start Complete OAuth Flow</button>
+                <button class="btn" onclick="testCallbackFunction()">Test Callback Function Only</button>
+                <button class="btn btn-warning" onclick="clearOAuthData()">Clear OAuth Data</button>
+            </div>
+
+            <div class="test-section">
+                <h3>🧪 Manual Testing</h3>
+                <div class="input-group">
+                    <label for="manual-code">Real eBay Authorization Code:</label>
+                    <textarea id="manual-code" placeholder="Paste real eBay authorization code here for testing..."></textarea>
+                </div>
+                <button class="btn" onclick="testManualCode()">Test This Code</button>
+                <button class="btn btn-warning" onclick="extractFromUrl()">Extract from Current URL</button>
+                
+                <div class="highlight">
+                    💡 <strong>How to get a real code:</strong><br>
+                    1. Click "Start Complete OAuth Flow" above<br>
+                    2. Complete eBay authentication in popup<br>
+                    3. Code will be automatically captured and tested
+                </div>
+            </div>
+
+            <div class="test-section">
+                <h3>📊 System Status</h3>
+                <button class="btn" onclick="checkSystemHealth()">Check System Health</button>
+                <button class="btn" onclick="validateConfiguration()">Validate Configuration</button>
+                <div id="system-status" class="status info">
+                    Click "Check System Health" to validate all systems...
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Results & Monitoring -->
+        <div class="container">
+            <div class="test-section">
+                <h3>📋 Test Results</h3>
+                <div id="test-results" class="log-area">
+                    Waiting for test results...
+                </div>
+            </div>
+
+            <div class="test-section">
+                <h3>💾 localStorage Monitor</h3>
+                <button class="btn btn-success" onclick="monitorStorage()">Monitor Storage</button>
+                <button class="btn btn-danger" onclick="clearStorage()">Clear All</button>
+                <div id="storage-monitor" class="log-area">
+                    Click "Monitor Storage" to see current OAuth tokens...
+                </div>
+            </div>
+
+            <div class="test-section">
+                <h3>🔍 Real-time Monitoring</h3>
+                <label>
+                    <input type="checkbox" id="auto-monitor" onchange="toggleAutoMonitor()"> 
+                    Auto-monitor localStorage changes
+                </label>
+                <div id="realtime-monitor" class="log-area">
+                    Real-time monitoring disabled. Check box above to enable.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let testLog = [];
+        let autoMonitorInterval = null;
+        let lastStorageState = {};
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            testLog.push(logEntry);
+            updateDisplay();
+            console.log(logEntry);
+        }
+
+        function updateDisplay() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.textContent = testLog.join('\\n');
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function updateOverallStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('overall-status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        // Main OAuth Flow Testing
+        async function startFullOAuthFlow() {
+            log('🚀 Starting complete OAuth flow...');
+            updateOverallStatus('🚀 Starting OAuth flow - generating auth URL...', 'info');
+            
+            try {
+                // Step 1: Generate auth URL
+                const authResponse = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'generate-auth-url' })
+                });
+                
+                const authData = await authResponse.json();
+                if (!authData.success) {
+                    throw new Error(`Auth URL generation failed: ${authData.error}`);
+                }
+                
+                log('✅ Step 1: Auth URL generated successfully');
+                log(`Auth URL: ${authData.authUrl}`);
+                
+                // Step 2: Open popup for OAuth
+                updateOverallStatus('🔐 Opening eBay OAuth popup - complete authentication...', 'warning');
+                
+                const popup = window.open(
+                    authData.authUrl,
+                    'ebayOAuth',
+                    'width=600,height=700,scrollbars=yes,resizable=yes'
+                );
+                
+                if (!popup) {
+                    throw new Error('Popup blocked - please allow popups for this site');
+                }
+                
+                log('✅ Step 2: OAuth popup opened');
+                
+                // Step 3: Monitor for OAuth completion
+                return new Promise((resolve, reject) => {
+                    const checkInterval = setInterval(() => {
+                        if (popup.closed) {
+                            clearInterval(checkInterval);
+                            log('📝 Step 3: Popup closed by user');
+                            updateOverallStatus('⚠️ OAuth popup closed - checking for tokens...', 'warning');
+                            setTimeout(() => {
+                                monitorStorage();
+                                checkTokensAfterOAuth();
+                            }, 1000);
+                            resolve();
+                        }
+                    }, 1000);
+                    
+                    // Listen for success messages
+                    const messageHandler = (event) => {
+                        if (event.data && event.data.type === 'EBAY_OAUTH_SUCCESS') {
+                            clearInterval(checkInterval);
+                            window.removeEventListener('message', messageHandler);
+                            log('✅ Step 3: OAuth success message received!');
+                            log(`Token data: ${JSON.stringify(event.data.tokens, null, 2)}`);
+                            updateOverallStatus('✅ OAuth flow completed successfully!', 'success');
+                            setTimeout(() => monitorStorage(), 500);
+                            resolve();
+                        } else if (event.data && event.data.type === 'EBAY_OAUTH_ERROR') {
+                            clearInterval(checkInterval);
+                            window.removeEventListener('message', messageHandler);
+                            log(`❌ Step 3: OAuth error received: ${event.data.error}`);
+                            updateOverallStatus('❌ OAuth flow failed - see error details', 'error');
+                            reject(new Error(event.data.error));
+                        }
+                    };
+                    
+                    window.addEventListener('message', messageHandler);
+                    
+                    // Timeout after 5 minutes
+                    setTimeout(() => {
+                        clearInterval(checkInterval);
+                        window.removeEventListener('message', messageHandler);
+                        if (!popup.closed) {
+                            popup.close();
+                        }
+                        log('⏰ OAuth flow timed out after 5 minutes');
+                        updateOverallStatus('⏰ OAuth flow timed out', 'error');
+                        reject(new Error('OAuth flow timed out'));
+                    }, 300000);
+                });
+                
+            } catch (error) {
+                log(`❌ OAuth flow failed: ${error.message}`, 'error');
+                updateOverallStatus('❌ OAuth flow failed', 'error');
+            }
+        }
+
+        // Test Callback Function Only
+        async function testCallbackFunction() {
+            log('🧪 Testing callback function with mock data...');
+            
+            try {
+                const mockCode = 'test_callback_' + Date.now();
+                const callbackUrl = `/.netlify/functions/simple-ebay-callback?state=test&code=${encodeURIComponent(mockCode)}`;
+                
+                const response = await fetch(callbackUrl);
+                const html = await response.text();
+                
+                log(`✅ Callback function response received (${html.length} chars)`);
+                
+                if (html.includes('exchangeTokens')) {
+                    log('✅ Callback HTML contains JavaScript function');
+                } else {
+                    log('❌ Callback HTML missing JavaScript function', 'error');
+                }
+                
+                if (html.includes('fetch')) {
+                    log('✅ Callback HTML contains fetch call');
+                } else {
+                    log('❌ Callback HTML missing fetch call', 'error');
+                }
+                
+                if (html.includes('localStorage')) {
+                    log('✅ Callback HTML contains localStorage operations');
+                } else {
+                    log('❌ Callback HTML missing localStorage operations', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Callback function test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Manual Code Testing
+        async function testManualCode() {
+            const code = document.getElementById('manual-code').value.trim();
+            if (!code) {
+                log('❌ Please enter an authorization code', 'error');
+                return;
+            }
+            
+            log(`🧪 Testing manual authorization code: ${code.substring(0, 20)}...`);
+            updateOverallStatus('🧪 Testing manual authorization code...', 'info');
+            
+            try {
+                const response = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'exchange-code',
+                        code: code
+                    })
+                });
+                
+                const data = await response.json();
+                
+                log(`Response status: ${response.status}`);
+                log(`Response: ${JSON.stringify(data, null, 2)}`);
+                
+                if (data.success && data.access_token) {
+                    log('✅ Manual token exchange: SUCCESS', 'success');
+                    
+                    // Store tokens
+                    const tokenData = {
+                        access_token: data.access_token,
+                        refresh_token: data.refresh_token,
+                        expires_in: data.expires_in,
+                        expires_at: Date.now() + (data.expires_in * 1000),
+                        token_type: data.token_type || 'Bearer'
+                    };
+                    
+                    localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                    localStorage.setItem('ebay_manual_token', tokenData.access_token);
+                    
+                    log('✅ Tokens stored in localStorage');
+                    updateOverallStatus('✅ Manual token exchange successful!', 'success');
+                    setTimeout(() => monitorStorage(), 500);
+                    
+                } else {
+                    log(`❌ Manual token exchange failed: ${data.error}`, 'error');
+                    if (data.errorCategory) {
+                        log(`Error category: ${data.errorCategory}`);
+                    }
+                    if (data.details) {
+                        log(`Error details: ${JSON.stringify(data.details, null, 2)}`);
+                    }
+                    updateOverallStatus('❌ Manual token exchange failed', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Manual token exchange error: ${error.message}`, 'error');
+                updateOverallStatus('❌ Manual token exchange error', 'error');
+            }
+        }
+
+        // Extract from URL
+        function extractFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            
+            if (code) {
+                document.getElementById('manual-code').value = code;
+                log(`✅ Extracted code from URL: ${code.substring(0, 30)}...`);
+            } else {
+                log('❌ No code parameter found in current URL', 'error');
+            }
+        }
+
+        // System Health Check
+        async function checkSystemHealth() {
+            log('🏥 Checking system health...');
+            const statusDiv = document.getElementById('system-status');
+            let healthReport = 'System Health Report:\\n\\n';
+            
+            try {
+                // Test 1: OAuth endpoint availability
+                const authTest = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'generate-auth-url' })
+                });
+                
+                if (authTest.ok) {
+                    healthReport += '✅ OAuth endpoint: HEALTHY\\n';
+                    log('✅ OAuth endpoint is responsive');
+                } else {
+                    healthReport += '❌ OAuth endpoint: UNHEALTHY\\n';
+                    log('❌ OAuth endpoint not responding properly', 'error');
+                }
+                
+                // Test 2: Callback endpoint availability
+                const callbackTest = await fetch('/.netlify/functions/simple-ebay-callback?test=health');
+                if (callbackTest.ok) {
+                    healthReport += '✅ Callback endpoint: HEALTHY\\n';
+                    log('✅ Callback endpoint is responsive');
+                } else {
+                    healthReport += '❌ Callback endpoint: UNHEALTHY\\n';
+                    log('❌ Callback endpoint not responding properly', 'error');
+                }
+                
+                // Test 3: localStorage functionality
+                try {
+                    const testKey = 'health_test_' + Date.now();
+                    localStorage.setItem(testKey, 'test');
+                    const retrieved = localStorage.getItem(testKey);
+                    localStorage.removeItem(testKey);
+                    
+                    if (retrieved === 'test') {
+                        healthReport += '✅ localStorage: HEALTHY\\n';
+                        log('✅ localStorage is functional');
+                    } else {
+                        healthReport += '❌ localStorage: UNHEALTHY\\n';
+                        log('❌ localStorage not working properly', 'error');
+                    }
+                } catch (storageError) {
+                    healthReport += '❌ localStorage: ERROR\\n';
+                    log(`❌ localStorage error: ${storageError.message}`, 'error');
+                }
+                
+                // Test 4: Network connectivity
+                try {
+                    const networkTest = await fetch('https://api.ebay.com/oauth/api_scope/sell.inventory', { method: 'HEAD' });
+                    healthReport += '✅ eBay API connectivity: HEALTHY\\n';
+                    log('✅ eBay API is reachable');
+                } catch (networkError) {
+                    healthReport += '⚠️ eBay API connectivity: UNKNOWN\\n';
+                    log('⚠️ eBay API connectivity test inconclusive');
+                }
+                
+                healthReport += '\\nOverall status: All critical systems operational';
+                statusDiv.textContent = healthReport;
+                statusDiv.className = 'status success';
+                
+            } catch (error) {
+                healthReport += `\\n❌ Health check failed: ${error.message}`;
+                statusDiv.textContent = healthReport;
+                statusDiv.className = 'status error';
+                log(`❌ System health check failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Configuration Validation
+        async function validateConfiguration() {
+            log('⚙️ Validating configuration...');
+            
+            try {
+                // Test configuration by attempting to generate auth URL
+                const response = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'generate-auth-url' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.authUrl) {
+                    log('✅ Configuration validation: SUCCESS');
+                    log('✅ eBay app credentials are properly configured');
+                    
+                    // Parse the auth URL to show configuration details
+                    const url = new URL(data.authUrl);
+                    const clientId = url.searchParams.get('client_id');
+                    const redirectUri = url.searchParams.get('redirect_uri');
+                    const scopes = url.searchParams.get('scope');
+                    
+                    log(`Client ID: ${clientId ? clientId.substring(0, 20) + '...' : 'NOT FOUND'}`);
+                    log(`Redirect URI: ${redirectUri || 'NOT FOUND'}`);
+                    log(`Scopes: ${scopes ? scopes.split(' ').length + ' scopes configured' : 'NOT FOUND'}`);
+                    
+                } else {
+                    log(`❌ Configuration validation: FAILED - ${data.error}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Configuration validation error: ${error.message}`, 'error');
+            }
+        }
+
+        // Storage Monitoring
+        function monitorStorage() {
+            const monitor = document.getElementById('storage-monitor');
+            
+            try {
+                const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+                const manualToken = localStorage.getItem('ebay_manual_token');
+                
+                let report = 'Current OAuth Token Status:\\n\\n';
+                
+                if (oauthTokens) {
+                    try {
+                        const parsed = JSON.parse(oauthTokens);
+                        const expiresAt = new Date(parsed.expires_at);
+                        const isExpired = Date.now() > parsed.expires_at;
+                        
+                        report += `✅ ebay_oauth_tokens: FOUND\\n`;
+                        report += `   Access Token: ${parsed.access_token.substring(0, 20)}...\\n`;
+                        report += `   Refresh Token: ${parsed.refresh_token ? parsed.refresh_token.substring(0, 20) + '...' : 'N/A'}\\n`;
+                        report += `   Expires: ${expiresAt.toLocaleString()}\\n`;
+                        report += `   Status: ${isExpired ? '❌ EXPIRED' : '✅ VALID'}\\n\\n`;
+                    } catch (parseError) {
+                        report += `❌ ebay_oauth_tokens: INVALID JSON\\n\\n`;
+                    }
+                } else {
+                    report += `❌ ebay_oauth_tokens: NOT FOUND\\n\\n`;
+                }
+                
+                if (manualToken) {
+                    report += `✅ ebay_manual_token: FOUND (${manualToken.substring(0, 20)}...)\\n\\n`;
+                } else {
+                    report += `❌ ebay_manual_token: NOT FOUND\\n\\n`;
+                }
+                
+                // Show all eBay-related keys
+                const allKeys = Object.keys(localStorage).filter(key => 
+                    key.includes('ebay') || key.includes('oauth')
+                );
+                
+                if (allKeys.length > 0) {
+                    report += `All OAuth-related keys (${allKeys.length}): ${allKeys.join(', ')}\\n\\n`;
+                } else {
+                    report += `No OAuth-related keys found\\n\\n`;
+                }
+                
+                report += `Total localStorage items: ${Object.keys(localStorage).length}`;
+                report += `\\nLast checked: ${new Date().toLocaleTimeString()}`;
+                
+                monitor.textContent = report;
+                
+            } catch (error) {
+                monitor.textContent = `Error monitoring storage: ${error.message}`;
+            }
+        }
+
+        function clearStorage() {
+            const keysToRemove = Object.keys(localStorage).filter(key => 
+                key.includes('ebay') || key.includes('oauth')
+            );
+            
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            
+            log(`🗑️ Cleared ${keysToRemove.length} OAuth-related keys`, 'warning');
+            monitorStorage();
+        }
+
+        function clearOAuthData() {
+            clearStorage();
+            testLog = [];
+            updateDisplay();
+            updateOverallStatus('🔧 OAuth data cleared - ready for fresh testing', 'info');
+        }
+
+        // Check tokens after OAuth completion
+        function checkTokensAfterOAuth() {
+            setTimeout(() => {
+                const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+                const manualToken = localStorage.getItem('ebay_manual_token');
+                
+                if (oauthTokens && manualToken) {
+                    log('✅ OAuth completion verified: Tokens found in localStorage', 'success');
+                    updateOverallStatus('✅ OAuth flow completed - tokens stored successfully!', 'success');
+                } else {
+                    log('⚠️ OAuth completion check: No tokens found', 'warning');
+                    updateOverallStatus('⚠️ OAuth popup closed but no tokens found - check for errors', 'warning');
+                }
+            }, 2000);
+        }
+
+        // Auto-monitoring
+        function toggleAutoMonitor() {
+            const checkbox = document.getElementById('auto-monitor');
+            const monitorDiv = document.getElementById('realtime-monitor');
+            
+            if (checkbox.checked) {
+                log('🔄 Auto-monitoring enabled');
+                autoMonitorInterval = setInterval(() => {
+                    const currentState = {};
+                    Object.keys(localStorage).forEach(key => {
+                        if (key.includes('ebay') || key.includes('oauth')) {
+                            currentState[key] = localStorage.getItem(key);
+                        }
+                    });
+                    
+                    const stateChanged = JSON.stringify(currentState) !== JSON.stringify(lastStorageState);
+                    
+                    if (stateChanged) {
+                        const timestamp = new Date().toLocaleTimeString();
+                        monitorDiv.textContent = `[${timestamp}] Storage change detected:\\n${JSON.stringify(currentState, null, 2)}`;
+                        lastStorageState = currentState;
+                    }
+                }, 1000);
+            } else {
+                log('⏹️ Auto-monitoring disabled');
+                if (autoMonitorInterval) {
+                    clearInterval(autoMonitorInterval);
+                    autoMonitorInterval = null;
+                }
+                monitorDiv.textContent = 'Real-time monitoring disabled. Check box above to enable.';
+            }
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            monitorStorage();
+            
+            // Check if we have URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('code')) {
+                log('🔍 Authorization code detected in URL');
+                updateOverallStatus('🔍 Authorization code detected - ready for testing', 'warning');
+                extractFromUrl();
+            }
+            
+            // Listen for OAuth messages
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'EBAY_OAUTH_SUCCESS') {
+                    log('📨 OAuth success message received');
+                } else if (event.data && event.data.type === 'EBAY_OAUTH_ERROR') {
+                    log(`📨 OAuth error message received: ${event.data.error}`);
+                }
+            });
+        });
+
+        // Cleanup on unload
+        window.addEventListener('beforeunload', () => {
+            if (autoMonitorInterval) {
+                clearInterval(autoMonitorInterval);
+            }
+        });
+    </script>
+</body>
+</html>

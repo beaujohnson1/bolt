@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🩺 OAuth Callback Diagnostic Tool</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+            line-height: 1.6;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover { background: #2980b9; }
+        .btn-success { background: #27ae60; }
+        .btn-warning { background: #f39c12; }
+        .btn-danger { background: #e74c3c; }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.warning { background: #fff3cd; color: #856404; }
+        .status.info { background: #d1ecf1; color: #0c5460; }
+        .log-area {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border: 1px solid #ddd;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .input-group textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🩺 OAuth Callback Diagnostic Tool</h1>
+        <p>This tool helps diagnose OAuth callback issues by simulating the exact flow that should happen in production.</p>
+        
+        <div id="overall-status" class="status info">
+            🔧 Ready to diagnose OAuth callback issues...
+        </div>
+    </div>
+
+    <div class="grid">
+        <!-- Left Column: Tests -->
+        <div class="container">
+            <div class="test-section">
+                <h3>🧪 Core Tests</h3>
+                <button class="btn" onclick="testOAuthEndpoints()">Test OAuth Endpoints</button>
+                <button class="btn" onclick="testCallbackSimulation()">Test Callback Simulation</button>
+                <button class="btn" onclick="testLocalStorageAccess()">Test localStorage Access</button>
+                <button class="btn" onclick="testCrossOriginCommunication()">Test Cross-Origin Communication</button>
+                <button class="btn btn-warning" onclick="clearAllTests()">Clear All Results</button>
+            </div>
+
+            <div class="test-section">
+                <h3>🎯 Callback URL Tester</h3>
+                <div class="input-group">
+                    <label for="callback-url">Callback URL (with code parameter):</label>
+                    <input type="text" id="callback-url" 
+                           value="https://easyflip.ai/.netlify/functions/simple-ebay-callback?state=test&code=v%5E1.1%23i%5E1%23f%5E0%23I%5E3%23p%5E1%23r%5E0%23t%5E..." 
+                           placeholder="Enter callback URL with code parameter">
+                </div>
+                <button class="btn" onclick="testCallbackUrl()">Test This URL</button>
+                <button class="btn btn-success" onclick="simulateProductionCallback()">Simulate Production Flow</button>
+            </div>
+
+            <div class="test-section">
+                <h3>🔧 Manual Token Testing</h3>
+                <div class="input-group">
+                    <label for="test-code">Authorization Code:</label>
+                    <textarea id="test-code" placeholder="Paste authorization code here..."></textarea>
+                </div>
+                <button class="btn" onclick="testTokenExchange()">Test Token Exchange</button>
+                <button class="btn btn-warning" onclick="extractCodeFromUrl()">Extract Code from Current URL</button>
+            </div>
+        </div>
+
+        <!-- Right Column: Results -->
+        <div class="container">
+            <div class="test-section">
+                <h3>📊 Test Results</h3>
+                <div id="test-results" class="log-area">
+                    Waiting for test results...
+                </div>
+            </div>
+
+            <div class="test-section">
+                <h3>💾 localStorage Monitor</h3>
+                <button class="btn btn-success" onclick="checkStoredTokens()">Check Stored Tokens</button>
+                <button class="btn btn-danger" onclick="clearStoredTokens()">Clear Stored Tokens</button>
+                <div id="storage-monitor" class="log-area">
+                    Click "Check Stored Tokens" to see current state...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let testLog = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            testLog.push(logEntry);
+            updateDisplay();
+            console.log(logEntry);
+        }
+
+        function updateDisplay() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.textContent = testLog.join('\n');
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function updateOverallStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('overall-status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        // Test 1: OAuth Endpoints
+        async function testOAuthEndpoints() {
+            log('🧪 Testing OAuth endpoints...');
+            
+            try {
+                // Test auth URL generation
+                const authResponse = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'generate-auth-url' })
+                });
+                
+                const authData = await authResponse.json();
+                if (authData.success) {
+                    log('✅ Auth URL generation: SUCCESS', 'success');
+                    log(`Auth URL: ${authData.authUrl.substring(0, 100)}...`);
+                } else {
+                    log(`❌ Auth URL generation: FAILED - ${authData.error}`, 'error');
+                }
+
+                // Test invalid token exchange
+                const exchangeResponse = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'exchange-code', code: 'invalid_test_code' })
+                });
+                
+                const exchangeData = await exchangeResponse.json();
+                if (!exchangeData.success) {
+                    log('✅ Token exchange error handling: SUCCESS (correctly rejected invalid code)', 'success');
+                } else {
+                    log('⚠️ Token exchange: Unexpectedly accepted invalid code', 'warning');
+                }
+
+            } catch (error) {
+                log(`❌ OAuth endpoints test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 2: Callback Simulation
+        async function testCallbackSimulation() {
+            log('🧪 Testing callback simulation...');
+            
+            try {
+                // Simulate the exact flow from the callback page
+                const mockCode = 'v%5E1.1%23i%5E1%23f%5E0%23I%5E3%23p%5E1%23r%5E0%23t%5E';
+                
+                log(`Testing with mock code: ${mockCode}`);
+                
+                const response = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'exchange-code',
+                        code: mockCode
+                    })
+                });
+                
+                const data = await response.json();
+                log(`Response status: ${response.status}`);
+                log(`Response data: ${JSON.stringify(data, null, 2)}`);
+                
+                if (data.success && data.access_token) {
+                    log('✅ Callback simulation: SUCCESS - Would store tokens', 'success');
+                    
+                    // Test storage simulation
+                    const testTokens = {
+                        access_token: data.access_token,
+                        refresh_token: data.refresh_token,
+                        expires_in: data.expires_in,
+                        expires_at: Date.now() + (data.expires_in * 1000),
+                        token_type: data.token_type || 'Bearer'
+                    };
+                    
+                    localStorage.setItem('test_ebay_oauth_tokens', JSON.stringify(testTokens));
+                    localStorage.setItem('test_ebay_manual_token', testTokens.access_token);
+                    
+                    log('✅ Test tokens stored successfully', 'success');
+                    
+                } else {
+                    log(`❌ Callback simulation: FAILED - ${data.error}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Callback simulation failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 3: localStorage Access
+        function testLocalStorageAccess() {
+            log('🧪 Testing localStorage access...');
+            
+            try {
+                // Test basic localStorage functionality
+                const testKey = 'oauth_diagnostic_test';
+                const testValue = { timestamp: Date.now(), test: 'value' };
+                
+                localStorage.setItem(testKey, JSON.stringify(testValue));
+                const retrieved = localStorage.getItem(testKey);
+                const parsed = JSON.parse(retrieved);
+                
+                if (parsed.test === 'value') {
+                    log('✅ localStorage: Basic read/write works', 'success');
+                } else {
+                    log('❌ localStorage: Basic read/write failed', 'error');
+                }
+                
+                localStorage.removeItem(testKey);
+                
+                // Test EasyFlip format storage
+                const easyFlipTokens = {
+                    access_token: 'test_access_token_123',
+                    refresh_token: 'test_refresh_token_456',
+                    expires_in: 7200,
+                    expires_at: Date.now() + 7200000,
+                    token_type: 'Bearer'
+                };
+                
+                localStorage.setItem('ebay_oauth_tokens', JSON.stringify(easyFlipTokens));
+                localStorage.setItem('ebay_manual_token', easyFlipTokens.access_token);
+                
+                const storedOAuth = localStorage.getItem('ebay_oauth_tokens');
+                const storedManual = localStorage.getItem('ebay_manual_token');
+                
+                if (storedOAuth && storedManual) {
+                    log('✅ localStorage: EasyFlip format storage works', 'success');
+                    log(`Stored OAuth: ${storedOAuth.substring(0, 50)}...`);
+                    log(`Stored Manual: ${storedManual}`);
+                } else {
+                    log('❌ localStorage: EasyFlip format storage failed', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ localStorage test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 4: Cross-Origin Communication
+        function testCrossOriginCommunication() {
+            log('🧪 Testing cross-origin communication...');
+            
+            try {
+                // Simulate popup-to-parent communication
+                log('Testing postMessage capabilities...');
+                
+                if (window.postMessage) {
+                    window.postMessage({
+                        type: 'EBAY_OAUTH_SUCCESS',
+                        timestamp: Date.now(),
+                        tokens: {
+                            access_token: 'test_token',
+                            refresh_token: 'test_refresh',
+                            expires_in: 7200
+                        }
+                    }, '*');
+                    
+                    log('✅ postMessage: Available and functional', 'success');
+                } else {
+                    log('❌ postMessage: Not available', 'error');
+                }
+                
+                // Test event dispatching
+                if (window.dispatchEvent && window.CustomEvent) {
+                    const testEvent = new CustomEvent('testOAuthEvent', {
+                        detail: { test: 'data' }
+                    });
+                    window.dispatchEvent(testEvent);
+                    log('✅ CustomEvent: Available and functional', 'success');
+                } else {
+                    log('❌ CustomEvent: Not available', 'error');
+                }
+                
+                // Test window.opener simulation
+                if (window.opener === null) {
+                    log('⚠️ window.opener: null (normal for main window)', 'warning');
+                } else {
+                    log('✅ window.opener: Available', 'success');
+                }
+                
+            } catch (error) {
+                log(`❌ Cross-origin communication test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Callback URL Tester
+        async function testCallbackUrl() {
+            const url = document.getElementById('callback-url').value;
+            log(`🧪 Testing callback URL: ${url}`);
+            
+            try {
+                const response = await fetch(url);
+                const html = await response.text();
+                
+                log(`Response status: ${response.status}`);
+                log(`Response size: ${html.length} characters`);
+                
+                if (html.includes('exchangeTokens')) {
+                    log('✅ Callback HTML contains JavaScript function', 'success');
+                } else {
+                    log('❌ Callback HTML missing JavaScript function', 'error');
+                }
+                
+                if (html.includes('fetch')) {
+                    log('✅ Callback HTML contains fetch call', 'success');
+                } else {
+                    log('❌ Callback HTML missing fetch call', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Callback URL test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Simulate Production Flow
+        async function simulateProductionCallback() {
+            log('🧪 Simulating complete production OAuth flow...');
+            
+            try {
+                // Step 1: Generate auth URL
+                log('Step 1: Generating auth URL...');
+                const authResponse = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'generate-auth-url' })
+                });
+                
+                const authData = await authResponse.json();
+                if (!authData.success) {
+                    throw new Error(`Auth URL generation failed: ${authData.error}`);
+                }
+                
+                log('✅ Step 1: Auth URL generated successfully', 'success');
+                
+                // Step 2: Simulate callback with URL parameters
+                log('Step 2: Simulating callback with code parameter...');
+                const mockCallbackUrl = 'https://easyflip.ai/.netlify/functions/simple-ebay-callback?state=test&code=mock_auth_code_123';
+                
+                const callbackResponse = await fetch(mockCallbackUrl);
+                const callbackHtml = await callbackResponse.text();
+                
+                log(`✅ Step 2: Callback response received (${callbackHtml.length} chars)`, 'success');
+                
+                // Step 3: Check if HTML contains proper JavaScript
+                if (callbackHtml.includes('exchangeTokens') && callbackHtml.includes('fetch')) {
+                    log('✅ Step 3: Callback HTML contains proper JavaScript', 'success');
+                } else {
+                    log('❌ Step 3: Callback HTML missing JavaScript functions', 'error');
+                }
+                
+                updateOverallStatus('🎯 Production flow simulation completed - check results', 'success');
+                
+            } catch (error) {
+                log(`❌ Production flow simulation failed: ${error.message}`, 'error');
+                updateOverallStatus('❌ Production flow simulation failed', 'error');
+            }
+        }
+
+        // Manual Token Testing
+        async function testTokenExchange() {
+            const code = document.getElementById('test-code').value.trim();
+            if (!code) {
+                log('❌ Please enter an authorization code', 'error');
+                return;
+            }
+            
+            log(`🧪 Testing token exchange with code: ${code.substring(0, 20)}...`);
+            
+            try {
+                const response = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'exchange-code',
+                        code: code
+                    })
+                });
+                
+                const data = await response.json();
+                
+                log(`Response status: ${response.status}`);
+                log(`Response: ${JSON.stringify(data, null, 2)}`);
+                
+                if (data.success && data.access_token) {
+                    log('✅ Token exchange: SUCCESS', 'success');
+                    
+                    // Store tokens in EasyFlip format
+                    const tokenData = {
+                        access_token: data.access_token,
+                        refresh_token: data.refresh_token,
+                        expires_in: data.expires_in,
+                        expires_at: Date.now() + (data.expires_in * 1000),
+                        token_type: data.token_type || 'Bearer'
+                    };
+                    
+                    localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                    localStorage.setItem('ebay_manual_token', tokenData.access_token);
+                    
+                    log('✅ Tokens stored in localStorage', 'success');
+                    updateOverallStatus('✅ Token exchange successful - tokens stored!', 'success');
+                    
+                } else {
+                    log(`❌ Token exchange failed: ${data.error}`, 'error');
+                    updateOverallStatus('❌ Token exchange failed', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Token exchange error: ${error.message}`, 'error');
+                updateOverallStatus('❌ Token exchange error', 'error');
+            }
+        }
+
+        // Extract Code from URL
+        function extractCodeFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            
+            if (code) {
+                document.getElementById('test-code').value = code;
+                log(`✅ Extracted code from URL: ${code.substring(0, 30)}...`, 'success');
+            } else {
+                log('❌ No code parameter found in current URL', 'error');
+            }
+        }
+
+        // Storage Monitoring
+        function checkStoredTokens() {
+            const monitor = document.getElementById('storage-monitor');
+            
+            try {
+                const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
+                const manualToken = localStorage.getItem('ebay_manual_token');
+                const testOAuthTokens = localStorage.getItem('test_ebay_oauth_tokens');
+                const testManualToken = localStorage.getItem('test_ebay_manual_token');
+                
+                let report = 'Current localStorage state:\n\n';
+                
+                if (oauthTokens) {
+                    report += `✅ ebay_oauth_tokens: ${oauthTokens.substring(0, 100)}...\n\n`;
+                } else {
+                    report += `❌ ebay_oauth_tokens: NOT FOUND\n\n`;
+                }
+                
+                if (manualToken) {
+                    report += `✅ ebay_manual_token: ${manualToken.substring(0, 50)}...\n\n`;
+                } else {
+                    report += `❌ ebay_manual_token: NOT FOUND\n\n`;
+                }
+                
+                if (testOAuthTokens) {
+                    report += `🧪 test_ebay_oauth_tokens: ${testOAuthTokens.substring(0, 100)}...\n\n`;
+                }
+                
+                if (testManualToken) {
+                    report += `🧪 test_ebay_manual_token: ${testManualToken.substring(0, 50)}...\n\n`;
+                }
+                
+                // Show all eBay-related keys
+                const allKeys = Object.keys(localStorage).filter(key => key.includes('ebay') || key.includes('oauth'));
+                if (allKeys.length > 0) {
+                    report += `All eBay/OAuth keys: ${allKeys.join(', ')}\n\n`;
+                } else {
+                    report += `No eBay/OAuth keys found in localStorage\n\n`;
+                }
+                
+                report += `Total localStorage keys: ${Object.keys(localStorage).length}`;
+                
+                monitor.textContent = report;
+                
+            } catch (error) {
+                monitor.textContent = `Error checking localStorage: ${error.message}`;
+            }
+        }
+
+        function clearStoredTokens() {
+            const keysToRemove = ['ebay_oauth_tokens', 'ebay_manual_token', 'test_ebay_oauth_tokens', 'test_ebay_manual_token'];
+            
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+            });
+            
+            log('🗑️ Cleared stored tokens', 'warning');
+            checkStoredTokens();
+        }
+
+        function clearAllTests() {
+            testLog = [];
+            updateDisplay();
+            updateOverallStatus('🔧 Ready to diagnose OAuth callback issues...', 'info');
+            log('🗑️ Test results cleared');
+        }
+
+        // Auto-check storage on page load
+        window.addEventListener('load', () => {
+            checkStoredTokens();
+            
+            // Check if we have URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('code')) {
+                log('🔍 Found code parameter in URL - ready for testing', 'info');
+                updateOverallStatus('🔍 Code parameter detected - ready for testing', 'warning');
+            }
+        });
+
+        // Listen for OAuth success messages
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'EBAY_OAUTH_SUCCESS') {
+                log('📨 Received OAuth success message from popup', 'success');
+                log(`Token data: ${JSON.stringify(event.data.tokens, null, 2)}`);
+            }
+        });
+
+        // Listen for custom events
+        window.addEventListener('simpleEbayAuthSuccess', (event) => {
+            log('📨 Received custom OAuth success event', 'success');
+            log(`Event detail: ${JSON.stringify(event.detail, null, 2)}`);
+        });
+    </script>
+</body>
+</html>

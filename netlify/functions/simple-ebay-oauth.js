@@ -81,10 +81,26 @@ exports.handler = async (event, context) => {
                     };
                 }
 
-                // Decode the URL-encoded authorization code
+                // Validate and decode the authorization code
+                if (!code || code.length < 10) {
+                    return {
+                        statusCode: 400,
+                        headers,
+                        body: JSON.stringify({
+                            success: false,
+                            error: 'Invalid authorization code format',
+                            details: {
+                                codeLength: code ? code.length : 0,
+                                hint: 'Authorization code appears to be too short or empty'
+                            }
+                        })
+                    };
+                }
+                
                 const decodedCode = decodeURIComponent(code);
                 console.log(`🔄 Exchanging code: ${code.substring(0, 50)}...`);
                 console.log(`🔧 Decoded code: ${decodedCode.substring(0, 50)}...`);
+                console.log(`🔧 Code length: ${code.length}, Decoded length: ${decodedCode.length}`);
                 
                 // Set required scopes before token exchange
                 ebay.OAuth2.setScope([
@@ -119,17 +135,62 @@ exports.handler = async (event, context) => {
                     };
                 } catch (tokenError) {
                     console.error('❌ Token exchange error:', tokenError);
+                    console.error('❌ Full error details:', {
+                        name: tokenError.name,
+                        message: tokenError.message,
+                        stack: tokenError.stack,
+                        response: tokenError.response ? {
+                            status: tokenError.response.status,
+                            statusText: tokenError.response.statusText,
+                            data: tokenError.response.data
+                        } : null
+                    });
+                    
+                    // Enhanced error categorization
+                    let errorCategory = 'unknown';
+                    let userFriendlyMessage = tokenError.message;
+                    
+                    if (tokenError.response) {
+                        const status = tokenError.response.status;
+                        const responseData = tokenError.response.data;
+                        
+                        if (status === 400) {
+                            errorCategory = 'invalid_request';
+                            if (responseData && responseData.error === 'invalid_grant') {
+                                userFriendlyMessage = 'Authorization code has expired or been used. Please try authenticating again.';
+                            } else {
+                                userFriendlyMessage = 'Invalid or expired authorization code. Please restart the authentication process.';
+                            }
+                        } else if (status === 401) {
+                            errorCategory = 'authentication_error';
+                            userFriendlyMessage = 'Authentication failed. Please check your eBay app credentials.';
+                        } else if (status === 429) {
+                            errorCategory = 'rate_limit';
+                            userFriendlyMessage = 'Too many requests. Please wait a moment and try again.';
+                        } else if (status >= 500) {
+                            errorCategory = 'server_error';
+                            userFriendlyMessage = 'eBay API server error. Please try again in a few minutes.';
+                        }
+                    } else if (tokenError.code === 'ENOTFOUND' || tokenError.code === 'ECONNREFUSED') {
+                        errorCategory = 'network_error';
+                        userFriendlyMessage = 'Network connection error. Please check your internet connection.';
+                    }
+                    
                     return {
-                        statusCode: 400,
+                        statusCode: tokenError.response?.status || 500,
                         headers,
                         body: JSON.stringify({
                             success: false,
-                            error: `Token exchange failed: ${tokenError.message}`,
+                            error: userFriendlyMessage,
+                            errorCategory: errorCategory,
                             details: {
                                 errorType: tokenError.constructor.name,
-                                originalCode: code.substring(0, 50),
-                                decodedCode: decodedCode.substring(0, 50),
-                                errorMessage: tokenError.message
+                                originalCode: code.substring(0, 30) + '...',
+                                decodedCode: decodedCode.substring(0, 30) + '...',
+                                codeLength: code.length,
+                                errorMessage: tokenError.message,
+                                httpStatus: tokenError.response?.status,
+                                timestamp: new Date().toISOString()
                             }
                         })
                     };

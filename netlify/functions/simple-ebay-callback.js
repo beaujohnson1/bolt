@@ -101,6 +101,8 @@ exports.handler = async (event, context) => {
                             try {
                                 console.log('🔄 Exchanging authorization code for tokens...');
                                 
+                                console.log('🔧 About to exchange code:', '${code}'.substring(0, 30) + '...');
+                                
                                 const response = await fetch('/.netlify/functions/simple-ebay-oauth', {
                                     method: 'POST',
                                     headers: {
@@ -113,6 +115,13 @@ exports.handler = async (event, context) => {
                                 });
                                 
                                 const data = await response.json();
+                                console.log('🔧 Token exchange response:', {
+                                    status: response.status,
+                                    success: data.success,
+                                    hasAccessToken: !!data.access_token,
+                                    error: data.error,
+                                    details: data.details
+                                });
                                 
                                 if (data.success && data.access_token) {
                                     // Store tokens in parent window (if popup) using EasyFlip format
@@ -195,14 +204,50 @@ exports.handler = async (event, context) => {
                                     }, 2000);
                                     
                                 } else {
-                                    throw new Error(data.error || 'Token exchange failed');
+                                    // Enhanced error handling for different failure types
+                                    let errorMessage = data.error || 'Token exchange failed';
+                                    let userMessage = errorMessage;
+                                    
+                                    if (data.details && data.details.errorMessage) {
+                                        console.error('🔧 eBay API Error Details:', data.details);
+                                        
+                                        // Handle specific eBay API errors
+                                        if (data.details.errorMessage.includes('400')) {
+                                            userMessage = 'Authorization code has expired or been used. Please try authenticating again.';
+                                        } else if (data.details.errorMessage.includes('invalid_grant')) {
+                                            userMessage = 'Invalid authorization code. Please restart the authentication process.';
+                                        } else if (data.details.errorMessage.includes('expired')) {
+                                            userMessage = 'Authorization code has expired. Please try again.';
+                                        }
+                                    }
+                                    
+                                    throw new Error(userMessage);
                                 }
                                 
                             } catch (error) {
                                 console.error('❌ Token exchange error:', error);
+                                
+                                // Show user-friendly error with retry option
                                 document.getElementById('status').innerHTML = 
                                     '<div style="color: #e74c3c;"><strong>❌ Token exchange failed:</strong><br>' + 
-                                    error.message + '</div>';
+                                    error.message + 
+                                    '<br><br><button onclick="exchangeTokens()" style="padding: 8px 16px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px;">Retry</button>' +
+                                    '<button onclick="window.close()" style="padding: 8px 16px; background: #95a5a6; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 5px;">Close</button>' +
+                                    '</div>';
+                                
+                                // Still try to communicate failure to parent window
+                                if (window.opener && window.opener.postMessage) {
+                                    try {
+                                        window.opener.postMessage({
+                                            type: 'EBAY_OAUTH_ERROR',
+                                            timestamp: Date.now(),
+                                            error: error.message
+                                        }, '*');
+                                        console.log('📨 Error message sent to parent window');
+                                    } catch (commError) {
+                                        console.error('❌ Could not communicate error to parent:', commError);
+                                    }
+                                }
                             }
                         }
 
