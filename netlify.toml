@@ -5,13 +5,6 @@
 [functions]
   directory = "netlify/functions"
 
-# OAuth callback MUST go to the function, not React
-[[redirects]]
-  from = "/.netlify/functions/simple-ebay-callback"
-  to = "/.netlify/functions/simple-ebay-callback"
-  status = 200
-  force = true
-
 # SPA fallback for everything else
 [[redirects]]
   from = "/*"
