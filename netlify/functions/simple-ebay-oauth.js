@@ -114,11 +114,16 @@ exports.handler = async (event, context) => {
                 try {
                     const token = await ebay.OAuth2.getToken(decodedCode);
                     console.log('✅ Token exchange successful');
+                    
+                    // Extract scope from token response
+                    const scope = token.scope || 'https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/commerce.identity.readonly';
+                    
                     console.log('🔧 Token response:', {
                         hasAccessToken: !!token.access_token,
                         hasRefreshToken: !!token.refresh_token,
                         expiresIn: token.expires_in,
-                        tokenType: token.token_type
+                        tokenType: token.token_type,
+                        scope: scope
                     });
                     
                     return {
@@ -130,6 +135,7 @@ exports.handler = async (event, context) => {
                             refresh_token: token.refresh_token,
                             expires_in: token.expires_in,
                             token_type: token.token_type,
+                            scope: scope,
                             message: 'Tokens retrieved successfully'
                         })
                     };

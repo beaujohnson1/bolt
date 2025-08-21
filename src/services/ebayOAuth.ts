@@ -42,20 +42,16 @@ class EbayOAuthService {
    */
   async getAuthorizationUrl(redirectUri?: string): Promise<EbayAuthUrl> {
     try {
-      console.log('🔗 [EBAY-OAUTH] Getting authorization URL...');
+      console.log('🔗 [EBAY-OAUTH] Getting authorization URL from simple-ebay-oauth...');
       
-      const params = new URLSearchParams();
-      params.append('action', 'get-auth-url');
-      
-      if (redirectUri) {
-        params.append('redirect_uri', redirectUri);
-      }
-
-      const response = await fetch(`${this.baseUrl}/ebay-oauth?${params.toString()}`, {
-        method: 'GET',
+      const response = await fetch(`${this.baseUrl}/simple-ebay-oauth`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+          action: 'generate-auth-url'
+        })
       });
 
       if (!response.ok) {
@@ -66,7 +62,12 @@ class EbayOAuthService {
       const result = await response.json();
       console.log('✅ [EBAY-OAUTH] Authorization URL generated successfully');
       
-      return result as EbayAuthUrl;
+      // Ensure result has the expected structure
+      return {
+        authUrl: result.authUrl,
+        state: result.state || 'ebay-oauth-' + Date.now(),
+        environment: 'production'
+      } as EbayAuthUrl;
     } catch (error) {
       console.error('❌ [EBAY-OAUTH] Error getting authorization URL:', error);
       throw error;
@@ -78,18 +79,16 @@ class EbayOAuthService {
    */
   async exchangeCodeForToken(code: string, redirectUri: string, state: string): Promise<EbayOAuthTokens> {
     try {
-      console.log('🔄 [EBAY-OAUTH] Exchanging authorization code for tokens...');
+      console.log('🔄 [EBAY-OAUTH] Exchanging authorization code for tokens using simple-ebay-oauth...');
       
-      const response = await fetch(`${this.baseUrl}/ebay-oauth`, {
+      const response = await fetch(`${this.baseUrl}/simple-ebay-oauth`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           action: 'exchange-code',
-          code,
-          redirect_uri: redirectUri,
-          state
+          code
         })
       });
 
@@ -130,7 +129,7 @@ class EbayOAuthService {
         throw new Error('No refresh token available');
       }
 
-      const response = await fetch(`${this.baseUrl}/ebay-oauth`, {
+      const response = await fetch(`${this.baseUrl}/simple-ebay-oauth`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

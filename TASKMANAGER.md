@@ -393,10 +393,10 @@ This document tracks all development tasks for EasyFlip.ai, derived from the Pro
 
 ## 🎯 Current Sprint Focus
 
-**Active Sprint:** CLAUDE FLOW HIVE MIND INTEGRATION - Multi-Agent OAuth Integration 🌐
-**Sprint Goal:** Successfully integrate working OAuth into main EasyFlip app using swarm intelligence
-**Sprint Duration:** August 20, 2025
-**Status:** ✅ **REVOLUTIONARY ACHIEVEMENT** - First successful production Claude Flow swarm deployment! 🤖
+**Active Sprint:** CRITICAL OAUTH SCOPE FIX - Business Policy Loading Resolution 🔧
+**Sprint Goal:** Fix OAuth scope persistence to enable business policy loading from eBay
+**Sprint Duration:** August 21, 2025
+**Status:** 🔄 **IN PROGRESS** - Identified and fixing scope storage issue in OAuth flow
 
 **Previous Sprint:** MAJOR OAUTH BREAKTHROUGH - Complete Authentication System Overhaul 🚀
 **Sprint Goal:** Resolve fundamental eBay OAuth communication and token exchange failures
@@ -613,7 +613,54 @@ if (!stored) {
 - ✅ Average processing time: 8-12 seconds (acceptable for accuracy gain)
 - ✅ Cost per analysis: ~$0.02 (within target)
 
-### ✅ Completed Today (August 20, 2025):
+### 🔄 In Progress Today (August 21, 2025):
+
+#### 🔧 CRITICAL FIX: OAuth Scope Persistence for Business Policies 🔄 IN PROGRESS
+**ISSUE: OAuth Token Missing sell.account Scope Required for Business Policies**
+
+1. 🔄 **Root Cause Analysis** 
+   - **DISCOVERED**: `localStorage.getItem('easyflip_ebay_token_scope')` returns `null` after OAuth
+   - **ISSUE**: OAuth token exchange not returning/storing scope information
+   - **IMPACT**: 502/503 errors when fetching business policies due to missing `sell.account` scope
+   - **CIRCUIT BREAKER**: Activating due to repeated failures, blocking legitimate requests
+
+2. ✅ **OAuth Scope Storage Implementation** COMPLETED
+   - **FIXED**: Updated `simple-ebay-oauth.js` to return scope in token response
+   - **ENHANCED**: Modified callback to store scope in `easyflip_ebay_token_scope`
+   - **ADDED**: Scope field to all token storage formats for compatibility
+   - **DEFAULT**: Falls back to required scopes if not returned by eBay
+
+3. ✅ **Frontend Service Migration** COMPLETED
+   - **UPDATED**: Changed from `/ebay-oauth` to `/simple-ebay-oauth` endpoint
+   - **ACTION**: Changed from `get-auth-url` to `generate-auth-url`
+   - **METHOD**: Updated GET to POST for authorization URL generation
+   - **REFRESH**: Also updated refresh token endpoint to use simple-ebay-oauth
+
+4. 🔄 **Testing & Verification** PENDING
+   - Need to test OAuth flow with scope storage
+   - Verify business policies load successfully
+   - Confirm circuit breaker resets after successful requests
+
+**Technical Implementation:**
+```javascript
+// BEFORE: No scope in token response
+return {
+    access_token: token.access_token,
+    refresh_token: token.refresh_token,
+    expires_in: token.expires_in
+}
+
+// AFTER: Including scope in response
+const scope = token.scope || 'https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment https://api.ebay.com/oauth/api_scope/commerce.identity.readonly';
+return {
+    access_token: token.access_token,
+    refresh_token: token.refresh_token,
+    expires_in: token.expires_in,
+    scope: scope
+}
+```
+
+### ✅ Completed Yesterday (August 20, 2025):
 
 #### 🚀 MAJOR ACHIEVEMENT: hendt/ebay-api Library Integration ✅ COMPLETED
 **TRANSFORMATIONAL: Replaced 1,606 Lines of Struggling OAuth Code with Enterprise-Grade Solution**
