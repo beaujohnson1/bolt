@@ -5,6 +5,12 @@
 [functions]
   directory = "netlify/functions"
 
+# Static HTML files - serve directly (including OAuth callback)
+[[redirects]]
+  from = "/*.html"
+  to = "/:splat.html"
+  status = 200
+
 # SPA fallback for everything else
 [[redirects]]
   from = "/*"

@@ -1,5 +1,8 @@
 # Netlify redirects file
 
+# Static HTML files - serve directly (including OAuth callback)
+/*.html  /:splat.html  200
+
 # API routes
 /api/*  /.netlify/functions/:splat  200
 
