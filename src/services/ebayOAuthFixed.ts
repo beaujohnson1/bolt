@@ -29,7 +29,7 @@ export class EBayOAuthFixed {
   private static readonly STORAGE_KEY = 'ebay_oauth_tokens_v2';
   private static readonly CLIENT_ID = import.meta.env.VITE_EBAY_CLIENT_ID;
   private static readonly CLIENT_SECRET = import.meta.env.VITE_EBAY_CLIENT_SECRET;
-  private static readonly RU_NAME = import.meta.env.VITE_EBAY_RU_NAME;
+  private static readonly RU_NAME = 'https://easyflip.ai/app/api/ebay/callback-fixed';
   private static readonly SANDBOX = import.meta.env.VITE_EBAY_SANDBOX === 'true';
   
   // Endpoints following Hendt pattern
@@ -84,7 +84,7 @@ export class EBayOAuthFixed {
 
     const params = new URLSearchParams({
       client_id: this.CLIENT_ID,
-      redirect_uri: this.RU_NAME,
+      redirect_uri: this.RU_NAME, // Now points to https://easyflip.ai/app/api/ebay/callback-fixed
       response_type: 'code',
       state: state,
       scope: this.DEFAULT_SCOPES.join(' ')

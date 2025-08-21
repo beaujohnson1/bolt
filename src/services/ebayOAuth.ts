@@ -1,8 +1,10 @@
 // eBay OAuth Service
 // Handles OAuth flow for eBay user authentication
+// UPDATED: Now uses the new callback URL and ebayOAuthFixed implementation
 
 import { initializeOAuthDebugConsole } from '../utils/oauthDebugConsole';
 import { emergencyOAuthBridge } from '../utils/emergencyOAuthBridge';
+import { EBayOAuthFixed } from './ebayOAuthFixed';
 
 export interface EbayOAuthTokens {
   access_token: string;
@@ -23,6 +25,7 @@ export interface EbayAuthUrl {
 class EbayOAuthService {
   private baseUrl: string;
   private debugConsole: any;
+  private useNewImplementation: boolean = true; // Flag to use new fixed implementation
 
   constructor() {
     // Use Netlify functions in production, localhost in development
@@ -33,16 +36,38 @@ class EbayOAuthService {
     // Initialize debug console
     this.debugConsole = initializeOAuthDebugConsole();
     
+    // Initialize the new fixed implementation
+    EBayOAuthFixed.initialize();
+    
     console.log('🔐 [EBAY-OAUTH] Service initialized with base URL:', this.baseUrl);
+    console.log('🔐 [EBAY-OAUTH] Using new fixed implementation:', this.useNewImplementation);
     this.debugConsole?.log('eBay OAuth Service initialized', 'info', 'service-init');
   }
 
   /**
-   * Get eBay OAuth authorization URL
+   * Get eBay OAuth authorization URL using new fixed implementation
    */
   async getAuthorizationUrl(redirectUri?: string): Promise<EbayAuthUrl> {
     try {
-      console.log('🔗 [EBAY-OAUTH] Getting authorization URL from simple-ebay-oauth...');
+      console.log('🔗 [EBAY-OAUTH] Getting authorization URL using new fixed implementation...');
+      
+      if (this.useNewImplementation) {
+        // Use the new fixed implementation
+        const state = 'ebay-oauth-' + Date.now();
+        const authUrl = EBayOAuthFixed.generateAuthUrl(state);
+        
+        console.log('✅ [EBAY-OAUTH] Authorization URL generated using fixed implementation');
+        
+        return {
+          authUrl: authUrl,
+          state: state,
+          redirectUri: 'https://easyflip.ai/app/api/ebay/callback-fixed',
+          environment: 'production'
+        } as EbayAuthUrl;
+      }
+      
+      // Fallback to legacy implementation if needed
+      const newCallbackUrl = 'https://easyflip.ai/app/api/ebay/callback-fixed';
       
       const response = await fetch(`${this.baseUrl}/simple-ebay-oauth`, {
         method: 'POST',
@@ -50,7 +75,8 @@ class EbayOAuthService {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          action: 'generate-auth-url'
+          action: 'generate-auth-url',
+          redirectUri: newCallbackUrl
         })
       });
 
@@ -62,10 +88,10 @@ class EbayOAuthService {
       const result = await response.json();
       console.log('✅ [EBAY-OAUTH] Authorization URL generated successfully');
       
-      // Ensure result has the expected structure
       return {
         authUrl: result.authUrl,
         state: result.state || 'ebay-oauth-' + Date.now(),
+        redirectUri: 'https://easyflip.ai/app/api/ebay/callback-fixed',
         environment: 'production'
       } as EbayAuthUrl;
     } catch (error) {
@@ -75,11 +101,35 @@ class EbayOAuthService {
   }
 
   /**
-   * Exchange authorization code for access token
+   * Exchange authorization code for access token using new fixed implementation
    */
   async exchangeCodeForToken(code: string, redirectUri: string, state: string): Promise<EbayOAuthTokens> {
     try {
-      console.log('🔄 [EBAY-OAUTH] Exchanging authorization code for tokens using simple-ebay-oauth...');
+      console.log('🔄 [EBAY-OAUTH] Exchanging authorization code for tokens using new fixed implementation...');
+      
+      if (this.useNewImplementation) {
+        // Use the new fixed implementation
+        const authToken = await EBayOAuthFixed.getToken(code);
+        
+        console.log('✅ [EBAY-OAUTH] Token exchange successful using fixed implementation');
+        
+        // Convert to legacy format for compatibility
+        const tokens: EbayOAuthTokens = {
+          access_token: authToken.access_token,
+          refresh_token: authToken.refresh_token,
+          expires_in: authToken.expires_in,
+          token_type: authToken.token_type,
+          expires_at: authToken.timestamp ? authToken.timestamp + (authToken.expires_in * 1000) : Date.now() + (authToken.expires_in * 1000)
+        };
+        
+        // Store tokens for legacy compatibility
+        await this.storeTokens(tokens);
+        
+        return tokens;
+      }
+      
+      // Fallback to legacy implementation
+      const newCallbackUrl = 'https://easyflip.ai/app/api/ebay/callback-fixed';
       
       const response = await fetch(`${this.baseUrl}/simple-ebay-oauth`, {
         method: 'POST',
@@ -88,7 +138,8 @@ class EbayOAuthService {
         },
         body: JSON.stringify({
           action: 'exchange-code',
-          code
+          code,
+          redirectUri: newCallbackUrl
         })
       });
 

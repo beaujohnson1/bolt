@@ -40,7 +40,7 @@ exports.handler = async (event, context) => {
       const ruName = 'easyflip.ai-easyflip-easyfl-cnqajybp';
       authUrl.searchParams.append('redirect_uri', ruName);
     } else {
-      const callbackUrl = `${process.env.URL || 'https://easyflip.ai'}/.netlify/functions/auth-ebay-callback`;
+      const callbackUrl = `${process.env.URL || 'https://easyflip.ai'}/app/api/ebay/callback-fixed`;
       authUrl.searchParams.append('redirect_uri', callbackUrl);
     }
 

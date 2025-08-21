@@ -27,6 +27,7 @@ import EbayTokenTest from './pages/EbayTokenTest';
 import EbayAuthTest from './pages/EbayAuthTest';
 import OAuthTestPage from './pages/OAuthTestPage';
 import OAuthFlowDebug from './pages/OAuthFlowDebug';
+import SimpleEbayAuthTest from './pages/SimpleEbayAuthTest';
 import { debugEbayAuth } from './utils/debugEbayAuth';
 import { oauthDebugger } from './utils/oauthFlowDebugger';
 
@@ -61,6 +62,7 @@ function App() {
             <Route path="/ebay-token-test" element={<EbayTokenTest />} />
             <Route path="/auth-test" element={<AuthConnectivityTest />} /> {/* <--- This route is now valid */}
             <Route path="/ebay-auth-test" element={<EbayAuthTest />} />
+            <Route path="/simple-ebay-auth-test" element={<SimpleEbayAuthTest />} />
             <Route path="/oauth-test" element={<OAuthTestPage />} />
             <Route path="/oauth-debug" element={<OAuthFlowDebug />} />
             <Route path="/supabase-test" element={<SupabaseTest />} />

@@ -114,7 +114,7 @@ async function getAuthUrl(headers, credentials, oauthBase, queryParams, environm
     const isProduction = environment === 'production';
     
     // Build authorization URL with eBay-specific parameters
-    const callbackUrl = `${process.env.URL || 'https://easyflip.ai'}/.netlify/functions/auth-ebay-callback`;
+    const callbackUrl = `${process.env.URL || 'https://easyflip.ai'}/app/api/ebay/callback-fixed`;
     
     console.log('🔗 [EBAY-OAUTH] Using callback URL:', callbackUrl);
     console.log('🔗 [EBAY-OAUTH] Environment:', environment, 'isProduction:', isProduction);
@@ -245,7 +245,7 @@ async function exchangeCode(headers, credentials, tokenBase, body) {
 
     // Prepare token request with proper redirect_uri
     const tokenUrl = `${tokenBase}/token`;
-    const callbackUrl = `${process.env.URL || 'https://easyflip.ai'}/.netlify/functions/auth-ebay-callback`;
+    const callbackUrl = `${process.env.URL || 'https://easyflip.ai'}/app/api/ebay/callback-fixed`;
     
     // Get environment to determine if production
     const ebayConfig = config.ebay;

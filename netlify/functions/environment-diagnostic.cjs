@@ -93,8 +93,8 @@ exports.handler = async (event, context) => {
     // Redirect URI configuration
     const redirectUriConfig = {
       production: 'easyflip.ai-easyflip-easyfl-cnqajybp',
-      sandbox: process.env.EBAY_SANDBOX_RUNAME || `${process.env.URL || 'https://easyflip.ai'}/.netlify/functions/auth-ebay-callback`,
-      current: isProduction ? 'easyflip.ai-easyflip-easyfl-cnqajybp' : (process.env.EBAY_SANDBOX_RUNAME || `${process.env.URL || 'https://easyflip.ai'}/.netlify/functions/auth-ebay-callback`)
+      sandbox: process.env.EBAY_SANDBOX_RUNAME || `${process.env.URL || 'https://easyflip.ai'}/app/api/ebay/callback-fixed`,
+      current: isProduction ? 'easyflip.ai-easyflip-easyfl-cnqajybp' : (process.env.EBAY_SANDBOX_RUNAME || `${process.env.URL || 'https://easyflip.ai'}/app/api/ebay/callback-fixed`)
     };
 
     // Build comprehensive diagnostic report

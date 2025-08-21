@@ -55,7 +55,7 @@ exports.handler = async (event, context) => {
         // Production MUST use the registered RU Name, not a dynamic URL
         const ruName = isProduction ? 
             'easyflip.ai-easyflip-easyfl-cnqajybp' : 
-            `${baseUrl}/.netlify/functions/simple-ebay-callback`;
+            `${baseUrl}/app/api/ebay/callback-fixed`;
         
         console.log('🔧 OAuth Configuration:', {
             baseUrl,
@@ -109,7 +109,7 @@ exports.handler = async (event, context) => {
                 ]);
 
                 // Set the callback URL that matches eBay Developer Console configuration
-                const callbackUrl = `${process.env.URL || 'https://easyflip.ai'}/.netlify/functions/simple-ebay-callback`;
+                const callbackUrl = `${process.env.URL || 'https://easyflip.ai'}/app/api/ebay/callback-fixed`;
                 console.log('🔗 Using callback URL:', callbackUrl);
                 
                 // Generate authorization URL

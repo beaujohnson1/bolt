@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, ArrowRight, Link2, Upload, Bot, Zap, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import ebayOAuthService from '../services/ebayOAuth';
+import EBayOAuthFixed from '../services/ebayOAuthFixed';
 import { initializeOAuthDebugConsole } from '../utils/oauthDebugConsole';
 import { emergencyOAuthBridge } from '../utils/emergencyOAuthBridge';
 import { callbackVerifier } from '../utils/callbackVerifier';
@@ -78,7 +78,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   // Check eBay connection status with enhanced reliability
   useEffect(() => {
     const checkEbayConnection = () => {
-      const connected = ebayOAuthService.isAuthenticated();
+      const token = EBayOAuthFixed.getAccessToken();
+      const connected = !!token;
       console.log('🔍 [ONBOARDING] Checking eBay connection:', connected);
       debugConsole.log(`eBay connection check: ${connected ? 'Connected' : 'Not connected'}`, connected ? 'success' : 'info', 'onboarding');
       setIsEbayConnected(connected);
@@ -87,7 +88,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     checkEbayConnection();
 
     // Watch for auth changes
-    const cleanup = ebayOAuthService.watchForTokenChanges((authenticated) => {
+    const cleanup = EBayOAuthFixed.onTokenRefresh((token) => {
+      const authenticated = !!token;
       console.log('📡 [ONBOARDING] eBay auth changed:', authenticated);
       debugConsole.log(`Auth status changed: ${authenticated ? 'Authenticated' : 'Not authenticated'}`, authenticated ? 'success' : 'warning', 'auth-change');
       setIsEbayConnected(authenticated);
@@ -98,8 +100,30 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       }
     });
 
-    // Enhanced postMessage handler with comprehensive communication support
+    // Listen for message from OAuth callback
     const handleMessage = (event: MessageEvent) => {
+      // Check for new callback messages
+      if (event.data.type === 'ebay_oauth_success' && event.data.tokens) {
+        console.log('✅ [ONBOARDING] OAuth success message received from callback');
+        debugConsole.log('OAuth tokens received from callback', 'success', 'oauth-callback');
+        
+        // Store tokens using the new service
+        EBayOAuthFixed.setCredentials(event.data.tokens);
+        setIsEbayConnected(true);
+        
+        if (currentStep === 'connect_ebay') {
+          setTimeout(() => onComplete(), 500);
+        }
+        return;
+      }
+      
+      if (event.data.type === 'ebay_oauth_error') {
+        console.error('❌ [ONBOARDING] OAuth error:', event.data.error);
+        debugConsole.log(`OAuth error: ${event.data.description || event.data.error}`, 'error', 'oauth-callback');
+        setIsConnecting(false);
+        return;
+      }
+      
       console.log('📨 [ONBOARDING] Received postMessage:', {
         origin: event.origin,
         expectedOrigin: window.location.origin,
@@ -648,12 +672,19 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       console.log('🌐 [ONBOARDING] Calling OAuth service to initiate flow...');
       debugConsole.log('Requesting OAuth authorization URL from server...', 'info', 'oauth-init');
       
-      // CRITICAL FIX: Don't pass redirectUri - let backend handle callback configuration
-      // The backend is configured to use /.netlify/functions/auth-ebay-callback
-      // which will handle token exchange and communication back to the app
+      // Use the new fixed OAuth service with proper callback URL
+      // The callback is now configured to use /app/api/ebay/callback-fixed
       
-      // CRITICAL: Only proceed if OAuth initiation succeeds
-      await ebayOAuthService.initiateOAuthFlow();
+      // Generate auth URL and open popup
+      const authUrl = EBayOAuthFixed.generateAuthUrl();
+      console.log('🔗 [ONBOARDING] Auth URL generated:', authUrl);
+      
+      // Open OAuth popup
+      const popup = window.open(authUrl, 'ebay-auth', 'width=600,height=700');
+      
+      if (!popup) {
+        throw new Error('Popup blocked - please allow popups for this site');
+      }
       
       console.log('✅ [ONBOARDING] OAuth flow initiated successfully - popup should be open');
       console.log('⏳ [ONBOARDING] Starting token polling for popup completion...');
@@ -674,7 +705,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         checkCount++;
         
         // CRITICAL: Multi-source authentication verification with enhanced detection
-        const connected = ebayOAuthService.isAuthenticated();
+        const token = EBayOAuthFixed.getAccessToken();
+        const connected = !!token;
         
         // EMERGENCY: Force token reload before checking
         try {
@@ -687,9 +719,10 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
             console.log('🚨 [ONBOARDING] CRITICAL: Tokens detected but service not recognizing - forcing refresh');
             debugConsole.log('🚨 Token mismatch detected - forcing service refresh', 'warning', 'token-mismatch');
             
-            // Force service to re-read tokens
-            const forceConnected = ebayOAuthService.refreshAuthStatus();
-            if (forceConnected) {
+            // Force reload tokens from storage
+            EBayOAuthFixed.initialize();
+            const newToken = EBayOAuthFixed.getAccessToken();
+            if (newToken) {
               console.log('✅ [ONBOARDING] Forced token recognition successful!');
               debugConsole.log('✅ Forced token recognition successful!', 'success', 'force-success');
             }
