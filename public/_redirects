@@ -1,0 +1,10 @@
+# Netlify redirects file
+
+# OAuth callback - MUST be handled by the function, not React
+/.netlify/functions/simple-ebay-callback  /.netlify/functions/simple-ebay-callback  200!
+
+# API routes
+/api/*  /.netlify/functions/:splat  200
+
+# SPA fallback - must be last
+/*  /index.html  200
