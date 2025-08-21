@@ -50,8 +50,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       
       // Trigger step advancement
       if (currentStep === 'connect_ebay') {
-        console.log('🚀 [EMERGENCY-BRIDGE] Emergency advancement to upload_photos');
-        setTimeout(() => onStepChange('upload_photos'), 100);
+        console.log('🚀 [EMERGENCY-BRIDGE] Emergency eBay connection! Completing onboarding');
+        setTimeout(() => onComplete(), 100);
       }
       
       // Dispatch global authentication event
@@ -92,9 +92,9 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       debugConsole.log(`Auth status changed: ${authenticated ? 'Authenticated' : 'Not authenticated'}`, authenticated ? 'success' : 'warning', 'auth-change');
       setIsEbayConnected(authenticated);
       if (authenticated && currentStep === 'connect_ebay') {
-        debugConsole.log('Auto-advancing to upload photos step', 'success', 'navigation');
-        // Auto-advance to next step when eBay is connected
-        setTimeout(() => onStepChange('upload_photos'), 500);
+        debugConsole.log('eBay connected! Completing onboarding and redirecting to dashboard', 'success', 'navigation');
+        // Complete onboarding when eBay is connected
+        setTimeout(() => onComplete(), 500);
       }
     });
 
@@ -196,8 +196,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
             }));
             
             if (currentStep === 'connect_ebay') {
-              console.log('🚀 [ONBOARDING] Auto-advancing to upload_photos step');
-              setTimeout(() => onStepChange('upload_photos'), 500);
+              console.log('🚀 [ONBOARDING] eBay connected! Completing onboarding and redirecting to dashboard');
+              setTimeout(() => onComplete(), 500);
             }
           } else if (attempt < 10) {
             // Retry with progressive delay
@@ -280,7 +280,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
             setIsConnecting(false);
             
             if (currentStep === 'connect_ebay') {
-              setTimeout(() => onStepChange('upload_photos'), 300);
+              setTimeout(() => onComplete(), 300);
             }
           } else if (attempt < 5) {
             const delay = attempt * 200;
@@ -313,7 +313,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         setIsEbayConnected(connected);
         
         if (connected && currentStep === 'connect_ebay') {
-          setTimeout(() => onStepChange('upload_photos'), 300);
+          setTimeout(() => onComplete(), 300);
         }
       }, 200);
     };
@@ -339,7 +339,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
                 setIsEbayConnected(true);
                 setIsConnecting(false);
                 if (currentStep === 'connect_ebay') {
-                  setTimeout(() => onStepChange('upload_photos'), 300);
+                  setTimeout(() => onComplete(), 300);
                 }
               }
             }, 100);
@@ -401,7 +401,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
             setIsEbayConnected(true);
             setIsConnecting(false);
             if (currentStep === 'connect_ebay') {
-              setTimeout(() => onStepChange('upload_photos'), 300);
+              setTimeout(() => onComplete(), 300);
             }
           }
         }, 100);
@@ -433,7 +433,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
             setIsEbayConnected(true);
             setIsConnecting(false);
             if (currentStep === 'connect_ebay') {
-              setTimeout(() => onStepChange('upload_photos'), 300);
+              setTimeout(() => onComplete(), 300);
             }
           }
         }, 100);
@@ -593,7 +593,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       debugConsole.updateStatus('Authentication successful!');
       
       if (currentStep === 'connect_ebay') {
-        setTimeout(() => onStepChange('upload_photos'), 500);
+        setTimeout(() => onComplete(), 500);
       }
     } else {
       debugConsole.log('❌ No authentication found', 'error', 'manual-notfound');
@@ -841,7 +841,7 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           }, 100);
           
           if (currentStep === 'connect_ebay') {
-            setTimeout(() => onStepChange('upload_photos'), 500);
+            setTimeout(() => onComplete(), 500);
           }
           return; // Stop polling
         }
@@ -965,16 +965,15 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     if (stepId === 'connect_ebay') {
       return isEbayConnected ? 'completed' : (currentStep === stepId ? 'current' : 'pending');
     }
+    // After eBay connection, all remaining steps are considered "pending" for dashboard use
     if (stepId === 'upload_photos') {
-      if (!isEbayConnected) return 'pending';
-      return currentStep === stepId ? 'current' : (hasCreatedFirstItem ? 'completed' : 'pending');
+      return isEbayConnected ? 'pending' : 'pending';
     }
     if (stepId === 'generate_listing') {
-      if (!isEbayConnected || !hasCreatedFirstItem) return 'pending';
-      return currentStep === stepId ? 'current' : 'pending';
+      return isEbayConnected ? 'pending' : 'pending';
     }
     if (stepId === 'launch_listing') {
-      return currentStep === stepId ? 'current' : 'pending';
+      return isEbayConnected ? 'pending' : 'pending';
     }
     return 'pending';
   };
@@ -992,20 +991,20 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     {
       id: 'upload_photos',
       title: 'Upload Photos',
-      description: 'Take or upload photos of your items to get started',
+      description: 'Use the dashboard to upload photos and create items (after connecting eBay)',
       icon: <Upload className="w-6 h-6" />,
       status: getStepStatus('upload_photos'),
-      action: isEbayConnected ? () => onStepChange('upload_photos') : undefined,
-      actionText: 'Upload Photos'
+      action: undefined, // Disabled - users should use dashboard
+      actionText: 'Use Dashboard'
     },
     {
       id: 'generate_listing',
       title: 'Generate AI Analysis',
-      description: 'Let AI analyze your items and create optimized listings',
+      description: 'Use the dashboard to generate AI-powered listings (after uploading photos)',
       icon: <Bot className="w-6 h-6" />,
       status: getStepStatus('generate_listing'),
-      action: (isEbayConnected && hasCreatedFirstItem) ? () => onStepChange('generate_listing') : undefined,
-      actionText: 'Generate Listings'
+      action: undefined, // Disabled - users should use dashboard
+      actionText: 'Use Dashboard'
     },
     {
       id: 'launch_listing',
@@ -1018,8 +1017,8 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
     }
   ];
 
-  const completedSteps = steps.filter(step => step.status === 'completed').length;
-  const progress = (completedSteps / steps.length) * 100;
+  // Only count eBay connection for progress since that's the only required step
+  const progress = isEbayConnected ? 100 : 0;
 
   // Check if onboarding is complete
   const isOnboardingComplete = isEbayConnected && hasCreatedFirstItem;
@@ -1032,14 +1031,14 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
           Welcome to EasyFlip! 
         </h2>
         <p className="text-lg text-gray-600">
-          Let's get you set up in 4 easy steps
+          Let's connect your eBay account to get started
         </p>
         
         {/* Progress Bar */}
         <div className="mt-6">
           <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
             <span>Progress</span>
-            <span>{completedSteps}/{steps.length} completed</span>
+            <span>{isEbayConnected ? 'Complete' : '0/1 completed'}</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div 
@@ -1215,15 +1214,15 @@ const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
       )}
 
       {/* Completion Message */}
-      {isOnboardingComplete && (
+      {isEbayConnected && (
         <div className="mt-8 bg-gradient-to-r from-green-600 to-green-700 rounded-xl p-6 text-white text-center">
           <CheckCircle className="w-12 h-12 mx-auto mb-4" />
           <h3 className="text-2xl font-semibold mb-2">
-            🎉 Congratulations! You're all set!
+            🎉 eBay Connected Successfully!
           </h3>
           <p className="text-green-100 mb-4">
-            Your eBay account is connected and you've created your first item. 
-            You're ready to start generating and publishing optimized listings!
+            Your eBay account is connected and ready to go! 
+            Use the dashboard to upload photos, create items, and generate optimized listings.
           </p>
           <button
             onClick={onComplete}

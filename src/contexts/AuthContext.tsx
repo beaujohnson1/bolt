@@ -261,18 +261,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     parsedOnboarding.hasUploadedFirstPhoto = !!firstPhoto;
     parsedOnboarding.hasCreatedFirstListing = !!firstListing;
 
-    // Determine if onboarding is complete
-    parsedOnboarding.isOnboardingComplete = 
-      parsedOnboarding.hasCompletedEbayConnection && 
-      parsedOnboarding.hasUploadedFirstPhoto;
+    // Determine if onboarding is complete - only eBay connection required
+    parsedOnboarding.isOnboardingComplete = parsedOnboarding.hasCompletedEbayConnection;
 
-    // Determine current step
+    // Determine current step - complete after eBay connection
     if (!parsedOnboarding.hasCompletedEbayConnection) {
       parsedOnboarding.currentStep = 'connect_ebay';
-    } else if (!parsedOnboarding.hasUploadedFirstPhoto) {
-      parsedOnboarding.currentStep = 'upload_photos';
-    } else if (!parsedOnboarding.hasCreatedFirstListing) {
-      parsedOnboarding.currentStep = 'generate_listing';
     } else {
       parsedOnboarding.currentStep = 'complete';
     }

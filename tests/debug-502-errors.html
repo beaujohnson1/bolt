@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug 502 Errors - Business Policies</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .error { background-color: #ffe6e6; border-color: #ff9999; }
+        .success { background-color: #e6ffe6; border-color: #99ff99; }
+        .info { background-color: #e6f3ff; border-color: #99ccff; }
+        button { margin: 5px; padding: 10px 15px; cursor: pointer; }
+        pre { background-color: #f5f5f5; padding: 10px; overflow-x: auto; }
+        .token-display { word-break: break-all; max-width: 600px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug eBay Proxy 502 Errors</h1>
+    
+    <div class="section info">
+        <h2>Current Diagnostic Status</h2>
+        <div id="diagnostics">Loading...</div>
+    </div>
+
+    <div class="section info">
+        <h2>OAuth Token Status</h2>
+        <div id="tokenStatus">Checking...</div>
+    </div>
+
+    <div class="section">
+        <h2>Test Business Policy APIs</h2>
+        <button onclick="testFulfillmentPolicies()">Test Fulfillment Policies</button>
+        <button onclick="testPaymentPolicies()">Test Payment Policies</button>
+        <button onclick="testReturnPolicies()">Test Return Policies</button>
+        <button onclick="testAllPolicies()">Test All Policies</button>
+    </div>
+
+    <div class="section">
+        <h2>Direct Proxy Test</h2>
+        <button onclick="testProxyDirect()">Test Proxy Function Directly</button>
+        <button onclick="testProxyWithToken()">Test Proxy with Real Token</button>
+    </div>
+
+    <div class="section">
+        <h2>Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // Store for results
+        const results = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            results.push({ timestamp, message, type });
+            updateResultsDisplay();
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function updateResultsDisplay() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = results.slice(-10).map(r => 
+                `<div class="${r.type}"><strong>${r.timestamp}</strong>: ${r.message}</div>`
+            ).join('');
+        }
+
+        // Check OAuth token status
+        function checkTokenStatus() {
+            try {
+                const tokenKeys = [
+                    'easyflip_ebay_access_token',
+                    'easyflip_ebay_refresh_token', 
+                    'easyflip_ebay_token_expires_at',
+                    'easyflip_ebay_token_scope'
+                ];
+
+                const tokenData = {};
+                tokenKeys.forEach(key => {
+                    tokenData[key] = localStorage.getItem(key);
+                });
+
+                const hasAccessToken = !!tokenData.easyflip_ebay_access_token;
+                const hasRefreshToken = !!tokenData.easyflip_ebay_refresh_token;
+                const expiresAt = tokenData.easyflip_ebay_token_expires_at;
+                const scope = tokenData.easyflip_ebay_token_scope;
+
+                let tokenValid = false;
+                if (hasAccessToken && expiresAt) {
+                    const expiryTime = parseInt(expiresAt);
+                    const currentTime = Date.now();
+                    tokenValid = currentTime < expiryTime;
+                }
+
+                const statusHtml = `
+                    <p><strong>Access Token:</strong> ${hasAccessToken ? '✅ Present' : '❌ Missing'}</p>
+                    <p><strong>Refresh Token:</strong> ${hasRefreshToken ? '✅ Present' : '❌ Missing'}</p>
+                    <p><strong>Token Valid:</strong> ${tokenValid ? '✅ Valid' : '❌ Expired/Invalid'}</p>
+                    <p><strong>Expires At:</strong> ${expiresAt ? new Date(parseInt(expiresAt)).toLocaleString() : 'Unknown'}</p>
+                    <p><strong>Scopes:</strong> ${scope || 'Unknown'}</p>
+                    <details>
+                        <summary>Token Details</summary>
+                        <div class="token-display">
+                            <p><strong>Access Token:</strong> ${tokenData.easyflip_ebay_access_token ? tokenData.easyflip_ebay_access_token.substring(0, 50) + '...' : 'None'}</p>
+                            <p><strong>Refresh Token:</strong> ${tokenData.easyflip_ebay_refresh_token ? tokenData.easyflip_ebay_refresh_token.substring(0, 50) + '...' : 'None'}</p>
+                        </div>
+                    </details>
+                `;
+
+                document.getElementById('tokenStatus').innerHTML = statusHtml;
+
+                // Check if sell.account scope is present
+                if (scope && !scope.includes('sell.account')) {
+                    log('❌ CRITICAL: Missing sell.account scope! This is required for business policies.', 'error');
+                } else if (scope && scope.includes('sell.account')) {
+                    log('✅ sell.account scope present', 'success');
+                }
+
+                return { hasAccessToken, hasRefreshToken, tokenValid, scope, tokenData };
+            } catch (error) {
+                log(`❌ Error checking token status: ${error.message}`, 'error');
+                return { hasAccessToken: false, hasRefreshToken: false, tokenValid: false };
+            }
+        }
+
+        // Test proxy function directly
+        async function testProxyDirect() {
+            try {
+                log('🔄 Testing proxy function directly...', 'info');
+                
+                const response = await fetch('/.netlify/functions/ebay-proxy', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: 'https://httpbin.org/get',
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'EasyFlip-Test/1.0'
+                        }
+                    })
+                });
+
+                const result = await response.text();
+                log(`✅ Proxy test response: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                console.log('Proxy response:', result);
+                
+            } catch (error) {
+                log(`❌ Proxy test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Test proxy with real eBay API
+        async function testProxyWithToken() {
+            try {
+                const tokenStatus = checkTokenStatus();
+                if (!tokenStatus.hasAccessToken) {
+                    log('❌ No access token available for testing', 'error');
+                    return;
+                }
+
+                log('🔄 Testing proxy with real eBay Account API...', 'info');
+                
+                const response = await fetch('/.netlify/functions/ebay-proxy', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: 'https://api.ebay.com/sell/account/v1/fulfillment_policy',
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${tokenStatus.tokenData.easyflip_ebay_access_token}`,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        }
+                    })
+                });
+
+                const result = await response.text();
+                log(`Proxy with token response: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                
+                if (!response.ok) {
+                    log(`❌ Response body: ${result.substring(0, 200)}...`, 'error');
+                    
+                    // Try to parse error details
+                    try {
+                        const errorData = JSON.parse(result);
+                        if (errorData.errors) {
+                            errorData.errors.forEach(err => {
+                                log(`❌ eBay API Error: ${err.errorId} - ${err.message}`, 'error');
+                            });
+                        }
+                    } catch (parseError) {
+                        log(`❌ Could not parse error response: ${parseError.message}`, 'error');
+                    }
+                } else {
+                    log('✅ Proxy with token succeeded!', 'success');
+                    console.log('Response:', result);
+                }
+                
+            } catch (error) {
+                log(`❌ Proxy with token test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Test specific business policy endpoints
+        async function testFulfillmentPolicies() {
+            await testBusinessPolicyEndpoint('fulfillment_policy', 'Fulfillment');
+        }
+
+        async function testPaymentPolicies() {
+            await testBusinessPolicyEndpoint('payment_policy', 'Payment');
+        }
+
+        async function testReturnPolicies() {
+            await testBusinessPolicyEndpoint('return_policy', 'Return');
+        }
+
+        async function testAllPolicies() {
+            log('🔄 Testing all business policy endpoints...', 'info');
+            await testFulfillmentPolicies();
+            await testPaymentPolicies();
+            await testReturnPolicies();
+        }
+
+        async function testBusinessPolicyEndpoint(endpoint, name) {
+            try {
+                const tokenStatus = checkTokenStatus();
+                if (!tokenStatus.hasAccessToken) {
+                    log(`❌ No access token for ${name} policies test`, 'error');
+                    return;
+                }
+
+                log(`🔄 Testing ${name} policies...`, 'info');
+                
+                const response = await fetch('/.netlify/functions/ebay-proxy', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: `https://api.ebay.com/sell/account/v1/${endpoint}`,
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${tokenStatus.tokenData.easyflip_ebay_access_token}`,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        }
+                    })
+                });
+
+                const result = await response.text();
+                
+                if (response.ok) {
+                    log(`✅ ${name} policies: ${response.status} ${response.statusText}`, 'success');
+                    
+                    try {
+                        const data = JSON.parse(result);
+                        const policiesKey = `${endpoint.replace('_policy', 'Policies')}`;
+                        const policies = data[policiesKey] || [];
+                        log(`✅ Found ${policies.length} ${name.toLowerCase()} policies`, 'success');
+                    } catch (parseError) {
+                        log(`⚠️ Could not parse ${name} policies response`, 'info');
+                    }
+                } else {
+                    log(`❌ ${name} policies: ${response.status} ${response.statusText}`, 'error');
+                    
+                    if (response.status === 502) {
+                        log(`❌ 502 ERROR for ${name} policies - This is the issue!`, 'error');
+                    }
+                    
+                    // Log response details
+                    log(`❌ ${name} response: ${result.substring(0, 300)}...`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ ${name} policies test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Run diagnostics on page load
+        function runDiagnostics() {
+            log('🔄 Running initial diagnostics...', 'info');
+            
+            // Check current URL and environment
+            const currentUrl = window.location.href;
+            const isLocalhost = currentUrl.includes('localhost');
+            const isNetlifyDev = currentUrl.includes('8888');
+            
+            log(`Current URL: ${currentUrl}`, 'info');
+            log(`Running on localhost: ${isLocalhost}`, 'info');
+            log(`Using Netlify dev server: ${isNetlifyDev}`, 'info');
+            
+            // Check token status
+            const tokenStatus = checkTokenStatus();
+            
+            // Update diagnostics display
+            const diagnosticsHtml = `
+                <p><strong>Environment:</strong> ${isLocalhost ? 'Development' : 'Production'}</p>
+                <p><strong>Netlify Functions:</strong> ${isNetlifyDev ? 'Available' : 'Not Available'}</p>
+                <p><strong>OAuth Status:</strong> ${tokenStatus.tokenValid ? 'Valid Token' : 'Invalid/Missing Token'}</p>
+                <p><strong>Account API Scope:</strong> ${tokenStatus.scope && tokenStatus.scope.includes('sell.account') ? '✅ Present' : '❌ Missing'}</p>
+            `;
+            document.getElementById('diagnostics').innerHTML = diagnosticsHtml;
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            runDiagnostics();
+        });
+    </script>
+</body>
+</html>

@@ -119,8 +119,52 @@ exports.handler = async (event, context) => {
     console.log('📄 [EBAY-PROXY] Response details:', {
       textLength: responseText.length,
       firstChars: responseText.substring(0, 100),
-      isXml: responseText.trim().startsWith('<?xml')
+      isXml: responseText.trim().startsWith('<?xml'),
+      isAccountApi: url.includes('/sell/account/'),
+      status: response.status
     });
+
+    // Enhanced error handling for Account API
+    if (!response.ok && url.includes('/sell/account/')) {
+      console.error('❌ [EBAY-PROXY] Account API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: url.replace('https://api.ebay.com', '[EBAY_API]'),
+        responsePreview: responseText.substring(0, 300)
+      });
+
+      // Try to parse eBay error response
+      try {
+        const errorData = JSON.parse(responseText);
+        if (errorData.errors && errorData.errors.length > 0) {
+          console.error('❌ [EBAY-PROXY] eBay API Errors:', errorData.errors.map(err => ({
+            errorId: err.errorId,
+            domain: err.domain,
+            category: err.category,
+            message: err.message,
+            longMessage: err.longMessage
+          })));
+
+          // Check for specific auth/scope errors
+          const hasAuthError = errorData.errors.some(err => 
+            err.errorId && (
+              err.errorId.includes('AUTH') || 
+              err.errorId.includes('PERMISSION') ||
+              err.errorId.includes('SCOPE') ||
+              err.message?.toLowerCase().includes('unauthorized') ||
+              err.message?.toLowerCase().includes('scope')
+            )
+          );
+
+          if (hasAuthError) {
+            console.error('🔑 [EBAY-PROXY] CRITICAL: Authentication or scope issue detected!');
+            console.error('🔑 [EBAY-PROXY] Ensure OAuth token has "sell.account" scope');
+          }
+        }
+      } catch (parseError) {
+        console.error('❌ [EBAY-PROXY] Could not parse Account API error response');
+      }
+    }
     
     let responseData;
     const responseContentType = response.headers.get('Content-Type') || '';
@@ -174,13 +218,21 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('❌ [EBAY-PROXY] Proxy error:', error);
+    console.error('❌ [EBAY-PROXY] Proxy error:', {
+      error: error.message,
+      stack: error.stack,
+      url: url || 'unknown',
+      method: method || 'unknown'
+    });
+    
+    // Return 502 Bad Gateway for fetch failures
     return {
-      statusCode: 500,
+      statusCode: 502,
       headers,
       body: JSON.stringify({
-        error: 'Proxy request failed',
-        message: error.message,
+        error: 'Gateway error',
+        message: error.message || 'Failed to proxy request to eBay API',
+        details: 'The proxy service could not complete the request to eBay API',
         url: url || 'unknown'
       })
     };

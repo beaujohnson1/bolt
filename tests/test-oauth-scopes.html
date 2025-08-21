@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Scope Validator Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .error { background-color: #ffe6e6; border-color: #ff9999; }
+        .success { background-color: #e6ffe6; border-color: #99ff99; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .info { background-color: #e6f3ff; border-color: #99ccff; }
+        button { margin: 5px; padding: 10px 15px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 3px; }
+        button:hover { background: #0056b3; }
+        pre { background-color: #f5f5f5; padding: 10px; overflow-x: auto; font-size: 12px; }
+        .status-item { margin: 5px 0; padding: 5px; border-radius: 3px; }
+        .status-good { background-color: #d4edda; color: #155724; }
+        .status-bad { background-color: #f8d7da; color: #721c24; }
+        .status-warn { background-color: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>🔐 OAuth Scope Validator Test</h1>
+    
+    <div class="section info">
+        <h2>Quick Actions</h2>
+        <button onclick="validateScopes()">Validate OAuth Scopes</button>
+        <button onclick="testAccountAPI()">Test Account API Access</button>
+        <button onclick="clearTokens()">Clear All Tokens</button>
+        <button onclick="exportDiagnostics()">Export Diagnostics</button>
+    </div>
+
+    <div class="section">
+        <h2>OAuth Token Status</h2>
+        <div id="tokenStatus">Click "Validate OAuth Scopes" to check token status...</div>
+    </div>
+
+    <div class="section">
+        <h2>Scope Validation Results</h2>
+        <div id="scopeResults">No validation performed yet...</div>
+    </div>
+
+    <div class="section">
+        <h2>Account API Test Results</h2>
+        <div id="apiTestResults">No API tests performed yet...</div>
+    </div>
+
+    <div class="section">
+        <h2>Diagnostic Information</h2>
+        <div id="diagnostics">Click "Export Diagnostics" to view detailed information...</div>
+    </div>
+
+    <script>
+        // OAuth Scope Validator (simplified browser version)
+        class OAuthScopeValidator {
+            static REQUIRED_SCOPES = {
+                account: 'https://api.ebay.com/oauth/api_scope/sell.account',
+                inventory: 'https://api.ebay.com/oauth/api_scope/sell.inventory',
+                fulfillment: 'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
+                identity: 'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly'
+            };
+
+            static getTokenData() {
+                try {
+                    const accessToken = localStorage.getItem('easyflip_ebay_access_token');
+                    const refreshToken = localStorage.getItem('easyflip_ebay_refresh_token');
+                    const expiresAt = localStorage.getItem('easyflip_ebay_token_expires_at');
+                    const scope = localStorage.getItem('easyflip_ebay_token_scope');
+
+                    if (!accessToken || !expiresAt || !scope) {
+                        return null;
+                    }
+
+                    return {
+                        accessToken,
+                        refreshToken,
+                        expiresAt: parseInt(expiresAt),
+                        scope
+                    };
+                } catch (error) {
+                    console.error('Error reading token data:', error);
+                    return null;
+                }
+            }
+
+            static validateAccountAPIAccess() {
+                const tokenData = this.getTokenData();
+                
+                if (!tokenData) {
+                    return {
+                        isValid: false,
+                        hasAccountScope: false,
+                        hasInventoryScope: false,
+                        hasFulfillmentScope: false,
+                        hasIdentityScope: false,
+                        missingScopes: Object.values(this.REQUIRED_SCOPES),
+                        tokenExpired: true,
+                        recommendations: [
+                            'Re-authenticate with eBay OAuth',
+                            'Ensure all required scopes are included in OAuth flow'
+                        ]
+                    };
+                }
+
+                const now = Date.now();
+                const tokenExpired = now >= tokenData.expiresAt;
+                
+                const hasAccountScope = tokenData.scope.includes(this.REQUIRED_SCOPES.account);
+                const hasInventoryScope = tokenData.scope.includes(this.REQUIRED_SCOPES.inventory);
+                const hasFulfillmentScope = tokenData.scope.includes(this.REQUIRED_SCOPES.fulfillment);
+                const hasIdentityScope = tokenData.scope.includes(this.REQUIRED_SCOPES.identity);
+
+                const missingScopes = [];
+                const recommendations = [];
+
+                if (!hasAccountScope) {
+                    missingScopes.push(this.REQUIRED_SCOPES.account);
+                    recommendations.push('❌ CRITICAL: Add sell.account scope for business policy access');
+                }
+                
+                if (!hasInventoryScope) {
+                    missingScopes.push(this.REQUIRED_SCOPES.inventory);
+                    recommendations.push('Add sell.inventory scope for listing management');
+                }
+                
+                if (!hasFulfillmentScope) {
+                    missingScopes.push(this.REQUIRED_SCOPES.fulfillment);
+                    recommendations.push('Add sell.fulfillment scope for order management');
+                }
+                
+                if (!hasIdentityScope) {
+                    missingScopes.push(this.REQUIRED_SCOPES.identity);
+                    recommendations.push('Add commerce.identity.readonly scope for user info');
+                }
+
+                if (tokenExpired) {
+                    recommendations.push('⏰ Token has expired - refresh or re-authenticate');
+                }
+
+                const isValid = !tokenExpired && hasAccountScope && hasInventoryScope;
+
+                return {
+                    isValid,
+                    hasAccountScope,
+                    hasInventoryScope,
+                    hasFulfillmentScope,
+                    hasIdentityScope,
+                    missingScopes,
+                    tokenExpired,
+                    recommendations,
+                    tokenData
+                };
+            }
+        }
+
+        function validateScopes() {
+            const validation = OAuthScopeValidator.validateAccountAPIAccess();
+            
+            // Update token status
+            let tokenStatusHtml = '';
+            if (validation.tokenData) {
+                const expiryDate = new Date(validation.tokenData.expiresAt);
+                const timeUntilExpiry = validation.tokenData.expiresAt - Date.now();
+                const hoursUntilExpiry = Math.floor(timeUntilExpiry / (1000 * 60 * 60));
+                
+                tokenStatusHtml = `
+                    <div class="status-item ${validation.tokenData.accessToken ? 'status-good' : 'status-bad'}">
+                        ✅ Access Token: ${validation.tokenData.accessToken ? 'Present' : 'Missing'}
+                    </div>
+                    <div class="status-item ${validation.tokenData.refreshToken ? 'status-good' : 'status-warn'}">
+                        🔄 Refresh Token: ${validation.tokenData.refreshToken ? 'Present' : 'Missing'}
+                    </div>
+                    <div class="status-item ${!validation.tokenExpired ? 'status-good' : 'status-bad'}">
+                        ⏰ Token Status: ${validation.tokenExpired ? 'Expired' : `Valid (${hoursUntilExpiry}h remaining)`}
+                    </div>
+                    <div class="status-item status-warn">
+                        📅 Expires: ${expiryDate.toLocaleString()}
+                    </div>
+                    <div class="status-item status-warn">
+                        🔗 Scopes: ${validation.tokenData.scope.split(' ').length} scopes
+                    </div>
+                `;
+            } else {
+                tokenStatusHtml = '<div class="status-item status-bad">❌ No OAuth tokens found in localStorage</div>';
+            }
+            
+            document.getElementById('tokenStatus').innerHTML = tokenStatusHtml;
+
+            // Update scope results
+            let scopeResultsHtml = `
+                <div class="status-item ${validation.isValid ? 'status-good' : 'status-bad'}">
+                    🎯 Overall Valid: ${validation.isValid ? 'Yes' : 'No'}
+                </div>
+                <div class="status-item ${validation.hasAccountScope ? 'status-good' : 'status-bad'}">
+                    🏢 Account Scope: ${validation.hasAccountScope ? 'Present' : 'MISSING - CRITICAL!'}
+                </div>
+                <div class="status-item ${validation.hasInventoryScope ? 'status-good' : 'status-warn'}">
+                    📦 Inventory Scope: ${validation.hasInventoryScope ? 'Present' : 'Missing'}
+                </div>
+                <div class="status-item ${validation.hasFulfillmentScope ? 'status-good' : 'status-warn'}">
+                    🚚 Fulfillment Scope: ${validation.hasFulfillmentScope ? 'Present' : 'Missing'}
+                </div>
+                <div class="status-item ${validation.hasIdentityScope ? 'status-good' : 'status-warn'}">
+                    👤 Identity Scope: ${validation.hasIdentityScope ? 'Present' : 'Missing'}
+                </div>
+            `;
+
+            if (validation.recommendations.length > 0) {
+                scopeResultsHtml += '<h4>Recommendations:</h4>';
+                validation.recommendations.forEach(rec => {
+                    const isCritical = rec.includes('CRITICAL') || rec.includes('sell.account');
+                    scopeResultsHtml += `<div class="status-item ${isCritical ? 'status-bad' : 'status-warn'}">${rec}</div>`;
+                });
+            }
+
+            document.getElementById('scopeResults').innerHTML = scopeResultsHtml;
+
+            // Log to console for debugging
+            console.group('🔐 OAuth Validation Results');
+            console.log('Token Data:', validation.tokenData);
+            console.log('Validation:', validation);
+            console.groupEnd();
+        }
+
+        async function testAccountAPI() {
+            const validation = OAuthScopeValidator.validateAccountAPIAccess();
+            
+            if (!validation.tokenData || !validation.hasAccountScope) {
+                document.getElementById('apiTestResults').innerHTML = `
+                    <div class="status-item status-bad">
+                        ❌ Cannot test Account API: ${!validation.tokenData ? 'No token available' : 'Missing sell.account scope'}
+                    </div>
+                `;
+                return;
+            }
+
+            document.getElementById('apiTestResults').innerHTML = '<div class="status-item status-warn">🔄 Testing Account API endpoints...</div>';
+
+            const endpoints = [
+                { name: 'Fulfillment Policies', url: 'https://api.ebay.com/sell/account/v1/fulfillment_policy' },
+                { name: 'Payment Policies', url: 'https://api.ebay.com/sell/account/v1/payment_policy' },
+                { name: 'Return Policies', url: 'https://api.ebay.com/sell/account/v1/return_policy' }
+            ];
+
+            let resultsHtml = '';
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch('/.netlify/functions/ebay-proxy', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            url: endpoint.url,
+                            method: 'GET',
+                            headers: {
+                                'Authorization': `Bearer ${validation.tokenData.accessToken}`,
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
+                            }
+                        })
+                    });
+
+                    const statusClass = response.ok ? 'status-good' : 'status-bad';
+                    const statusIcon = response.ok ? '✅' : '❌';
+                    
+                    resultsHtml += `
+                        <div class="status-item ${statusClass}">
+                            ${statusIcon} ${endpoint.name}: ${response.status} ${response.statusText}
+                        </div>
+                    `;
+
+                    if (!response.ok) {
+                        if (response.status === 502) {
+                            resultsHtml += `<div class="status-item status-bad">🚨 502 Error - This is the issue blocking listings!</div>`;
+                        }
+                    }
+
+                } catch (error) {
+                    resultsHtml += `
+                        <div class="status-item status-bad">
+                            ❌ ${endpoint.name}: Network Error - ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            document.getElementById('apiTestResults').innerHTML = resultsHtml;
+        }
+
+        function clearTokens() {
+            if (confirm('Are you sure you want to clear all OAuth tokens? You will need to re-authenticate.')) {
+                const tokenKeys = [
+                    'easyflip_ebay_access_token',
+                    'easyflip_ebay_refresh_token', 
+                    'easyflip_ebay_token_expires_at',
+                    'easyflip_ebay_token_scope'
+                ];
+
+                tokenKeys.forEach(key => localStorage.removeItem(key));
+                
+                document.getElementById('tokenStatus').innerHTML = '<div class="status-item status-warn">🗑️ All tokens cleared. Please re-authenticate.</div>';
+                document.getElementById('scopeResults').innerHTML = '<div class="status-item status-warn">No tokens to validate.</div>';
+                document.getElementById('apiTestResults').innerHTML = '<div class="status-item status-warn">No tokens for API testing.</div>';
+            }
+        }
+
+        function exportDiagnostics() {
+            const validation = OAuthScopeValidator.validateAccountAPIAccess();
+            
+            const diagnostics = {
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent,
+                url: window.location.href,
+                tokenPresent: !!validation.tokenData,
+                validation: validation,
+                localStorage: {
+                    accessToken: validation.tokenData?.accessToken?.substring(0, 20) + '...' || 'None',
+                    refreshToken: validation.tokenData?.refreshToken?.substring(0, 20) + '...' || 'None',
+                    expiresAt: validation.tokenData?.expiresAt ? new Date(validation.tokenData.expiresAt).toISOString() : 'None',
+                    scope: validation.tokenData?.scope || 'None'
+                },
+                criticalIssues: validation.recommendations.filter(r => 
+                    r.includes('CRITICAL') || r.includes('sell.account') || r.includes('expired')
+                )
+            };
+
+            document.getElementById('diagnostics').innerHTML = `<pre>${JSON.stringify(diagnostics, null, 2)}</pre>`;
+            
+            console.log('📊 Full Diagnostics:', diagnostics);
+        }
+
+        // Auto-validate on page load
+        window.addEventListener('load', () => {
+            validateScopes();
+        });
+    </script>
+</body>
+</html>

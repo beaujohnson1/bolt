@@ -117,12 +117,16 @@ class BusinessPolicyService {
    */
   private async getFulfillmentPolicies(accessToken: string): Promise<FulfillmentPolicy[]> {
     try {
+      console.log('📦 [BUSINESS-POLICY] Fetching fulfillment policies with enhanced headers...');
+      
       const response = await this.ebayApiService._callProxy(
         `${this.ebayApiService.baseUrl}/sell/account/v1/fulfillment_policy`,
         'GET',
         {
           'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
         }
       );
 
@@ -152,6 +156,14 @@ class BusinessPolicyService {
       }));
     } catch (error) {
       console.error('❌ [BUSINESS-POLICY] Error fetching fulfillment policies:', error);
+      
+      // Enhanced error logging for 502 issues
+      if (error.message && error.message.includes('502')) {
+        console.error('🚨 [BUSINESS-POLICY] 502 ERROR: eBay Account API returned Bad Gateway');
+        console.error('🚨 [BUSINESS-POLICY] Possible causes: Invalid token, missing sell.account scope, API down');
+        console.error('🚨 [BUSINESS-POLICY] Check OAuth token in localStorage for sell.account scope');
+      }
+      
       return [];
     }
   }
@@ -161,12 +173,16 @@ class BusinessPolicyService {
    */
   private async getPaymentPolicies(accessToken: string): Promise<PaymentPolicy[]> {
     try {
+      console.log('💳 [BUSINESS-POLICY] Fetching payment policies with enhanced headers...');
+      
       const response = await this.ebayApiService._callProxy(
         `${this.ebayApiService.baseUrl}/sell/account/v1/payment_policy`,
         'GET',
         {
           'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
         }
       );
 
@@ -186,6 +202,14 @@ class BusinessPolicyService {
       }));
     } catch (error) {
       console.error('❌ [BUSINESS-POLICY] Error fetching payment policies:', error);
+      
+      // Enhanced error logging for 502 issues
+      if (error.message && error.message.includes('502')) {
+        console.error('🚨 [BUSINESS-POLICY] 502 ERROR: eBay Account API returned Bad Gateway');
+        console.error('🚨 [BUSINESS-POLICY] Possible causes: Invalid token, missing sell.account scope, API down');
+        console.error('🚨 [BUSINESS-POLICY] Check OAuth token in localStorage for sell.account scope');
+      }
+      
       return [];
     }
   }
@@ -195,12 +219,16 @@ class BusinessPolicyService {
    */
   private async getReturnPolicies(accessToken: string): Promise<ReturnPolicy[]> {
     try {
+      console.log('🔄 [BUSINESS-POLICY] Fetching return policies with enhanced headers...');
+      
       const response = await this.ebayApiService._callProxy(
         `${this.ebayApiService.baseUrl}/sell/account/v1/return_policy`,
         'GET',
         {
           'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US'
         }
       );
 
@@ -224,6 +252,14 @@ class BusinessPolicyService {
       }));
     } catch (error) {
       console.error('❌ [BUSINESS-POLICY] Error fetching return policies:', error);
+      
+      // Enhanced error logging for 502 issues
+      if (error.message && error.message.includes('502')) {
+        console.error('🚨 [BUSINESS-POLICY] 502 ERROR: eBay Account API returned Bad Gateway');
+        console.error('🚨 [BUSINESS-POLICY] Possible causes: Invalid token, missing sell.account scope, API down');
+        console.error('🚨 [BUSINESS-POLICY] Check OAuth token in localStorage for sell.account scope');
+      }
+      
       return [];
     }
   }

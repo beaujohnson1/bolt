@@ -1158,7 +1158,19 @@ class EbayApiService {
       console.log('🔑 [EBAY-API] Environment:', this.environment);
       console.log('🔑 [EBAY-API] Base URL:', this.baseUrl);
       
-      // Check for OAuth tokens from localStorage (stored by OAuth flow)
+      // First try to get token from OAuth service which handles all storage formats
+      try {
+        const { default: ebayOAuth } = await import('./ebayOAuth');
+        const serviceToken = await ebayOAuth.getValidAccessToken();
+        if (serviceToken && serviceToken !== 'dev_mode_bypass_token') {
+          console.log('✅ [EBAY-API] OAuth access token retrieved from service');
+          return serviceToken;
+        }
+      } catch (serviceError) {
+        console.warn('⚠️ [EBAY-API] OAuth service error:', serviceError);
+      }
+      
+      // Fallback: Check for OAuth tokens from localStorage (stored by OAuth flow)
       const oauthTokens = localStorage.getItem('ebay_oauth_tokens');
       console.log('🔑 [EBAY-API] OAuth tokens in localStorage:', !!oauthTokens);
       
