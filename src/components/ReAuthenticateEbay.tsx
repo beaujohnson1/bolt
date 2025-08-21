@@ -61,20 +61,26 @@ export function ReAuthenticateEbay() {
   };
 
   const handleReAuthenticate = async () => {
-    // Clear existing tokens
-    const tokenKeys = [
-      'easyflip_ebay_access_token',
-      'easyflip_ebay_refresh_token',
-      'easyflip_ebay_token_expires_at',
-      'easyflip_ebay_token_scope',
-      'ebay_oauth_tokens',
-      'ebay_manual_token'
-    ];
-    
-    tokenKeys.forEach(key => localStorage.removeItem(key));
-    
-    // Initiate new OAuth flow with all scopes
-    await ebayOAuthService.initiateOAuth();
+    try {
+      // Clear existing tokens
+      const tokenKeys = [
+        'easyflip_ebay_access_token',
+        'easyflip_ebay_refresh_token',
+        'easyflip_ebay_token_expires_at',
+        'easyflip_ebay_token_scope',
+        'ebay_oauth_tokens',
+        'ebay_manual_token'
+      ];
+      
+      tokenKeys.forEach(key => localStorage.removeItem(key));
+      console.log('🔄 [RE-AUTH] Cleared existing tokens');
+      
+      // Initiate new OAuth flow with all scopes
+      await ebayOAuthService.initiateOAuthFlow();
+      console.log('✅ [RE-AUTH] OAuth flow initiated');
+    } catch (error) {
+      console.error('❌ [RE-AUTH] Error initiating OAuth flow:', error);
+    }
   };
 
   useEffect(() => {
