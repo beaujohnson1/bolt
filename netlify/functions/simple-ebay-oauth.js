@@ -46,9 +46,13 @@ exports.handler = async (event, context) => {
         
         // The ruName should match the actual callback URL registered in eBay Developer Console
         const baseUrl = process.env.URL || 'https://easyflip.ai';
-        const isProduction = !baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1');
+        // Check environment variable first, then fall back to URL detection
+        const isProduction = process.env.EBAY_USE_PRODUCTION === 'true' || 
+                            process.env.VITE_EBAY_USE_PRODUCTION === 'true' ||
+                            (!baseUrl.includes('localhost') && !baseUrl.includes('127.0.0.1'));
         
-        // Use production ruName or sandbox callback URL
+        // Use production ruName (registered in eBay) or dynamic callback URL for sandbox
+        // Production MUST use the registered RU Name, not a dynamic URL
         const ruName = isProduction ? 
             'easyflip.ai-easyflip-easyfl-cnqajybp' : 
             `${baseUrl}/.netlify/functions/simple-ebay-callback`;
