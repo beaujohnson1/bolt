@@ -73,6 +73,15 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
   
+  // CRITICAL: Don't intercept OAuth callbacks or debug tools
+  if (url.pathname.includes('callback') || 
+      url.pathname.includes('oauth') || 
+      url.pathname.includes('debug') ||
+      url.pathname.endsWith('.html')) {
+    // Let these requests go through normally
+    return;
+  }
+  
   // Handle different types of requests
   if (request.method === 'GET') {
     if (isStaticAsset(url)) {
