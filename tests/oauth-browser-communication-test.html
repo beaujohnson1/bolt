@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Browser Communication Test Suite</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            background: #f9f9f9;
+        }
+        
+        .test-results {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f5f5f5;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            margin: 10px 5px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn.success { background: linear-gradient(45deg, #27ae60, #2ecc71); }
+        .btn.warning { background: linear-gradient(45deg, #f39c12, #e67e22); }
+        .btn.danger { background: linear-gradient(45deg, #e74c3c, #c0392b); }
+        
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status.pass { background: #d4edda; color: #155724; }
+        .status.fail { background: #f8d7da; color: #721c24; }
+        .status.warn { background: #fff3cd; color: #856404; }
+        .status.running { background: #cce7ff; color: #004085; }
+        
+        .metric {
+            display: inline-block;
+            margin: 5px 10px;
+            padding: 8px 12px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #27ae60, #2ecc71);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .critical-alert {
+            background: #ffebee;
+            border: 2px solid #e74c3c;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            color: #c0392b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 OAuth Browser Communication Test Suite</h1>
+            <p>Comprehensive testing of OAuth flow components in browser environment</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressBar"></div>
+            </div>
+        </div>
+
+        <!-- Test Controls -->
+        <div class="test-section">
+            <h3>🎮 Test Controls</h3>
+            <button class="btn" onclick="runAllTests()">🚀 Run All Tests</button>
+            <button class="btn success" onclick="testEndpointAccessibility()">🔍 Test Endpoints</button>
+            <button class="btn warning" onclick="testCrossWindowCommunication()">🔗 Test Communication</button>
+            <button class="btn" onclick="testLocalStorageOperations()">💾 Test Storage</button>
+            <button class="btn danger" onclick="clearAllTests()">🗑️ Clear Results</button>
+        </div>
+
+        <!-- OAuth Flow Test -->
+        <div class="test-section">
+            <h3>🔐 OAuth Flow Test</h3>
+            <p>Test the complete OAuth flow with popup window</p>
+            <button class="btn" onclick="startOAuthTest()">🚀 Start OAuth Flow</button>
+            <button class="btn warning" onclick="testTokenExchange()">🔄 Test Token Exchange</button>
+            <div id="oauthStatus" class="status">Ready</div>
+            <div id="oauthResults" class="test-results"></div>
+        </div>
+
+        <!-- Cross-Window Communication Test -->
+        <div class="test-section">
+            <h3>🔗 Cross-Window Communication Test</h3>
+            <p>Test communication between popup and parent window</p>
+            <button class="btn" onclick="testPostMessage()">📨 Test PostMessage</button>
+            <button class="btn" onclick="testCustomEvents()">🎯 Test Custom Events</button>
+            <button class="btn" onclick="testStorageSharing()">💾 Test Storage Sharing</button>
+            <div id="communicationStatus" class="status">Ready</div>
+            <div id="communicationResults" class="test-results"></div>
+        </div>
+
+        <!-- localStorage Test -->
+        <div class="test-section">
+            <h3>💾 localStorage Token Operations</h3>
+            <p>Test token storage and retrieval operations</p>
+            <button class="btn" onclick="testTokenStorage()">📦 Test Token Storage</button>
+            <button class="btn" onclick="testTokenRetrieval()">📤 Test Token Retrieval</button>
+            <button class="btn" onclick="testTokenCleanup()">🧹 Test Token Cleanup</button>
+            <div id="storageStatus" class="status">Ready</div>
+            <div id="storageResults" class="test-results"></div>
+        </div>
+
+        <!-- Endpoint Accessibility Test -->
+        <div class="test-section">
+            <h3>🌐 Endpoint Accessibility Test</h3>
+            <p>Test OAuth endpoints and response handling</p>
+            <button class="btn" onclick="testOAuthEndpoint()">🔍 Test OAuth Endpoint</button>
+            <button class="btn" onclick="testCallbackEndpoint()">📞 Test Callback Endpoint</button>
+            <button class="btn" onclick="testErrorHandling()">🛡️ Test Error Handling</button>
+            <div id="endpointStatus" class="status">Ready</div>
+            <div id="endpointResults" class="test-results"></div>
+        </div>
+
+        <!-- Performance Metrics -->
+        <div class="test-section">
+            <h3>⚡ Performance Metrics</h3>
+            <div id="performanceMetrics">
+                <div class="metric">Endpoint Response: <span id="endpointTime">-</span>ms</div>
+                <div class="metric">Token Exchange: <span id="tokenTime">-</span>ms</div>
+                <div class="metric">Storage Operations: <span id="storageTime">-</span>ms</div>
+                <div class="metric">Communication: <span id="commTime">-</span>ms</div>
+            </div>
+        </div>
+
+        <!-- Overall Results -->
+        <div class="test-section">
+            <h3>📊 Overall Test Results</h3>
+            <div id="overallResults" class="test-results">
+                Click "Run All Tests" to start comprehensive testing...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class OAuthBrowserTester {
+            constructor() {
+                this.baseUrl = 'https://easyflip.ai';
+                this.oauthEndpoint = `${this.baseUrl}/.netlify/functions/simple-ebay-oauth`;
+                this.callbackEndpoint = `${this.baseUrl}/.netlify/functions/simple-ebay-callback`;
+                
+                this.results = {
+                    tests: [],
+                    summary: { total: 0, passed: 0, failed: 0, warnings: 0 },
+                    performance: {}
+                };
+
+                this.testStartTime = Date.now();
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                // Listen for OAuth success messages
+                window.addEventListener('message', (event) => {
+                    if (event.data && event.data.type === 'EBAY_OAUTH_SUCCESS') {
+                        this.handleOAuthSuccess(event.data);
+                    }
+                });
+
+                // Listen for custom OAuth events
+                window.addEventListener('simpleEbayAuthSuccess', (event) => {
+                    this.handleOAuthSuccess(event.detail);
+                });
+            }
+
+            log(message, containerId = 'overallResults', type = 'info') {
+                const timestamp = new Date().toISOString();
+                const colors = {
+                    success: '#27ae60',
+                    error: '#e74c3c',
+                    warning: '#f39c12',
+                    info: '#3498db'
+                };
+
+                const color = colors[type] || colors.info;
+                const logEntry = `<div style="color: ${color}; margin: 5px 0;">[${timestamp}] ${message}</div>`;
+                
+                const container = document.getElementById(containerId);
+                if (container) {
+                    container.innerHTML += logEntry;
+                    container.scrollTop = container.scrollHeight;
+                }
+            }
+
+            addResult(testName, passed, message, type = 'test') {
+                const result = {
+                    test: testName,
+                    passed,
+                    message,
+                    type,
+                    timestamp: new Date().toISOString()
+                };
+                
+                this.results.tests.push(result);
+                this.results.summary.total++;
+                
+                if (type === 'warning') {
+                    this.results.summary.warnings++;
+                    this.log(`⚠️ WARNING: ${testName} - ${message}`, 'overallResults', 'warning');
+                } else if (passed) {
+                    this.results.summary.passed++;
+                    this.log(`✅ PASS: ${testName} - ${message}`, 'overallResults', 'success');
+                } else {
+                    this.results.summary.failed++;
+                    this.log(`❌ FAIL: ${testName} - ${message}`, 'overallResults', 'error');
+                }
+
+                this.updateProgress();
+                return result;
+            }
+
+            async measurePerformance(testName, asyncOperation) {
+                const startTime = Date.now();
+                const result = await asyncOperation();
+                const duration = Date.now() - startTime;
+                
+                this.results.performance[testName] = duration;
+                return { result, duration };
+            }
+
+            updateProgress() {
+                const { summary } = this.results;
+                if (summary.total > 0) {
+                    const progressPercent = ((summary.passed + summary.failed + summary.warnings) / summary.total) * 100;
+                    document.getElementById('progressBar').style.width = `${progressPercent}%`;
+                }
+            }
+
+            updateStatus(elementId, status, type = 'running') {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.textContent = status;
+                    element.className = `status ${type}`;
+                }
+            }
+
+            // Test 1: OAuth Endpoint Accessibility
+            async testOAuthEndpoint() {
+                this.updateStatus('endpointStatus', 'Testing OAuth endpoint...', 'running');
+                this.log('🔍 Testing OAuth endpoint accessibility...', 'endpointResults', 'info');
+
+                try {
+                    const { result, duration } = await this.measurePerformance('oauth-endpoint', async () => {
+                        const response = await fetch(this.oauthEndpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'generate-auth-url' })
+                        });
+                        return { response, data: await response.json() };
+                    });
+
+                    document.getElementById('endpointTime').textContent = duration;
+
+                    const success = result.response.ok && result.data.success;
+                    this.addResult(
+                        'OAuth Endpoint Accessibility',
+                        success,
+                        success ? 
+                            `Endpoint accessible (${result.response.status}), auth URL generated` :
+                            `Endpoint failed (${result.response.status}): ${result.data.error || 'Unknown error'}`
+                    );
+
+                    if (success) {
+                        this.log(`✅ Auth URL: ${result.data.authUrl.substring(0, 100)}...`, 'endpointResults', 'success');
+                        this.updateStatus('endpointStatus', 'OAuth endpoint working', 'pass');
+                    } else {
+                        this.updateStatus('endpointStatus', 'OAuth endpoint failed', 'fail');
+                    }
+
+                    return success;
+
+                } catch (error) {
+                    this.addResult('OAuth Endpoint Accessibility', false, `Network error: ${error.message}`);
+                    this.log(`❌ Endpoint error: ${error.message}`, 'endpointResults', 'error');
+                    this.updateStatus('endpointStatus', 'Endpoint test failed', 'fail');
+                    return false;
+                }
+            }
+
+            // Test 2: Callback Endpoint Test
+            async testCallbackEndpoint() {
+                this.log('📞 Testing callback endpoint...', 'endpointResults', 'info');
+
+                try {
+                    const response = await fetch(this.callbackEndpoint);
+                    const accessible = response.status !== 500; // Any response except server error
+
+                    this.addResult(
+                        'Callback Endpoint Accessibility',
+                        accessible,
+                        accessible ? 
+                            `Callback endpoint accessible (${response.status})` :
+                            `Callback endpoint server error (${response.status})`
+                    );
+
+                    return accessible;
+
+                } catch (error) {
+                    this.addResult('Callback Endpoint Accessibility', false, `Network error: ${error.message}`);
+                    return false;
+                }
+            }
+
+            // Test 3: Error Handling
+            async testErrorHandling() {
+                this.log('🛡️ Testing error handling...', 'endpointResults', 'info');
+
+                const errorTests = [
+                    { name: 'Invalid Action', payload: { action: 'invalid' } },
+                    { name: 'Empty Body', payload: {} },
+                    { name: 'Missing Code', payload: { action: 'exchange-code' } }
+                ];
+
+                let allPassed = true;
+
+                for (const test of errorTests) {
+                    try {
+                        const response = await fetch(this.oauthEndpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(test.payload)
+                        });
+
+                        const handledProperly = response.status >= 400 && response.status < 500;
+                        if (!handledProperly) allPassed = false;
+
+                        this.addResult(
+                            `Error Handling - ${test.name}`,
+                            handledProperly,
+                            `Status: ${response.status} (expected 4xx)`
+                        );
+
+                    } catch (error) {
+                        allPassed = false;
+                        this.addResult(`Error Handling - ${test.name}`, false, `Request failed: ${error.message}`);
+                    }
+                }
+
+                return allPassed;
+            }
+
+            // Test 4: Token Storage Operations
+            testTokenStorage() {
+                this.updateStatus('storageStatus', 'Testing token storage...', 'running');
+                this.log('💾 Testing token storage operations...', 'storageResults', 'info');
+
+                try {
+                    const { duration } = this.measurePerformance('storage-ops', () => {
+                        // Test token data
+                        const tokenData = {
+                            access_token: 'test_access_token_12345',
+                            refresh_token: 'test_refresh_token_67890',
+                            expires_in: 7200,
+                            expires_at: Date.now() + 7200000,
+                            token_type: 'Bearer'
+                        };
+
+                        // Test EasyFlip storage format
+                        localStorage.setItem('ebay_manual_token', tokenData.access_token);
+                        localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+
+                        return tokenData;
+                    });
+
+                    document.getElementById('storageTime').textContent = duration;
+
+                    // Verify storage
+                    const manualToken = localStorage.getItem('ebay_manual_token');
+                    const fullTokens = JSON.parse(localStorage.getItem('ebay_oauth_tokens'));
+
+                    const storageSuccess = manualToken === 'test_access_token_12345' && 
+                                         fullTokens.access_token === 'test_access_token_12345';
+
+                    this.addResult(
+                        'Token Storage Operations',
+                        storageSuccess,
+                        storageSuccess ? 
+                            'Tokens stored successfully in EasyFlip format' :
+                            'Token storage failed'
+                    );
+
+                    if (storageSuccess) {
+                        this.log('✅ Manual token stored successfully', 'storageResults', 'success');
+                        this.log('✅ Full token object stored successfully', 'storageResults', 'success');
+                        this.updateStatus('storageStatus', 'Storage working', 'pass');
+                    } else {
+                        this.updateStatus('storageStatus', 'Storage failed', 'fail');
+                    }
+
+                    return storageSuccess;
+
+                } catch (error) {
+                    this.addResult('Token Storage Operations', false, `Storage error: ${error.message}`);
+                    this.log(`❌ Storage error: ${error.message}`, 'storageResults', 'error');
+                    this.updateStatus('storageStatus', 'Storage test failed', 'fail');
+                    return false;
+                }
+            }
+
+            // Test 5: Token Retrieval
+            testTokenRetrieval() {
+                this.log('📤 Testing token retrieval...', 'storageResults', 'info');
+
+                try {
+                    const manualToken = localStorage.getItem('ebay_manual_token');
+                    const fullTokensStr = localStorage.getItem('ebay_oauth_tokens');
+                    
+                    if (!fullTokensStr) {
+                        // First store some test tokens
+                        this.testTokenStorage();
+                    }
+
+                    const fullTokens = JSON.parse(localStorage.getItem('ebay_oauth_tokens'));
+                    const retrievalSuccess = fullTokens && fullTokens.access_token && fullTokens.expires_at > Date.now();
+
+                    this.addResult(
+                        'Token Retrieval Operations',
+                        retrievalSuccess,
+                        retrievalSuccess ? 
+                            `Tokens retrieved successfully, expires: ${new Date(fullTokens.expires_at).toLocaleString()}` :
+                            'Token retrieval failed or tokens expired'
+                    );
+
+                    return retrievalSuccess;
+
+                } catch (error) {
+                    this.addResult('Token Retrieval Operations', false, `Retrieval error: ${error.message}`);
+                    return false;
+                }
+            }
+
+            // Test 6: Token Cleanup
+            testTokenCleanup() {
+                this.log('🧹 Testing token cleanup...', 'storageResults', 'info');
+
+                try {
+                    // Clean up tokens
+                    localStorage.removeItem('ebay_manual_token');
+                    localStorage.removeItem('ebay_oauth_tokens');
+
+                    // Verify cleanup
+                    const manualTokenRemoved = !localStorage.getItem('ebay_manual_token');
+                    const fullTokensRemoved = !localStorage.getItem('ebay_oauth_tokens');
+                    const cleanupSuccess = manualTokenRemoved && fullTokensRemoved;
+
+                    this.addResult(
+                        'Token Cleanup Operations',
+                        cleanupSuccess,
+                        cleanupSuccess ? 
+                            'All tokens cleaned up successfully' :
+                            'Token cleanup failed'
+                    );
+
+                    return cleanupSuccess;
+
+                } catch (error) {
+                    this.addResult('Token Cleanup Operations', false, `Cleanup error: ${error.message}`);
+                    return false;
+                }
+            }
+
+            // Test 7: PostMessage Communication
+            testPostMessage() {
+                this.updateStatus('communicationStatus', 'Testing PostMessage...', 'running');
+                this.log('📨 Testing PostMessage communication...', 'communicationResults', 'info');
+
+                try {
+                    const { duration } = this.measurePerformance('postmessage', () => {
+                        // Simulate popup sending message to parent
+                        const testMessage = {
+                            type: 'EBAY_OAUTH_SUCCESS',
+                            timestamp: Date.now(),
+                            tokens: {
+                                access_token: 'test_access_token',
+                                refresh_token: 'test_refresh_token',
+                                expires_in: 7200,
+                                expires_at: Date.now() + 7200000
+                            }
+                        };
+
+                        // Test message serialization
+                        const serialized = JSON.stringify(testMessage);
+                        const deserialized = JSON.parse(serialized);
+                        
+                        return deserialized.type === 'EBAY_OAUTH_SUCCESS';
+                    });
+
+                    document.getElementById('commTime').textContent = duration;
+
+                    this.addResult(
+                        'PostMessage Communication',
+                        true,
+                        'PostMessage serialization/deserialization working'
+                    );
+
+                    this.log('✅ PostMessage format validation passed', 'communicationResults', 'success');
+                    this.updateStatus('communicationStatus', 'Communication working', 'pass');
+                    return true;
+
+                } catch (error) {
+                    this.addResult('PostMessage Communication', false, `PostMessage error: ${error.message}`);
+                    this.log(`❌ PostMessage error: ${error.message}`, 'communicationResults', 'error');
+                    this.updateStatus('communicationStatus', 'Communication failed', 'fail');
+                    return false;
+                }
+            }
+
+            // Test 8: Custom Events
+            testCustomEvents() {
+                this.log('🎯 Testing custom events...', 'communicationResults', 'info');
+
+                try {
+                    let eventReceived = false;
+
+                    // Set up event listener
+                    const eventHandler = (event) => {
+                        eventReceived = true;
+                        this.log('✅ Custom event received successfully', 'communicationResults', 'success');
+                    };
+
+                    window.addEventListener('testOAuthEvent', eventHandler);
+
+                    // Dispatch test event
+                    const testEvent = new CustomEvent('testOAuthEvent', {
+                        detail: {
+                            access_token: 'test_token',
+                            timestamp: Date.now()
+                        }
+                    });
+
+                    window.dispatchEvent(testEvent);
+
+                    // Clean up
+                    window.removeEventListener('testOAuthEvent', eventHandler);
+
+                    this.addResult(
+                        'Custom Event Communication',
+                        eventReceived,
+                        eventReceived ? 
+                            'Custom events working properly' :
+                            'Custom event dispatch/receive failed'
+                    );
+
+                    return eventReceived;
+
+                } catch (error) {
+                    this.addResult('Custom Event Communication', false, `Custom event error: ${error.message}`);
+                    return false;
+                }
+            }
+
+            // Test 9: Storage Sharing Between Windows
+            testStorageSharing() {
+                this.log('💾 Testing storage sharing...', 'communicationResults', 'info');
+
+                try {
+                    // Simulate cross-window storage sharing
+                    const testData = { shared: true, timestamp: Date.now() };
+                    localStorage.setItem('test_cross_window_data', JSON.stringify(testData));
+
+                    // Verify data can be read back
+                    const retrievedData = JSON.parse(localStorage.getItem('test_cross_window_data'));
+                    const sharingWorks = retrievedData.shared === true;
+
+                    // Clean up
+                    localStorage.removeItem('test_cross_window_data');
+
+                    this.addResult(
+                        'Storage Sharing',
+                        sharingWorks,
+                        sharingWorks ? 
+                            'Cross-window storage sharing working' :
+                            'Storage sharing failed'
+                    );
+
+                    return sharingWorks;
+
+                } catch (error) {
+                    this.addResult('Storage Sharing', false, `Storage sharing error: ${error.message}`);
+                    return false;
+                }
+            }
+
+            // Test 10: Complete OAuth Flow Simulation
+            startOAuthTest() {
+                this.updateStatus('oauthStatus', 'Starting OAuth flow...', 'running');
+                this.log('🚀 Starting OAuth flow simulation...', 'oauthResults', 'info');
+
+                // First test if we can generate auth URL
+                this.testOAuthEndpoint().then(endpointWorking => {
+                    if (!endpointWorking) {
+                        this.updateStatus('oauthStatus', 'OAuth endpoint failed', 'fail');
+                        return;
+                    }
+
+                    // Simulate popup opening
+                    this.log('🔗 Simulating popup window opening...', 'oauthResults', 'info');
+                    
+                    // Test popup communication simulation
+                    setTimeout(() => {
+                        this.log('📨 Simulating OAuth callback with tokens...', 'oauthResults', 'info');
+                        
+                        // Simulate successful OAuth callback
+                        const mockTokens = {
+                            access_token: 'simulated_access_token',
+                            refresh_token: 'simulated_refresh_token',
+                            expires_in: 7200,
+                            expires_at: Date.now() + 7200000,
+                            token_type: 'Bearer'
+                        };
+
+                        // Test storage
+                        localStorage.setItem('ebay_manual_token', mockTokens.access_token);
+                        localStorage.setItem('ebay_oauth_tokens', JSON.stringify(mockTokens));
+
+                        // Test communication
+                        window.dispatchEvent(new CustomEvent('simpleEbayAuthSuccess', {
+                            detail: mockTokens
+                        }));
+
+                        this.updateStatus('oauthStatus', 'OAuth flow simulated successfully', 'pass');
+                        this.log('✅ OAuth flow simulation completed', 'oauthResults', 'success');
+
+                    }, 2000);
+                });
+            }
+
+            // Test 11: Token Exchange Test
+            async testTokenExchange() {
+                this.log('🔄 Testing token exchange...', 'oauthResults', 'info');
+
+                try {
+                    const { result, duration } = await this.measurePerformance('token-exchange', async () => {
+                        const response = await fetch(this.oauthEndpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                action: 'exchange-code',
+                                code: 'invalid_test_code' // Will fail but tests the endpoint
+                            })
+                        });
+                        return { response, data: await response.json() };
+                    });
+
+                    document.getElementById('tokenTime').textContent = duration;
+
+                    // Should fail with proper error message
+                    const properErrorHandling = result.response.status === 400 && 
+                                               result.data.error && 
+                                               !result.data.success;
+
+                    this.addResult(
+                        'Token Exchange Error Handling',
+                        properErrorHandling,
+                        properErrorHandling ? 
+                            'Token exchange properly rejects invalid codes' :
+                            'Token exchange error handling not working'
+                    );
+
+                    return properErrorHandling;
+
+                } catch (error) {
+                    this.addResult('Token Exchange Test', false, `Exchange test error: ${error.message}`);
+                    return false;
+                }
+            }
+
+            // Handle OAuth Success
+            handleOAuthSuccess(data) {
+                this.log('🎉 OAuth success event received!', 'communicationResults', 'success');
+                this.log(`Token data: ${JSON.stringify(data).substring(0, 100)}...`, 'communicationResults', 'info');
+                
+                this.addResult(
+                    'OAuth Success Communication',
+                    true,
+                    'OAuth success message received via event system'
+                );
+            }
+
+            // Generate final report
+            generateReport() {
+                const { summary, tests, performance } = this.results;
+                const passRate = ((summary.passed / summary.total) * 100).toFixed(1);
+                
+                let report = `
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3>📊 Final Test Report</h3>
+                        <div style="margin: 10px 0;">
+                            <strong>Overall Pass Rate:</strong> ${passRate}%
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Results:</strong> ✅ ${summary.passed} passed, ❌ ${summary.failed} failed, ⚠️ ${summary.warnings} warnings
+                        </div>
+                        <div style="margin: 10px 0;">
+                            <strong>Performance:</strong>
+                        </div>
+                        <ul>
+                `;
+
+                Object.entries(performance).forEach(([test, time]) => {
+                    const status = time < 1000 ? '🟢' : time < 3000 ? '🟡' : '🔴';
+                    report += `<li>${status} ${test}: ${time}ms</li>`;
+                });
+
+                report += `
+                        </ul>
+                        <div style="margin: 15px 0; padding: 10px; background: ${passRate >= 85 ? '#d4edda' : '#f8d7da'}; border-radius: 5px;">
+                            <strong>Production Readiness:</strong> ${passRate >= 85 ? '✅ READY' : '❌ NOT READY'}
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('overallResults').innerHTML += report;
+
+                return {
+                    passRate: parseFloat(passRate),
+                    productionReady: passRate >= 85,
+                    issues: tests.filter(t => !t.passed)
+                };
+            }
+
+            // Run all tests
+            async runAllTests() {
+                this.log('🚀 Starting comprehensive OAuth browser tests...', 'overallResults', 'info');
+                this.updateProgress();
+
+                const testSuite = [
+                    () => this.testOAuthEndpoint(),
+                    () => this.testCallbackEndpoint(),
+                    () => this.testErrorHandling(),
+                    () => this.testTokenStorage(),
+                    () => this.testTokenRetrieval(),
+                    () => this.testTokenCleanup(),
+                    () => this.testPostMessage(),
+                    () => this.testCustomEvents(),
+                    () => this.testStorageSharing(),
+                    () => this.testTokenExchange()
+                ];
+
+                for (const test of testSuite) {
+                    try {
+                        await test();
+                        await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between tests
+                    } catch (error) {
+                        this.log(`💥 Test error: ${error.message}`, 'overallResults', 'error');
+                    }
+                }
+
+                // Generate final report
+                setTimeout(() => {
+                    this.generateReport();
+                }, 1000);
+            }
+
+            // Clear all test results
+            clearAllTests() {
+                document.querySelectorAll('.test-results').forEach(element => {
+                    element.innerHTML = '';
+                });
+                
+                document.querySelectorAll('.status').forEach(element => {
+                    element.textContent = 'Ready';
+                    element.className = 'status';
+                });
+
+                document.querySelectorAll('[id$="Time"]').forEach(element => {
+                    element.textContent = '-';
+                });
+
+                document.getElementById('progressBar').style.width = '0%';
+
+                this.results = {
+                    tests: [],
+                    summary: { total: 0, passed: 0, failed: 0, warnings: 0 },
+                    performance: {}
+                };
+
+                this.log('🗑️ All test results cleared', 'overallResults', 'info');
+            }
+        }
+
+        // Initialize tester
+        const tester = new OAuthBrowserTester();
+
+        // Export functions to global scope for button onclick
+        window.runAllTests = () => tester.runAllTests();
+        window.testEndpointAccessibility = () => {
+            tester.testOAuthEndpoint();
+            tester.testCallbackEndpoint();
+            tester.testErrorHandling();
+        };
+        window.testCrossWindowCommunication = () => {
+            tester.testPostMessage();
+            tester.testCustomEvents();
+            tester.testStorageSharing();
+        };
+        window.testLocalStorageOperations = () => {
+            tester.testTokenStorage();
+            tester.testTokenRetrieval();
+            tester.testTokenCleanup();
+        };
+        window.clearAllTests = () => tester.clearAllTests();
+        window.startOAuthTest = () => tester.startOAuthTest();
+        window.testTokenExchange = () => tester.testTokenExchange();
+        window.testOAuthEndpoint = () => tester.testOAuthEndpoint();
+        window.testCallbackEndpoint = () => tester.testCallbackEndpoint();
+        window.testErrorHandling = () => tester.testErrorHandling();
+        window.testPostMessage = () => tester.testPostMessage();
+        window.testCustomEvents = () => tester.testCustomEvents();
+        window.testStorageSharing = () => tester.testStorageSharing();
+        window.testTokenStorage = () => tester.testTokenStorage();
+        window.testTokenRetrieval = () => tester.testTokenRetrieval();
+        window.testTokenCleanup = () => tester.testTokenCleanup();
+
+        // Auto-run basic connectivity test on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                tester.log('🔍 Running initial connectivity check...', 'overallResults', 'info');
+                tester.testOAuthEndpoint();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

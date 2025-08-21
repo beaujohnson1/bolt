@@ -8,7 +8,11 @@
     "build": "tsc && vite build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:oauth": "node tests/run-oauth-verification.js",
+    "test:oauth:quick": "node tests/run-oauth-verification.js --quick",
+    "test:oauth:production": "node tests/run-oauth-verification.js --production-diagnostic",
+    "test:oauth:verbose": "node tests/run-oauth-verification.js --verbose"
   },
   "dependencies": {
     "@google-cloud/vision": "^5.3.3",

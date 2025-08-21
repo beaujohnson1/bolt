@@ -96,21 +96,37 @@ exports.handler = async (event, context) => {
                     </div>
 
                     <script>
+                        // Get the authorization code from URL
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const code = urlParams.get('code');
+                        const state = urlParams.get('state');
+                        
+                        console.log('📋 URL Parameters:', { 
+                            hasCode: !!code, 
+                            hasState: !!state,
+                            codePreview: code ? code.substring(0, 30) + '...' : 'none'
+                        });
+                        
                         // Automatically exchange code for tokens
                         async function exchangeTokens() {
                             try {
                                 console.log('🔄 Exchanging authorization code for tokens...');
                                 
-                                console.log('🔧 About to exchange code:', '${code}'.substring(0, 30) + '...');
+                                if (!code) {
+                                    throw new Error('No authorization code found in URL');
+                                }
                                 
-                                const response = await fetch('/.netlify/functions/simple-ebay-oauth', {
+                                console.log('🔧 About to exchange code:', code.substring(0, 30) + '...');
+                                
+                                const baseUrl = window.location.origin;
+                                const response = await fetch(`${baseUrl}/.netlify/functions/simple-ebay-oauth`, {
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
                                     },
                                     body: JSON.stringify({
                                         action: 'exchange-code',
-                                        code: '${code}'
+                                        code: code
                                     })
                                 });
                                 
@@ -124,16 +140,23 @@ exports.handler = async (event, context) => {
                                 });
                                 
                                 if (data.success && data.access_token) {
-                                    // Store tokens in parent window (if popup) using EasyFlip format
+                                    // Store tokens in parent window (if popup) using ALL compatible formats
                                     if (window.opener && window.opener.localStorage) {
-                                        window.opener.localStorage.setItem('ebay_manual_token', data.access_token);
-                                        window.opener.localStorage.setItem('ebay_oauth_tokens', JSON.stringify({
+                                        const tokenData = {
                                             access_token: data.access_token,
                                             refresh_token: data.refresh_token,
                                             expires_in: data.expires_in,
                                             expires_at: Date.now() + (data.expires_in * 1000),
                                             token_type: data.token_type || 'Bearer'
-                                        }));
+                                        };
+                                        
+                                        // Store in ALL formats for maximum compatibility
+                                        window.opener.localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                                        window.opener.localStorage.setItem('oauth_tokens', JSON.stringify(tokenData));
+                                        window.opener.localStorage.setItem('ebay_manual_token', data.access_token);
+                                        window.opener.localStorage.setItem('ebay_access_token', data.access_token);
+                                        window.opener.localStorage.setItem('ebay_refresh_token', data.refresh_token);
+                                        window.opener.localStorage.setItem('ebay_token_expiry', String(tokenData.expires_at));
                                         
                                         console.log('✅ Tokens stored successfully in parent window');
                                         
@@ -182,15 +205,24 @@ exports.handler = async (event, context) => {
                                             console.error('❌ Error communicating with parent window:', error);
                                         }
                                     } else {
-                                        // Fallback: store in current window using EasyFlip format
-                                        localStorage.setItem('ebay_manual_token', data.access_token);
-                                        localStorage.setItem('ebay_oauth_tokens', JSON.stringify({
+                                        // Fallback: store in current window using ALL compatible formats
+                                        const tokenData = {
                                             access_token: data.access_token,
                                             refresh_token: data.refresh_token,
                                             expires_in: data.expires_in,
                                             expires_at: Date.now() + (data.expires_in * 1000),
                                             token_type: data.token_type || 'Bearer'
-                                        }));
+                                        };
+                                        
+                                        // Store in ALL formats for maximum compatibility
+                                        localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                                        localStorage.setItem('oauth_tokens', JSON.stringify(tokenData));
+                                        localStorage.setItem('ebay_manual_token', data.access_token);
+                                        localStorage.setItem('ebay_access_token', data.access_token);
+                                        localStorage.setItem('ebay_refresh_token', data.refresh_token);
+                                        localStorage.setItem('ebay_token_expiry', String(tokenData.expires_at));
+                                        
+                                        console.log('✅ Tokens stored in callback window localStorage');
                                     }
                                     
                                     document.getElementById('status').innerHTML = 
