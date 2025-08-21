@@ -106,9 +106,32 @@ exports.handler = async (event, context) => {
         ]);
 
         console.log(`[${requestId}] Exchanging authorization code...`);
+        console.log(`[${requestId}] Code details:`, {
+            codeLength: code.length,
+            codePreview: code.substring(0, 30) + '...',
+            decodedCode: decodeURIComponent(code).substring(0, 30) + '...'
+        });
 
         // Exchange the authorization code for tokens
-        const tokenResponse = await ebay.OAuth2.getUserToken(code);
+        let tokenResponse;
+        try {
+            tokenResponse = await ebay.OAuth2.getUserToken(code);
+        } catch (exchangeError) {
+            console.error(`[${requestId}] Token exchange failed:`, exchangeError);
+            
+            // Try with decoded code if the first attempt fails
+            if (code.includes('%')) {
+                console.log(`[${requestId}] Retrying with decoded code...`);
+                try {
+                    tokenResponse = await ebay.OAuth2.getUserToken(decodeURIComponent(code));
+                } catch (retryError) {
+                    console.error(`[${requestId}] Retry also failed:`, retryError);
+                    throw exchangeError; // Throw original error
+                }
+            } else {
+                throw exchangeError;
+            }
+        }
         
         console.log(`[${requestId}] Token exchange successful:`, {
             hasAccessToken: !!tokenResponse.access_token,

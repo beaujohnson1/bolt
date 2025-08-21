@@ -51,6 +51,29 @@ export class EmergencyOAuthBridge {
   }
   
   private initializeEmergencyBridge(): void {
+    // Check if we should disable the emergency bridge
+    const disableBridge = localStorage.getItem('disable_emergency_bridge') === 'true';
+    if (disableBridge) {
+      console.log('[EmergencyOAuthBridge] Disabled by user preference');
+      return;
+    }
+    
+    // Check if valid tokens already exist
+    const existingTokens = localStorage.getItem('ebay_oauth_tokens');
+    if (existingTokens) {
+      try {
+        const tokens = JSON.parse(existingTokens);
+        if (tokens.access_token && typeof tokens.access_token === 'string' && !tokens.access_token.startsWith('"')) {
+          console.log('[EmergencyOAuthBridge] Valid tokens already exist, minimal monitoring only');
+          // Only set up beacon detection, not full monitoring
+          this.setupBeaconDetection();
+          return;
+        }
+      } catch {
+        // Continue with full initialization if tokens are invalid
+      }
+    }
+    
     // Initialize emergency event listeners
     window.addEventListener('storage', this.handleStorageChange.bind(this));
     window.addEventListener('message', this.handlePostMessage.bind(this));

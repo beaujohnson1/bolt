@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Debug Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5a67d8;
+        }
+        button.danger {
+            background: #dc3545;
+        }
+        button.danger:hover {
+            background: #c82333;
+        }
+        button.success {
+            background: #28a745;
+        }
+        button.success:hover {
+            background: #218838;
+        }
+        .log {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .token-display {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+        }
+        .scope-list {
+            list-style: none;
+            padding: 0;
+        }
+        .scope-list li {
+            padding: 5px 10px;
+            margin: 5px 0;
+            background: #e9ecef;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        .scope-list li.valid {
+            background: #d4edda;
+            color: #155724;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 OAuth Debug Tool</h1>
+        
+        <div class="section">
+            <h2>Current Token Status</h2>
+            <div id="tokenStatus">Analyzing...</div>
+        </div>
+
+        <div class="section">
+            <h2>Storage Analysis</h2>
+            <table id="storageTable">
+                <thead>
+                    <tr>
+                        <th>Key</th>
+                        <th>Value Preview</th>
+                        <th>Type</th>
+                        <th>Size</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="storageBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>OAuth Scopes</h2>
+            <div id="scopeStatus">Checking scopes...</div>
+            <ul id="scopeList" class="scope-list"></ul>
+        </div>
+
+        <div class="section">
+            <h2>Quick Actions</h2>
+            <button onclick="clearAllTokens()" class="danger">🗑️ Clear All Tokens</button>
+            <button onclick="clearCorruptedTokens()" class="danger">🔧 Clear Corrupted Tokens Only</button>
+            <button onclick="testTokenExchange()">🔄 Test Token Exchange</button>
+            <button onclick="startOAuth()" class="success">🔐 Start Fresh OAuth</button>
+            <button onclick="validateTokens()">✅ Validate Current Tokens</button>
+            <button onclick="exportDebugInfo()">📋 Export Debug Info</button>
+        </div>
+
+        <div class="section">
+            <h2>Manual Token Exchange</h2>
+            <input type="text" id="manualCode" placeholder="Paste authorization code here" style="width: 70%; padding: 8px;">
+            <button onclick="manualExchange()">Exchange Code</button>
+        </div>
+
+        <div class="section">
+            <h2>Activity Log</h2>
+            <div id="log" class="log">OAuth Debug Tool initialized...</div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '[ERROR]' : type === 'success' ? '[SUCCESS]' : '[INFO]';
+            logDiv.textContent += `\n${timestamp} ${prefix} ${message}`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`${prefix} ${message}`);
+        }
+
+        function analyzeTokens() {
+            const statusDiv = document.getElementById('tokenStatus');
+            const storageBody = document.getElementById('storageBody');
+            const scopeDiv = document.getElementById('scopeStatus');
+            const scopeList = document.getElementById('scopeList');
+            
+            // Clear previous results
+            storageBody.innerHTML = '';
+            scopeList.innerHTML = '';
+            
+            // Find all OAuth-related keys
+            const relevantKeys = Object.keys(localStorage).filter(key => 
+                key.toLowerCase().includes('ebay') || 
+                key.toLowerCase().includes('oauth') || 
+                key.toLowerCase().includes('token') ||
+                key.toLowerCase().includes('scope')
+            );
+            
+            log(`Found ${relevantKeys.length} OAuth-related keys in localStorage`);
+            
+            let hasValidTokens = false;
+            let tokenData = null;
+            let scopesFound = [];
+            
+            // Analyze each key
+            relevantKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                let type = 'string';
+                let preview = value;
+                let isCorrupted = false;
+                
+                // Try to parse as JSON
+                try {
+                    const parsed = JSON.parse(value);
+                    type = 'json';
+                    preview = JSON.stringify(parsed, null, 2);
+                    
+                    // Check for token data
+                    if (parsed.access_token) {
+                        tokenData = parsed;
+                        hasValidTokens = true;
+                    }
+                    
+                    // Check for scopes
+                    if (parsed.scope) {
+                        scopesFound = parsed.scope.split(' ');
+                    }
+                    
+                    // Check for corruption (multiple levels of encoding)
+                    let testValue = value;
+                    let encodingLevels = 0;
+                    while (testValue.startsWith('"') && testValue.endsWith('"')) {
+                        encodingLevels++;
+                        try {
+                            testValue = JSON.parse(testValue);
+                        } catch {
+                            break;
+                        }
+                    }
+                    if (encodingLevels > 1) {
+                        isCorrupted = true;
+                        type = `corrupted (${encodingLevels} layers)`;
+                    }
+                } catch {
+                    // Not JSON
+                    if (value && value.length > 50) {
+                        preview = value.substring(0, 50) + '...';
+                    }
+                }
+                
+                // Check for scopes in plain string
+                if (key.includes('scope') && value) {
+                    scopesFound = value.split(' ');
+                }
+                
+                // Add to table
+                const row = document.createElement('tr');
+                if (isCorrupted) {
+                    row.style.background = '#ffe0e0';
+                }
+                row.innerHTML = `
+                    <td><strong>${key}</strong></td>
+                    <td class="token-display">${preview.substring(0, 100)}${preview.length > 100 ? '...' : ''}</td>
+                    <td>${type}</td>
+                    <td>${value ? value.length : 0} bytes</td>
+                    <td>
+                        <button onclick="removeKey('${key}')" style="padding: 4px 8px; font-size: 12px;">Remove</button>
+                        ${isCorrupted ? '<span style="color: red;">⚠️</span>' : ''}
+                    </td>
+                `;
+                storageBody.appendChild(row);
+            });
+            
+            // Update token status
+            if (hasValidTokens && tokenData) {
+                const expiresAt = tokenData.expires_at || tokenData.expires_in;
+                const isExpired = expiresAt && new Date(expiresAt) < new Date();
+                
+                statusDiv.innerHTML = `
+                    <div class="status ${isExpired ? 'warning' : 'success'}">
+                        ✅ Tokens Found ${isExpired ? '(EXPIRED)' : '(Valid)'}
+                        <div class="token-display">
+                            Access Token: ${tokenData.access_token ? tokenData.access_token.substring(0, 40) + '...' : 'Missing'}<br>
+                            Refresh Token: ${tokenData.refresh_token ? 'Present' : 'Missing'}<br>
+                            Expires: ${expiresAt ? new Date(expiresAt).toLocaleString() : 'Unknown'}
+                        </div>
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = '<div class="status warning">⚠️ No valid tokens found</div>';
+            }
+            
+            // Update scope status
+            if (scopesFound.length > 0) {
+                scopeDiv.innerHTML = `<div class="status success">Found ${scopesFound.length} scopes</div>`;
+                scopesFound.forEach(scope => {
+                    const li = document.createElement('li');
+                    li.className = 'valid';
+                    li.textContent = scope.replace('https://api.ebay.com/oauth/api_scope/', '');
+                    scopeList.appendChild(li);
+                });
+            } else {
+                scopeDiv.innerHTML = '<div class="status error">❌ No scopes found</div>';
+            }
+        }
+
+        function removeKey(key) {
+            if (confirm(`Remove key: ${key}?`)) {
+                localStorage.removeItem(key);
+                log(`Removed key: ${key}`, 'success');
+                analyzeTokens();
+            }
+        }
+
+        function clearAllTokens() {
+            if (!confirm('This will remove ALL OAuth-related data. Continue?')) return;
+            
+            const keys = Object.keys(localStorage).filter(key => 
+                key.toLowerCase().includes('ebay') || 
+                key.toLowerCase().includes('oauth') || 
+                key.toLowerCase().includes('token')
+            );
+            
+            keys.forEach(key => {
+                localStorage.removeItem(key);
+                log(`Removed: ${key}`);
+            });
+            
+            log(`Cleared ${keys.length} keys`, 'success');
+            analyzeTokens();
+        }
+
+        function clearCorruptedTokens() {
+            let cleared = 0;
+            const keys = Object.keys(localStorage).filter(key => 
+                key.toLowerCase().includes('ebay') || 
+                key.toLowerCase().includes('oauth') || 
+                key.toLowerCase().includes('token')
+            );
+            
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value && value.startsWith('"') && value.endsWith('"')) {
+                    try {
+                        // Check for multiple encoding layers
+                        let testValue = value;
+                        let layers = 0;
+                        while (testValue.startsWith('"') && testValue.endsWith('"')) {
+                            layers++;
+                            testValue = JSON.parse(testValue);
+                        }
+                        if (layers > 1) {
+                            localStorage.removeItem(key);
+                            log(`Removed corrupted key: ${key} (${layers} encoding layers)`);
+                            cleared++;
+                        }
+                    } catch {
+                        // Ignore parse errors
+                    }
+                }
+            });
+            
+            log(`Cleared ${cleared} corrupted keys`, 'success');
+            analyzeTokens();
+        }
+
+        async function testTokenExchange() {
+            log('Testing token exchange function...');
+            
+            try {
+                const response = await fetch('/.netlify/functions/ebay-token-exchange', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: 'test_code_12345' })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    log('Token exchange function is responding', 'success');
+                } else {
+                    log(`Token exchange returned error: ${result.error || 'Unknown error'}`, 'error');
+                }
+                
+                log(`Response: ${JSON.stringify(result, null, 2)}`);
+            } catch (error) {
+                log(`Token exchange test failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function manualExchange() {
+            const code = document.getElementById('manualCode').value.trim();
+            if (!code) {
+                log('Please enter an authorization code', 'error');
+                return;
+            }
+            
+            log(`Exchanging code: ${code.substring(0, 30)}...`);
+            
+            try {
+                const response = await fetch('/.netlify/functions/ebay-token-exchange', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.tokens) {
+                    log('Token exchange successful!', 'success');
+                    
+                    // Store tokens
+                    localStorage.setItem('ebay_oauth_tokens', JSON.stringify(result.tokens));
+                    if (result.tokens.access_token) {
+                        localStorage.setItem('easyflip_ebay_access_token', result.tokens.access_token);
+                    }
+                    if (result.tokens.scope) {
+                        localStorage.setItem('easyflip_ebay_token_scope', result.tokens.scope);
+                    }
+                    
+                    log('Tokens stored successfully', 'success');
+                    analyzeTokens();
+                } else {
+                    log(`Exchange failed: ${result.error || 'Unknown error'}`, 'error');
+                    if (result.details) {
+                        log(`Details: ${JSON.stringify(result.details)}`, 'error');
+                    }
+                }
+            } catch (error) {
+                log(`Exchange error: ${error.message}`, 'error');
+            }
+        }
+
+        function startOAuth() {
+            log('Starting fresh OAuth flow...');
+            window.open('/auto-oauth-test.html', '_blank');
+        }
+
+        async function validateTokens() {
+            log('Validating current tokens...');
+            
+            const tokens = localStorage.getItem('ebay_oauth_tokens');
+            if (!tokens) {
+                log('No tokens found to validate', 'error');
+                return;
+            }
+            
+            try {
+                const tokenData = JSON.parse(tokens);
+                
+                // Check structure
+                const required = ['access_token', 'expires_at'];
+                const missing = required.filter(field => !tokenData[field]);
+                
+                if (missing.length > 0) {
+                    log(`Token structure invalid. Missing: ${missing.join(', ')}`, 'error');
+                    return;
+                }
+                
+                // Check expiration
+                const expiresAt = new Date(tokenData.expires_at);
+                const now = new Date();
+                
+                if (expiresAt < now) {
+                    log(`Tokens expired at ${expiresAt.toLocaleString()}`, 'error');
+                } else {
+                    const minutesLeft = Math.floor((expiresAt - now) / 60000);
+                    log(`Tokens valid for ${minutesLeft} more minutes`, 'success');
+                }
+                
+                // Check scopes
+                if (tokenData.scope) {
+                    const scopes = tokenData.scope.split(' ');
+                    log(`Found ${scopes.length} scopes: ${scopes.map(s => s.replace('https://api.ebay.com/oauth/api_scope/', '')).join(', ')}`, 'success');
+                } else {
+                    log('No scopes found in token data', 'warning');
+                }
+                
+            } catch (error) {
+                log(`Validation error: ${error.message}`, 'error');
+            }
+        }
+
+        function exportDebugInfo() {
+            const debugInfo = {
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent,
+                localStorage: {},
+                analysis: {
+                    totalKeys: 0,
+                    oauthKeys: 0,
+                    corruptedKeys: 0
+                }
+            };
+            
+            // Collect all OAuth-related data
+            const keys = Object.keys(localStorage).filter(key => 
+                key.toLowerCase().includes('ebay') || 
+                key.toLowerCase().includes('oauth') || 
+                key.toLowerCase().includes('token')
+            );
+            
+            debugInfo.analysis.totalKeys = Object.keys(localStorage).length;
+            debugInfo.analysis.oauthKeys = keys.length;
+            
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                debugInfo.localStorage[key] = {
+                    value: value ? value.substring(0, 100) : null,
+                    length: value ? value.length : 0
+                };
+                
+                // Check for corruption
+                if (value && value.startsWith('"') && value.endsWith('"')) {
+                    try {
+                        let testValue = value;
+                        let layers = 0;
+                        while (testValue.startsWith('"') && testValue.endsWith('"')) {
+                            layers++;
+                            testValue = JSON.parse(testValue);
+                        }
+                        if (layers > 1) {
+                            debugInfo.analysis.corruptedKeys++;
+                            debugInfo.localStorage[key].corrupted = true;
+                            debugInfo.localStorage[key].layers = layers;
+                        }
+                    } catch {
+                        // Ignore
+                    }
+                }
+            });
+            
+            // Create downloadable file
+            const blob = new Blob([JSON.stringify(debugInfo, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `oauth-debug-${Date.now()}.json`;
+            a.click();
+            
+            log('Debug info exported', 'success');
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            analyzeTokens();
+            
+            // Listen for storage changes
+            window.addEventListener('storage', (e) => {
+                if (e.key && (e.key.includes('ebay') || e.key.includes('oauth') || e.key.includes('token'))) {
+                    log(`Storage changed: ${e.key}`);
+                    analyzeTokens();
+                }
+            });
+            
+            log('Debug tool ready');
+        });
+    </script>
+</body>
+</html>
