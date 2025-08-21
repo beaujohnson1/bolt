@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>eBay OAuth Debug Tool</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            background: #000;
+            border: 1px solid #0f0;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .title {
+            color: #0ff;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        .success {
+            color: #0f0;
+        }
+        .error {
+            color: #f00;
+        }
+        .warning {
+            color: #ff0;
+        }
+        button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #0ff;
+        }
+        .log {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #111;
+            padding: 10px;
+            border: 1px solid #333;
+        }
+        .log-entry {
+            margin: 2px 0;
+            font-size: 12px;
+        }
+        input {
+            background: #111;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 5px;
+            width: 100%;
+            margin: 5px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="color: #0ff;">🔍 eBay OAuth Debug Tool</h1>
+        
+        <div class="section">
+            <div class="title">📊 Current Status</div>
+            <div id="status">Initializing...</div>
+        </div>
+
+        <div class="section">
+            <div class="title">🔧 Manual Token Input</div>
+            <p>If OAuth popup worked but tokens aren't being stored, paste the URL here:</p>
+            <input type="text" id="callbackUrl" placeholder="Paste the full callback URL with code parameter here">
+            <button onclick="extractToken()">Extract Token</button>
+            <div id="extractResult"></div>
+        </div>
+
+        <div class="section">
+            <div class="title">🧪 OAuth Flow Test</div>
+            <button onclick="testOAuthFlow()">Test OAuth Flow</button>
+            <button onclick="checkStorage()">Check Storage</button>
+            <button onclick="clearStorage()">Clear Storage</button>
+            <button onclick="testCallback()">Test Callback</button>
+        </div>
+
+        <div class="section">
+            <div class="title">📝 Debug Log</div>
+            <div id="log" class="log"></div>
+        </div>
+
+        <div class="section">
+            <div class="title">💾 Storage Contents</div>
+            <div id="storage" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        const log = (message, type = 'info') => {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.innerHTML = `[${timestamp}] <span class="${type}">${message}</span>`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        };
+
+        const updateStatus = (message, type = 'info') => {
+            document.getElementById('status').innerHTML = `<span class="${type}">${message}</span>`;
+        };
+
+        // Initialize
+        window.addEventListener('load', () => {
+            log('Debug tool initialized', 'success');
+            checkStorage();
+            
+            // Check URL parameters
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('code')) {
+                log('Found authorization code in URL!', 'success');
+                log(`Code: ${params.get('code').substring(0, 20)}...`, 'info');
+                updateStatus('Authorization code detected in URL', 'success');
+                
+                // Attempt to exchange token
+                exchangeToken(params.get('code'));
+            }
+        });
+
+        const checkStorage = () => {
+            log('Checking storage...', 'info');
+            const storageDiv = document.getElementById('storage');
+            storageDiv.innerHTML = '';
+            
+            const keys = [
+                'ebay_oauth_tokens',
+                'oauth_tokens',
+                'ebay_manual_token',
+                'ebay_access_token',
+                'ebay_refresh_token',
+                'ebay_oauth_beacon',
+                'ebay_oauth_tokens_v2'
+            ];
+            
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    const entry = document.createElement('div');
+                    entry.innerHTML = `<span class="success">${key}:</span> ${value.substring(0, 100)}...`;
+                    storageDiv.appendChild(entry);
+                    log(`Found ${key} in storage`, 'success');
+                } else {
+                    const entry = document.createElement('div');
+                    entry.innerHTML = `<span class="error">${key}:</span> Not found`;
+                    storageDiv.appendChild(entry);
+                }
+            });
+            
+            updateStatus('Storage check complete', 'info');
+        };
+
+        const clearStorage = () => {
+            if (confirm('Clear all OAuth storage?')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                log('Storage cleared', 'warning');
+                updateStatus('All storage cleared', 'warning');
+                checkStorage();
+            }
+        };
+
+        const testOAuthFlow = () => {
+            log('Starting OAuth flow test...', 'info');
+            updateStatus('Testing OAuth flow...', 'warning');
+            
+            const authUrl = 'https://auth.ebay.com/oauth2/authorize?' + new URLSearchParams({
+                client_id: 'easyflip-easyflip-PRD-c645ded63-a17c4d94',
+                redirect_uri: 'easyflip.ai-easyflip-easyfl-cnqajybp',
+                response_type: 'code',
+                scope: 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.inventory'
+            });
+            
+            log(`Opening: ${authUrl}`, 'info');
+            window.open(authUrl, 'ebay-oauth', 'width=600,height=700');
+            
+            // Start polling
+            let pollCount = 0;
+            const pollInterval = setInterval(() => {
+                pollCount++;
+                checkStorage();
+                
+                const token = localStorage.getItem('ebay_oauth_tokens');
+                if (token) {
+                    log('Token detected!', 'success');
+                    updateStatus('OAuth successful!', 'success');
+                    clearInterval(pollInterval);
+                } else if (pollCount > 60) {
+                    log('Polling timeout', 'error');
+                    updateStatus('OAuth timeout', 'error');
+                    clearInterval(pollInterval);
+                }
+            }, 1000);
+        };
+
+        const testCallback = async () => {
+            log('Testing callback endpoint...', 'info');
+            updateStatus('Testing callback...', 'warning');
+            
+            try {
+                const response = await fetch('https://easyflip.ai/.netlify/functions/auth-ebay-callback?test=true');
+                const text = await response.text();
+                log(`Callback response: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                log(`Response length: ${text.length} bytes`, 'info');
+                
+                if (text.includes('eBay OAuth Callback')) {
+                    updateStatus('Callback endpoint is working', 'success');
+                } else {
+                    updateStatus('Callback endpoint returned unexpected response', 'warning');
+                }
+            } catch (error) {
+                log(`Callback test failed: ${error.message}`, 'error');
+                updateStatus('Callback endpoint unreachable', 'error');
+            }
+        };
+
+        const extractToken = async () => {
+            const url = document.getElementById('callbackUrl').value;
+            if (!url) {
+                alert('Please paste the callback URL');
+                return;
+            }
+            
+            try {
+                const urlObj = new URL(url);
+                const code = urlObj.searchParams.get('code');
+                
+                if (code) {
+                    log(`Found code: ${code.substring(0, 20)}...`, 'success');
+                    document.getElementById('extractResult').innerHTML = `<span class="success">Code extracted! Attempting token exchange...</span>`;
+                    
+                    // Attempt to exchange
+                    await exchangeToken(code);
+                } else {
+                    document.getElementById('extractResult').innerHTML = `<span class="error">No code found in URL</span>`;
+                }
+            } catch (error) {
+                document.getElementById('extractResult').innerHTML = `<span class="error">Invalid URL: ${error.message}</span>`;
+            }
+        };
+
+        const exchangeToken = async (code) => {
+            log('Attempting token exchange...', 'info');
+            updateStatus('Exchanging token...', 'warning');
+            
+            try {
+                // Call the OAuth function directly
+                const response = await fetch('/.netlify/functions/ebay-oauth', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'exchange-code',
+                        code: code,
+                        redirect_uri: 'https://easyflip.ai/.netlify/functions/auth-ebay-callback'
+                    })
+                });
+                
+                if (response.ok) {
+                    const tokenData = await response.json();
+                    log('Token exchange successful!', 'success');
+                    
+                    // Store tokens
+                    localStorage.setItem('ebay_oauth_tokens', JSON.stringify(tokenData));
+                    localStorage.setItem('ebay_manual_token', tokenData.access_token);
+                    
+                    updateStatus('Token stored successfully!', 'success');
+                    checkStorage();
+                } else {
+                    const error = await response.text();
+                    log(`Token exchange failed: ${error}`, 'error');
+                    updateStatus('Token exchange failed', 'error');
+                }
+            } catch (error) {
+                log(`Exchange error: ${error.message}`, 'error');
+                updateStatus('Token exchange error', 'error');
+            }
+        };
+
+        // Listen for storage events
+        window.addEventListener('storage', (e) => {
+            if (e.key && e.key.includes('ebay')) {
+                log(`Storage event: ${e.key} changed`, 'warning');
+                checkStorage();
+            }
+        });
+    </script>
+</body>
+</html>

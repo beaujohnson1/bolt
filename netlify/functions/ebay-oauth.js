@@ -162,7 +162,9 @@ async function getAuthUrl(headers, credentials, oauthBase, queryParams, environm
     }
     
     const authUrl = new URL(`${oauthBase}/authorize`);
-    authUrl.searchParams.append('client_id', credentials.appId);
+    // CRITICAL FIX: OAuth uses CLIENT_ID, not appId!
+    const clientId = process.env.EBAY_CLIENT_ID || process.env.VITE_EBAY_CLIENT_ID || 'easyflip-easyflip-PRD-c645ded63-a17c4d94';
+    authUrl.searchParams.append('client_id', clientId);
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('state', state);
     
@@ -274,8 +276,16 @@ async function exchangeCode(headers, credentials, tokenBase, body) {
     console.log('🔄 [EBAY-OAUTH] Received redirect_uri in request:', redirect_uri);
     console.log('🔄 [EBAY-OAUTH] Code parameter:', code ? code.substring(0, 20) + '...' : 'missing');
 
-    // Create basic auth header with client credentials
-    const basicAuth = Buffer.from(`${credentials.appId}:${credentials.certId}`).toString('base64');
+    // CRITICAL FIX: OAuth uses CLIENT_ID and CLIENT_SECRET, not appId/certId!
+    const clientId = process.env.EBAY_CLIENT_ID || process.env.VITE_EBAY_CLIENT_ID || 'easyflip-easyflip-PRD-c645ded63-a17c4d94';
+    const clientSecret = process.env.EBAY_CLIENT_SECRET || process.env.VITE_EBAY_CLIENT_SECRET;
+    
+    if (!clientSecret) {
+      console.error('❌ [EBAY-OAUTH] CRITICAL: Missing EBAY_CLIENT_SECRET');
+      throw new Error('Missing EBAY_CLIENT_SECRET environment variable');
+    }
+    
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
     console.log('📡 [EBAY-OAUTH] Making token exchange request to:', tokenUrl);
     console.log('📡 [EBAY-OAUTH] Request parameters:', {
