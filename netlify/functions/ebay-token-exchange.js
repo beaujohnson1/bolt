@@ -115,7 +115,7 @@ exports.handler = async (event, context) => {
         // Exchange the authorization code for tokens
         let tokenResponse;
         try {
-            tokenResponse = await ebay.OAuth2.getUserToken(code);
+            tokenResponse = await ebay.OAuth2.getToken(code);
         } catch (exchangeError) {
             console.error(`[${requestId}] Token exchange failed:`, exchangeError);
             
@@ -123,7 +123,7 @@ exports.handler = async (event, context) => {
             if (code.includes('%')) {
                 console.log(`[${requestId}] Retrying with decoded code...`);
                 try {
-                    tokenResponse = await ebay.OAuth2.getUserToken(decodeURIComponent(code));
+                    tokenResponse = await ebay.OAuth2.getToken(decodeURIComponent(code));
                 } catch (retryError) {
                     console.error(`[${requestId}] Retry also failed:`, retryError);
                     throw exchangeError; // Throw original error
