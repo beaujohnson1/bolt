@@ -78,20 +78,22 @@ This document tracks all development tasks for EasyFlip.ai, derived from the Pro
   - [ ] Build price override functionality
   - [ ] Implement pricing history tracking
 
-- [✓] **eBay API Integration** 🎉
+- [🔴] **eBay API Integration** ⚠️ **CRITICAL ISSUES REMAIN**
   - [✓] Setup eBay developer account
-  - [✓] Implement OAuth flow for eBay ⭐ **REVOLUTIONARY BREAKTHROUGH ACHIEVED**
-  - [✓] Resolve OAuth communication failures ⭐ **WORLD-CLASS IMPLEMENTATION**
-  - [✓] Fix eBay RuName vs redirect_uri requirements ⭐ **TECHNICAL MASTERY**
-  - [✓] Enhanced 5-method communication architecture ⭐ **ENTERPRISE-GRADE**
-  - [✓] Resolve OAuth token storage key mismatch ⭐ **PREVIOUS**
-  - [✓] Enhanced OAuth debugging and monitoring ⭐ **COMPREHENSIVE**
-  - [✓] **MAJOR: hendt/ebay-api Library Integration** ⭐ **GAME-CHANGING TRANSFORMATION**
+  - [🔴] **OAuth Flow STILL BROKEN** (August 21, 2025)
+    - [✓] Discovered RuName vs redirect_uri confusion
+    - [✓] Fixed token exchange to use correct redirect URL
+    - [✓] Fixed OAuth credentials (CLIENT_ID/SECRET vs appId/certId)
+    - [✓] Added all required environment variables to Netlify
+    - [✓] Created comprehensive debug tools
+    - [🔴] **STILL FAILING: Tokens not being stored after authorization**
+    - [🔴] **240 polling attempts but no token detection**
+    - [🔴] **User cannot connect eBay account**
   - [✓] Create listing creation endpoints
   - [✓] Add category mapping functionality
-  - [✓] Implement AES-256-GCM token encryption ⭐ **MILITARY-GRADE SECURITY**
-  - [✓] Create comprehensive rate limiting with circuit breaker ⭐ **ENTERPRISE RELIABILITY**
-  - [✓] Setup 9-table database schema with RLS policies ⭐ **PRODUCTION-READY**
+  - [✓] Implement AES-256-GCM token encryption
+  - [✓] Create comprehensive rate limiting with circuit breaker
+  - [✓] Setup 9-table database schema with RLS policies
   - [ ] Implement inventory management
   - [ ] Setup order tracking
   - [✓] Create error handling and retry logic
@@ -1350,10 +1352,60 @@ redirect_uri: 'easyflip.ai-easyflip-easyfl-cnqajybp'
 **Go High Level Email Capture Integration - COMPLETE** ✅
 **eBay Production API Integration - COMPLETE** ✅
 
+### 🔴 CRITICAL: eBay OAuth Integration Debugging (August 21, 2025)
+
+**Current Status: STILL NOT WORKING**
+
+#### Problems Discovered and Fixed:
+1. **RuName vs URL Confusion** ✅
+   - eBay uses RuName (identifier) for authorization: `easyflip.ai-easyflip-easyfl-cnqajybp`
+   - eBay redirects to actual URL: `https://easyflip.ai/.netlify/functions/auth-ebay-callback`
+   - Token exchange must use the ACTUAL URL, not RuName
+   - **Fixed in:** `auth-ebay-callback.cjs` and `ebay-oauth.js`
+
+2. **Wrong Credentials Used** ✅
+   - OAuth was using `appId:certId` (Trading API credentials)
+   - Should use `CLIENT_ID:CLIENT_SECRET` (OAuth credentials)
+   - **Fixed in:** `ebay-oauth.js` line 278
+
+3. **Environment Variables** ✅
+   - Added all required variables to Netlify:
+     - `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `EBAY_RU_NAME`
+     - `VITE_EBAY_CLIENT_ID`, `VITE_EBAY_CLIENT_SECRET`, `VITE_EBAY_RU_NAME`
+
+4. **Redirect Configuration** ✅
+   - eBay Developer Console configured with:
+     - RuName: `easyflip.ai-easyflip-easyfl-cnqajybp`
+     - Auth accepted URL: `https://easyflip.ai/.netlify/functions/auth-ebay-callback`
+
+#### What's Still Broken:
+- **Token Storage Failure**: After successful eBay authorization, tokens are not being stored
+- **Polling Shows No Tokens**: 240 polling attempts but localStorage remains empty
+- **Callback Not Executing**: Unclear if callback handler is being reached
+- **No Error Messages**: Silent failure with no clear error indication
+
+#### Debug Tools Created:
+- `/oauth-debug.html` - Comprehensive OAuth testing tool
+- Manual token extraction capability
+- Storage monitoring and testing
+
+#### Files Modified:
+- `netlify/functions/ebay-oauth.js` - Fixed credential usage
+- `netlify/functions/auth-ebay-callback.cjs` - Fixed redirect_uri
+- `public/_redirects` - Added redirect rules (then removed as unnecessary)
+- `src/services/ebayOAuthFixed.ts` - Created new OAuth service
+- `src/components/OnboardingFlow.tsx` - Updated to use fixed service
+
+#### Next Steps for User:
+1. **Docker Installation** - User planning to install Docker for better local testing
+2. **Network Inspection** - Need to capture actual callback URL from eBay
+3. **Server Logs** - Check Netlify function logs for errors
+4. **Alternative Approach** - May need to implement server-side OAuth flow
+
 ### Next Sprint Priorities:
-1. Complete listing creation workflow implementation
-2. Build listing preview functionality
-3. Implement AI image analysis integration
+1. **FIX EBAY OAUTH** - Critical blocker for entire application
+2. Complete listing creation workflow implementation
+3. Build listing preview functionality
 4. Add publishing system for eBay listings
 
 ---
