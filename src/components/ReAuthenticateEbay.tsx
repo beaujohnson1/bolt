@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle, RefreshCw, Key } from 'lucide-react';
-import { ebayOAuthService } from '../services/ebayOAuth';
+import ebayOAuthService from '../services/ebayOAuth';
 
 export function ReAuthenticateEbay() {
   const [isChecking, setIsChecking] = useState(false);
